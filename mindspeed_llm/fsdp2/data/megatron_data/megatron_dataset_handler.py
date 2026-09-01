@@ -160,6 +160,7 @@ class BaseDatasetHandler(object):
 
     def _serialize_to_disk(self, iteration_batch_size=50):
         startup_start = time.time()
+        print(f"_serialize_to_disk:{self.tokenized_dataset}")
         if not self.tokenized_dataset:
             self.tokenized_dataset = self.get_tokenized_data()
         output_bin_files = {}
@@ -264,6 +265,9 @@ class GeneralPretrainHandler(BaseDatasetHandler):
         return sample
 
     def _filter(self, sample):
+        print("***************data _filter**************")
+        print(f"len(doc_ids):{len(doc_ids)}")
+        print(f"self.args.append_eod:{self.args.append_eod}")
         sample = self._pre_process(sample)
         for key in self.args.json_keys:
             text = sample[key]
@@ -285,6 +289,7 @@ class GeneralPretrainHandler(BaseDatasetHandler):
                 doc_ids[-1]['input_ids'].append(self.tokenizer.eod)
                 doc_ids[-1]['attention_mask'].append(1)
                 doc_ids[-1]['labels'].append(self.tokenizer.eod)
+                print("***************eod has added**************")
             sample[key] = doc_ids
             # for now, only input_ids are saved
             sample[key] = list(map(lambda x: x['input_ids'], sample[key]))
@@ -352,6 +357,7 @@ def _has_py_script(input_name):
 
 
 def build_dataset(args):
+    print("start build dataset!!!!!!")
     """loading dataset by huggingface"""
     raw_datasets = None
     if args.handler_name == "LlamaFactoryInstructionHandler":
