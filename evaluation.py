@@ -150,8 +150,8 @@ class LLMChat(Chat):
             instruction_temp = [self.template.format(instruction=ins) if (self.tokenizer.chat_template is None or self.args.no_chat_template) else self.tokenizer.apply_chat_template([{"role": "user", "content": ins}]) for ins in instruction]
         else:
             instruction_temp = instruction
-
         return_output_log_probs = False if (getattr(self.args, "task", False) and self.args.task[0] == 'needlebench') else True
+        # ins_test = ['Hello, how are you']
         result = self.model.generate(
             instruction_temp,
             do_sample=False,
@@ -160,6 +160,16 @@ class LLMChat(Chat):
             return_output_log_probs=return_output_log_probs,
             broadcast=self.args.broadcast
         )
+        # result2 = self.model.generate(
+        #     ins_test,
+        #     do_sample=False,
+        #     max_new_tokens=128,
+        #     stream=False,
+        #     return_output_log_probs=return_output_log_probs,
+        #     broadcast=self.args.broadcast
+        # )
+        # print("result1: ", result)
+        # print("result2: ", result2)
         if getattr(self.args, "task", False) and self.args.task[0] == 'needlebench':
             return result, dist.get_rank()
         return get_result(result, self.tokenizer), dist.get_rank()
