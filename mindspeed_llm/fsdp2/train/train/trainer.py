@@ -5,13 +5,14 @@ import torch.distributed as dist
 import torch.nn.functional as F
 import time
 import contextlib
-from typing import Optional, Dict, Any
+from typing import Optional, Tuple, Dict, Any, Union, List
 
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.distributed.checkpoint.state_dict import get_model_state_dict, StateDictOptions
 
 from mindspeed_llm.fsdp2.distributed.parallel_state import ParallelState
-from mindspeed_llm.fsdp2.optim.clip_grad_norm import clip_grad_norm
+from mindspeed_llm.fsdp2.distributed.clip_grad_norm import clip_grad_norm
+from mindspeed_llm.fsdp2.data.data_factory import DataManager
 from mindspeed_llm.fsdp2.data.processor.processor_utils import IGNORE_INDEX
 from mindspeed_llm.fsdp2.features.chunkloss import chunk_loss, calculate_lm_loss
 from mindspeed_llm.fsdp2.checkpoint.utils import empty_cache, cleanup_old_checkpoints
@@ -19,23 +20,9 @@ from mindspeed_llm.fsdp2.utils.dist_op import all_reduce
 from mindspeed_llm.fsdp2.utils.logging import get_logger
 from mindspeed_llm.fsdp2.utils.train_monitor import TrainMonitor
 from mindspeed_llm.fsdp2.utils.profiler import ProfilerConfig, ProfilerManager
-from mindspeed_llm.tools.model_io_trace import ModelIOTraceManager
-from mindspeed_llm.tools.msprobe import MsProbeManager
-from mindspeed_llm.fsdp2.models.common.mtp import roll_tensor
-from mindspeed_llm.fsdp2.models.common.indexer_loss import IndexerLossAutoScaler
-from dataclasses import dataclass
 
 
 logger = get_logger(__name__)
-
-
-@dataclass
-class LossOutput:
-    loss: torch.Tensor
-    lm_loss_output: torch.Tensor
-    mtp_loss_output: torch.Tensor
-    aux_loss_output: torch.Tensor
-    outputs: dict | None = None
 
 
 class Trainer:
@@ -49,7 +36,7 @@ class Trainer:
         model: torch.nn.Module,
         optimizer: torch.optim.Optimizer,
         lr_scheduler: torch.optim.lr_scheduler.LRScheduler,
-        train_dataloader,
+        data_manager: DataManager,
         args,  # TrainingArguments
         parallel_args,
         optimization_args,
@@ -61,7 +48,7 @@ class Trainer:
         self.model = model
         self.optimizer = optimizer
         self.lr_scheduler = lr_scheduler
-        self.train_dataloader = train_dataloader
+        self.train_dataloader = data_manager.create_train_dataloader()
         self.args = args
         self.parallel_args = parallel_args
         self.optimization_args = optimization_args
@@ -75,15 +62,9 @@ class Trainer:
         self.global_step = 0
         self._last_logged_step = 0
         self._total_loss_scalar = 0.0
-        self._total_lm_loss_scalar = 0.0
-        self._total_aux_loss_scalar = 0.0
-        self._total_mtp_loss_scalar = 0.0
         self._logging_loss_scalar = 0.0
         self._global_step_last_logged = 0
         self._last_logged_loss_scalar = 0.0
-        self._last_logged_lm_loss_scalar = 0.0
-        self._last_logged_mtp_loss_scalar = 0.0
-        self._last_logged_aux_loss_scalar = 0.0
         self.batch_seqlens = []
 
         # Timing state
@@ -107,18 +88,10 @@ class Trainer:
             current_rank=current_rank,
         )
         self.profiler_manager = ProfilerManager(prof_config)
-        self.msprobe_manager = MsProbeManager(
-            enabled=args.msprobe,
-            config_path=args.msprobe_config_path,
-        )
-        self.model_io_trace_manager = ModelIOTraceManager(
-            enabled=args.model_io_trace,
-            config_path=args.model_io_trace_config_path,
-            output_path=args.model_io_trace_output_path,
-        )
 
     @staticmethod
     def _build_chunk_loss(labels, ignore_index=-100, chunk_size=1024):
+
         # For supervised finetuning stages (SFT), labels must be shifted by one position, for pretraining, labels already include shift.
 
         shift_labels = labels
@@ -152,7 +125,7 @@ class Trainer:
                 head_bias,
                 loss_forward=calculate_lm_loss,
                 loss_kwargs_chunks=loss_ctx_kwargs,
-                chunk_size=chunk_size,
+                chunk_size=chunk_size
             )
 
         return loss_ctx, loss_mask
@@ -182,9 +155,7 @@ class Trainer:
         steps_trained_in_current_epoch = 0
         save_checkpoint_path = None
         # Calculate global batch size safely
-        global_batch_size = (
-            args.per_device_train_batch_size * args.gradient_accumulation_steps * ps.get_group_size('dp_fsdp')
-        )
+        global_batch_size = args.per_device_train_batch_size * args.gradient_accumulation_steps * ps.get_group_size('dp_fsdp')
 
         logger.info_rank0("***** Running training (FSDP2) *****")
         logger.info_rank0(f"  Num examples = {len(train_dataloader.dataset)}")
@@ -224,7 +195,6 @@ class Trainer:
                 # No extra state found, only model weights were loaded, start from scratch
                 logger.info_rank0("Loaded model weights only, starting training from step 0")
 
-        self.msprobe_manager.set_init_step(self.global_step)
         self.model.train()
         train_start_time = time.time()
         self._step_start_time = time.time()
@@ -273,53 +243,39 @@ class Trainer:
                 num_batches = args.gradient_accumulation_steps if update_step != (total_updates - 1) else remainder
 
                 # [Helper] Fetch N samples from the iterator and calculate valid token count
-                batch_samples, batch_seqlens, num_items_in_batch = self.get_batch_samples_func()(
-                    ps, epoch_iterator, num_batches
-                )
+                batch_samples, batch_seqlens, num_items_in_batch = self.get_batch_samples_func()(ps, epoch_iterator, num_batches)
+                # print(batch_samples)
+                # print(batch_seqlens)
                 self.current_gradient_accumulation_steps = len(batch_samples)
                 # Initialize accumulated loss for the current step
                 current_step_loss = 0.0
-                current_step_lm_loss = 0.0
-                current_step_mtp_loss = 0.0
-                current_step_aux_loss = 0.0
-
-                self.msprobe_manager.start_step(self.model)
-                self.model_io_trace_manager.start_step(self.model, self.global_step)
 
                 # --- Micro-Batch Loop ---
                 for i, inputs in enumerate(batch_samples):
-                    do_sync_step = i == len(batch_samples) - 1
+                    do_sync_step = (i == len(batch_samples) - 1)
 
                     # FSDP Communication Optimization
                     # Only synchronize gradients on the last micro-batch
                     fsdp_root = self._get_fsdp_root()
-
-                    sync_context = (
-                        fsdp_root.no_sync()
-                        if (not do_sync_step and hasattr(fsdp_root, "no_sync"))
-                        else contextlib.nullcontext()
-                    )
+                    
+                    sync_context = fsdp_root.no_sync() if (not do_sync_step and hasattr(fsdp_root, "no_sync")) else contextlib.nullcontext()
 
                     with sync_context:
                         # Forward & Backward
                         # Note: training_step already divides loss by accum_steps
-                        loss, lm_loss, mtp_loss, aux_loss = self.training_step(inputs, num_items_in_batch)
-
+                        loss = self.training_step(inputs, num_items_in_batch)
                     # Accumulate Loss for logging (restore to original scale for display)
                     # Check for NaN/Inf to avoid polluting metrics
                     if not torch.isnan(loss) and not torch.isinf(loss):
                         current_step_loss += loss.item()
-                    if not torch.isnan(lm_loss) and not torch.isinf(lm_loss):
-                        current_step_lm_loss += lm_loss.item()
-                    if not torch.isnan(mtp_loss) and not torch.isinf(mtp_loss):
-                        current_step_mtp_loss += mtp_loss.item()
-                    if not torch.isnan(aux_loss) and not torch.isinf(aux_loss):
-                        current_step_aux_loss += aux_loss.item()
                 # --- Optimizer Step (Executed only after accumulation) ---
                 # At this point, the micro-batch loop is finished, gradients are accumulated
-
+                
                 # 1. Clip Gradients and get Norm
-                grad_norm = clip_grad_norm(self.model, args.max_grad_norm)
+                grad_norm = clip_grad_norm(
+                    self.model,
+                    args.max_grad_norm
+                )
                 # Compatibility: Ensure grad_norm is a float
                 if isinstance(grad_norm, torch.Tensor):
                     grad_norm = grad_norm.item()
@@ -328,8 +284,6 @@ class Trainer:
                 self.optimizer.step()
                 self.lr_scheduler.step()
                 self.optimizer.zero_grad()
-                self.msprobe_manager.end_step()
-                self.model_io_trace_manager.end_step()
 
                 self.global_step += 1
 
@@ -342,46 +296,26 @@ class Trainer:
                 # Only perform this when global_step updates.
                 # current_step_loss is sum(micro_batches), conceptually it represents the loss of the mini-batch.
 
-                reduced_loss, reduced_lm_loss, reduced_mtp_loss, reduced_aux_loss, reduced_grad_norm = all_reduce(
-                    (current_step_loss, current_step_lm_loss, current_step_mtp_loss, current_step_aux_loss, grad_norm),
-                    group=reduce_group,
+                reduced_loss, reduced_grad_norm = all_reduce(
+                    (current_step_loss, grad_norm),
+                    group=reduce_group
                 )
 
                 self._total_loss_scalar += reduced_loss
-                self._total_lm_loss_scalar += reduced_lm_loss
-                self._total_mtp_loss_scalar += reduced_mtp_loss
-                self._total_aux_loss_scalar += reduced_aux_loss
                 self.batch_seqlens.extend(batch_seqlens)
 
                 # 4. Logging
                 if self.global_step % args.logging_steps == 0:
                     _, record_info = self.train_monitor.step(
-                        self.epoch,
-                        self.lr_scheduler,
-                        global_batch_size,
-                        reduced_grad_norm,
-                        self.batch_seqlens,
-                        self._step_start_time,
-                        total_steps,
-                        self.global_step,
-                        self._last_logged_step,
-                        self._total_loss_scalar,
-                        self._total_lm_loss_scalar,
-                        self._total_mtp_loss_scalar,
-                        self._total_aux_loss_scalar,
-                        self._last_logged_loss_scalar,
-                        self._last_logged_lm_loss_scalar,
-                        self._last_logged_mtp_loss_scalar,
-                        self._last_logged_aux_loss_scalar,
-                        sparse_attn_reduce_group=reduce_group,
-                    )
+                        self.epoch, self.lr_scheduler, global_batch_size,
+                        reduced_grad_norm, self.batch_seqlens,
+                        self._step_start_time, total_steps, self.global_step,
+                        self._last_logged_step, self._total_loss_scalar,
+                        self._last_logged_loss_scalar)
                     # update record
                     self._step_start_time = record_info['time']
                     self._last_logged_loss_scalar = record_info['logged_loss']
-                    self._last_logged_lm_loss_scalar = record_info['logged_lm_loss']
-                    self._last_logged_mtp_loss_scalar = record_info['logged_mtp_loss']
                     self._last_logged_step = record_info['logged_step']
-                    self._last_logged_aux_loss_scalar = record_info['logged_aux_loss']
                     self.batch_seqlens.clear()
 
                 # 5. Saving
@@ -390,9 +324,7 @@ class Trainer:
                         logger.info_rank0("output_dir is not set, skipping checkpoint saving")
                     else:
                         empty_cache()
-                        save_checkpoint_path = os.path.join(
-                            args.output_dir, "checkpoints", f"global_step_{self.global_step}"
-                        )
+                        save_checkpoint_path = os.path.join(args.output_dir, "checkpoints", f"global_step_{self.global_step}")
                         state = {
                             "model": self.model,
                             "optimizer": self.optimizer,
@@ -405,30 +337,39 @@ class Trainer:
                                 "torch_rng_state": torch.get_rng_state(),
                             },
                         }
-                        self.ckpt_manager.save(
-                            path=save_checkpoint_path,
-                            state=state,
-                            save_only_model=args.save_only_model,
-                            global_steps=self.global_step,
-                        )
+                        self.ckpt_manager.save(path=save_checkpoint_path, state=state, save_only_model=args.save_only_model, global_steps=self.global_step)
                         dist.barrier()
                         logger.info_rank0(f"Distributed checkpoint saved at {save_checkpoint_path} successfully!")
                         cleanup_old_checkpoints(args, self.data_args.data_shared_file_system)
+                        # Save model in HF format — all ranks participate in gather, rank 0 writes
+                        if args.save_hf_weights and save_checkpoint_path is not None:
+                            options = StateDictOptions(full_state_dict=True, cpu_offload=True)
+                            model_state_dict = get_model_state_dict(self.model.model, options=options)
+                            hf_save_model_path = os.path.join(args.output_dir, "models", f"global_step_{self.global_step}")
+                            if dist.get_rank() == 0:
+                                model_configs = [self.model.model.config, self.tokenizer]
+                                self.ckpt_manager.save_model_weights(
+                                    hf_save_model_path, model_state_dict, model_configs=model_configs
+                                )
+                                logger.info_rank0(f"Huggingface checkpoint saved at {hf_save_model_path} successfully!")
+
+                            del model_state_dict
+                            gc.collect()
+                            empty_cache()
+                            dist.barrier()
 
                 if self.global_step >= total_steps:
                     break
             # Reset counter after completing an epoch
             steps_trained_in_current_epoch = 0
             # Save checkpoint at specified epoch intervals
-            already_saved = args.save_steps > 0 and self.global_step % args.save_steps == 0
+            already_saved = (args.save_steps > 0 and self.global_step % args.save_steps == 0)
             if args.save_epochs and (epoch + 1) % args.save_epochs == 0 and not already_saved:
                 if not args.output_dir:
                     logger.info_rank0("output_dir is not set, skipping checkpoint saving")
                 else:
                     empty_cache()
-                    save_checkpoint_path = os.path.join(
-                        args.output_dir, "checkpoints", f"global_step_{self.global_step}"
-                    )
+                    save_checkpoint_path = os.path.join(args.output_dir, "checkpoints", f"global_step_{self.global_step}")
                     state = {
                         "model": self.model,
                         "optimizer": self.optimizer,
@@ -441,12 +382,7 @@ class Trainer:
                             "torch_rng_state": torch.get_rng_state(),
                         },
                     }
-                    self.ckpt_manager.save(
-                        path=save_checkpoint_path,
-                        state=state,
-                        save_only_model=args.save_only_model,
-                        global_steps=self.global_step,
-                    )
+                    self.ckpt_manager.save(path=save_checkpoint_path, state=state, save_only_model=args.save_only_model, global_steps=self.global_step)
                     dist.barrier()
                     logger.info_rank0(f"Distributed checkpoint saved at {save_checkpoint_path} successfully!")
                     cleanup_old_checkpoints(args, self.data_args.data_shared_file_system)
@@ -457,20 +393,22 @@ class Trainer:
         if self.profiler_manager.profiler is not None:
             self.profiler_manager.stop()
 
-        # Save model in HF format — all ranks participate in gather, rank 0 writes
-        if args.save_hf_weights and save_checkpoint_path is not None:
-            options = StateDictOptions(full_state_dict=True, cpu_offload=True)
-            model_state_dict = get_model_state_dict(self.model.model, options=options)
+        # # Save model in HF format — all ranks participate in gather, rank 0 writes
+        # if args.save_hf_weights and save_checkpoint_path is not None:
+        #     options = StateDictOptions(full_state_dict=True, cpu_offload=True)
+        #     model_state_dict = get_model_state_dict(self.model.model, options=options)
 
-            if dist.get_rank() == 0:
-                model_configs = [self.model.model.config, self.tokenizer]
-                self.ckpt_manager.save_model_weights(args.output_dir, model_state_dict, model_configs=model_configs)
-                logger.info_rank0(f"Huggingface checkpoint saved at {args.output_dir} successfully!")
+        #     if dist.get_rank() == 0:
+        #         model_configs = [self.model.model.config, self.tokenizer]
+        #         self.ckpt_manager.save_model_weights(
+        #             args.output_dir, model_state_dict, model_configs=model_configs
+        #         )
+        #         logger.info_rank0(f"Huggingface checkpoint saved at {args.output_dir} successfully!")
 
-            del model_state_dict
-            gc.collect()
-            empty_cache()
-            dist.barrier()
+        #     del model_state_dict
+        #     gc.collect()
+        #     empty_cache()
+        #     dist.barrier()
 
         # Save training args — rank 0 only
         if dist.get_rank() == 0 and args.output_dir:
@@ -488,22 +426,14 @@ class Trainer:
         if hasattr(self.optimizer, "train") and callable(self.optimizer.train):
             self.optimizer.train()
 
-        # Indexer KL loss backward scale: only the batch statistics are passed in here;
-        # the mcore-parity scale derivation lives in indexer_loss
-        # (IndexerLossAutoScaler.set_loss_scale_from_batch_stats).
-        IndexerLossAutoScaler.set_loss_scale_from_batch_stats(
-            num_items_in_batch, self.current_gradient_accumulation_steps
-        )
-
         # 2. Forward pass
+        # loss = self._compute_loss(inputs, return_outputs=False, num_items_in_batch=num_items_in_batch)
         loss_all = self._compute_loss(inputs, return_outputs=False, num_items_in_batch=num_items_in_batch)
         if self.args.stage == 'pt':
-            loss_all.loss = loss_all.loss / self.current_gradient_accumulation_steps
-            loss_all.lm_loss_output = loss_all.lm_loss_output / self.current_gradient_accumulation_steps
-            loss_all.mtp_loss_output = loss_all.mtp_loss_output / self.current_gradient_accumulation_steps
-            loss_all.aux_loss_output = loss_all.aux_loss_output / self.current_gradient_accumulation_steps
+            loss_all = loss_all / self.current_gradient_accumulation_steps
 
-        loss = loss_all.loss
+        loss = loss_all
+
         # 3. Clean up inputs to save memory
         del inputs
 
@@ -513,34 +443,16 @@ class Trainer:
             # If using DDP logic manually without DDP wrapper, this might be needed.
             # For FSDP2, loss is usually local until aggregation.
             loss = loss.mean()
-
-        loss_for_log = loss.detach()
-        # CP backward loss scaling: scale the backward loss by cp_size (all cp types)
-        # to compensate the differentiable all-gather's backward reduction. The cp grad
-        # grad-norm scaling in clip_grad_norm is removed, so this is the single CP
-        # gradient scaling point. Skip the mul when cp_size == 1 to keep the cp-off
-        # backward graph identical to non-CP.
-        if self.parallel_args.cp_size > 1:
-            loss = loss * self.parallel_args.cp_size
-
         # 5. Backward pass
         loss.backward()
 
-        # 6. Return detached loss (pre-cp-scale for logging)
-        return (
-            loss_for_log,
-            loss_all.lm_loss_output.detach(),
-            loss_all.mtp_loss_output.detach(),
-            loss_all.aux_loss_output.detach(),
-        )
+        # 6. Return detached loss
+        return loss.detach()
 
     def get_batch_samples_func(self):
+
         if self.parallel_args.cp_size > 1:
             if self.parallel_args.cp_type == "ulysses":
-                return self._get_batch_samples_ulysses
-            elif self.parallel_args.cp_type == "ring":
-                return self._get_batch_samples_megatron
-            elif self.parallel_args.cp_type == "kvallgather":
                 return self._get_batch_samples_ulysses
             else:
                 raise ValueError(f"Unsupported cp_type: '{self.parallel_args.cp_type}' when cp_size > 1.")
@@ -548,11 +460,13 @@ class Trainer:
             return self._get_batch_samples
 
     def _get_batch_samples_ulysses(self, parallel_state, epoch_iterator, num_batches):
+
         cp_size = parallel_state.get_group_size("cp")
         cp_rank = parallel_state.get_rank("cp")
         batch, batch_seqlens, num_items_in_batch = self._get_batch_samples(parallel_state, epoch_iterator, num_batches)
 
         for sample in batch:
+
             labels = torch.nn.functional.pad(sample['labels'], (0, 1), value=IGNORE_INDEX)
             shift_labels = labels[..., 1:]
             sample['shift_labels'] = shift_labels
@@ -561,7 +475,7 @@ class Trainer:
                 sample['position_ids'] = position_ids
 
             for key, val in sample.items():
-                if key in ('attention_mask', 'actual_seq_len', 'dataset_id'):
+                if key == 'attention_mask':
                     continue
                 if val is not None:
                     seq_dim = 1
@@ -588,54 +502,6 @@ class Trainer:
                         val_sliced = val_sliced.contiguous()
                     device = torch.accelerator.current_device()
                     sample[key] = val_sliced.to(device, non_blocking=True)
-
-        return batch, batch_seqlens, num_items_in_batch
-
-    def _get_batch_samples_megatron(self, parallel_state, epoch_iterator, num_batches):
-        cp_size = parallel_state.get_group_size("cp")
-        cp_rank = parallel_state.get_rank("cp")
-        batch, batch_seqlens, num_items_in_batch = self._get_batch_samples(parallel_state, epoch_iterator, num_batches)
-
-        for sample in batch:
-            # ===================== Original logic: generate shift_labels =====================
-            labels = torch.nn.functional.pad(sample['labels'], (0, 1), value=IGNORE_INDEX)
-            shift_labels = labels[..., 1:]
-            sample['shift_labels'] = shift_labels
-
-            # Original logic: generate position_ids
-            if "position_ids" not in sample:
-                position_ids = torch.arange(0, shift_labels.shape[1], device=shift_labels.device).unsqueeze(0)
-                sample['position_ids'] = position_ids
-
-            # ===================== Core modification: Replace with Ring CP load-balanced splitting =====================
-            for key, val in sample.items():
-                # Skip attention_mask
-                if key == 'attention_mask':
-                    continue
-                if val is not None:
-                    seq_dim = 1  # Fixed sequence dimension, consistent with reference code
-
-                    # ========== Core logic of Ring CP load-balanced splitting (fully aligned with reference code) ==========
-                    # 1. Reshape: [bs, seq_len, ...] -> [bs, 2*cp_size, seq_len/(2*cp_size), ...]
-                    val = val.view(
-                        *val.shape[0:seq_dim],
-                        2 * cp_size,
-                        val.shape[seq_dim] // (2 * cp_size),
-                        *val.shape[(seq_dim + 1) :],
-                    )
-                    # 2. Generate ring symmetric indices (core of load balancing)
-                    index = torch.tensor([cp_rank, (2 * cp_size - cp_rank - 1)], device=val.device)
-                    # 3. Select tensor by indices
-                    val = val.index_select(seq_dim, index)
-                    # 4. Merge dimensions and restore shape
-                    val = val.view(*val.shape[0:seq_dim], -1, *val.shape[(seq_dim + 2) :])
-                    # ====================================================================================================
-
-                    # ===================== Original logic: Contiguous + device migration =====================
-                    if key == 'shift_labels':
-                        val = val.contiguous()
-                    device = torch.accelerator.current_device()
-                    sample[key] = val.to(device, non_blocking=True)
 
         return batch, batch_seqlens, num_items_in_batch
 
@@ -672,8 +538,6 @@ class Trainer:
                     data["attention_mask"] = data["attention_mask"].to(device, non_blocking=True)
                 if "position_ids" in data:
                     data["position_ids"] = data["position_ids"].to(device, non_blocking=True)
-                if "actual_seq_len" in data:
-                    data["actual_seq_len"] = data["actual_seq_len"].view(-1)
                 batch_samples.append(data)
 
                 # Calculate sequence lengths for each sample in the current batch
@@ -700,7 +564,10 @@ class Trainer:
         ps = ParallelState()
 
         # Check if 'labels' exist in the data
-        count_num_items_in_batch = len(batch_samples) > 0 and "labels" in batch_samples[0]
+        count_num_items_in_batch = (
+                len(batch_samples) > 0
+                and "labels" in batch_samples[0]
+        )
 
         if count_num_items_in_batch:
             try:
@@ -724,6 +591,7 @@ class Trainer:
 
         return num_items_in_batch
 
+
     def _compute_loss(self, inputs, return_outputs=False, num_items_in_batch=None):
         """
         Computes the loss for the batch.
@@ -736,87 +604,48 @@ class Trainer:
             kwargs["num_items_in_batch"] = num_items_in_batch
 
         labels = inputs['labels'].to(device, non_blocking=True)
-        if args.stage == 'pt':
+        if args.stage == 'pt' and not getattr(self.model.config, "enable_diffusion_lm", True):
             inputs['labels'] = None
 
         if self.optimization_args.chunk_loss_size and args.stage == 'pt':
             loss_ctx, loss_mask = self._build_chunk_loss(labels, chunk_size=self.optimization_args.chunk_loss_size)
             kwargs['loss_ctx'] = loss_ctx
             kwargs['loss_mask'] = loss_mask
-
-        if args.stage == 'pt' and getattr(args, 'router_aux_loss_coef', 0.0) > 0:
-            # PT keeps labels outside the model, so request router outputs explicitly
-            # and add the returned auxiliary loss below with the external LM loss.
-            kwargs['output_router_logits'] = True
         # Merge inputs without modifying the original dictionary in-place
         model_inputs = {**inputs, **kwargs}
 
         # 2. Forward pass
         outputs = self.model(**model_inputs)
 
-        lm_loss_output = torch.tensor(0.0, device=device, dtype=torch.float32)
-        mtp_loss_output = torch.tensor(0.0, device=device, dtype=torch.float32)
-        aux_loss_output = torch.tensor(0.0, device=device, dtype=torch.float32)
-        aux_loss = getattr(outputs, 'aux_loss', None)
-        if isinstance(aux_loss, torch.Tensor):
-            aux_loss_output = aux_loss.clone()
-
         # 3. Extract loss from outputs
+        uses_token_sum_loss = False
         if args.stage == 'pt' and "loss" not in outputs:
             logits = outputs.logits.contiguous().float()
+            # print("_compute_language_model_pretrain_loss")
             loss = self._compute_language_model_pretrain_loss(logits, labels, **kwargs)
-            lm_loss_output = loss.clone()
-            if isinstance(aux_loss, torch.Tensor):
-                router_aux_loss_coef = getattr(args, 'router_aux_loss_coef', 0.0)
-                loss = loss + router_aux_loss_coef * aux_loss.to(loss.device)
         else:
             if isinstance(outputs, dict) and "loss" not in outputs:
                 raise ValueError(f"Model outputs have no loss key: {list(outputs.keys())}")
             loss = outputs["loss"] if isinstance(outputs, dict) else outputs[0]
-            lm_loss_output = loss.clone()
+            uses_token_sum_loss = isinstance(loss, (tuple, list))
+            loss = self._normalize_token_sum_loss(loss)
+            # lm_loss_output = loss.clone()
 
-        if args.stage == 'pt' and getattr(outputs, 'mtp_logits', None) is not None:
-            mtp_losses = []
-            for one_mtp_logits in outputs.mtp_logits:
-                labels = roll_tensor(labels, fill_value=-100)
-                mtp_loss = self._compute_language_model_pretrain_loss(
-                    one_mtp_logits.contiguous().float(), labels, **kwargs
-                )
-                mtp_losses.append(mtp_loss)
-        else:
-            mtp_losses = getattr(outputs, 'mtp_loss', None)
-        if mtp_losses:
-            final_mtp_loss = 0
-            for i in range(len(mtp_losses)):
-                final_mtp_loss += mtp_losses[i] / len(mtp_losses)
-            mtp_loss_output = final_mtp_loss.clone()
-            loss += final_mtp_loss * getattr(args, 'mtp_loss_scaling_factor', 0.3)
 
         # 4. Cross-device token averaging adjustment
         # If the loss was calculated using 'mean' locally but needs global scaling based on tokens
         # sometimes we multiply by world size here so standard all_reduce(mean) works correctly.
         # This depends heavily on the specific loss function implementation.
         ps = ParallelState()
-        if dist.is_initialized() and args.stage != 'pt':
+        if (
+            dist.is_initialized()
+            and args.stage != "pt"
+            and not uses_token_sum_loss
+        ):
             loss *= ps.get_group_size("dp_fsdp")
-            lm_loss_output *= ps.get_group_size("dp_fsdp")
-            if mtp_losses:
-                final_mtp_loss = 0
-                for i in range(len(mtp_losses)):
-                    final_mtp_loss += mtp_losses[i] * ps.get_group_size("dp_fsdp") / len(mtp_losses)
-                loss += final_mtp_loss * getattr(args, 'mtp_loss_scaling_factor', 0.3)
-                mtp_loss_output *= ps.get_group_size("dp_fsdp")
 
         # 5. Return loss (or tuple of loss + outputs)
-        model_outputs = outputs if return_outputs else None
-        loss_result = LossOutput(
-            loss=loss,
-            lm_loss_output=lm_loss_output,
-            mtp_loss_output=mtp_loss_output,
-            aux_loss_output=aux_loss_output,
-            outputs=model_outputs,
-        )
-        return loss_result
+        return (loss, outputs) if return_outputs else loss
 
     def _compute_language_model_pretrain_loss(self, logits, labels, ignore_index: int = -100, **kwargs) -> torch.Tensor:
         args = self.args
@@ -836,10 +665,13 @@ class Trainer:
 
             loss = loss / num_items_in_batch.item()
         else:
+
             if args.calculate_per_token_loss:
                 loss = F.cross_entropy(logits, shift_labels, reduction='none', ignore_index=ignore_index)
+                # print(f"calculate_per_token_loss:{loss}")
             else:
                 loss = F.cross_entropy(logits, shift_labels, ignore_index=ignore_index)
+                # print(f"loss:{loss}")
 
         return loss
 
@@ -882,7 +714,7 @@ class Trainer:
             "loss": avg_loss,
             "lr": self.lr_scheduler.get_last_lr()[0],
             "epoch": self.epoch,
-            "global_step": self.global_step,
+            "global_step": self.global_step
         }
 
         if grad_norm is not None:
@@ -910,15 +742,44 @@ class Trainer:
         # Direct check
         if isinstance(self.model, FSDP):
             return self.model
-
+        
         # Check one level deep (standard DDP/Wrapper)
         if hasattr(self.model, "module"):
             if isinstance(self.model.module, FSDP):
                 return self.model.module
-
+            
             # Check two levels deep (complex wrapping)
             if hasattr(self.model.module, "model") and isinstance(self.model.module.model, FSDP):
                 return self.model.module.model
-
+        
         # Fallback to the model itself (context manager might fail if not FSDP, hence the check in caller)
         return self.model
+
+    @staticmethod
+    def _normalize_token_sum_loss(loss):
+        if not isinstance(loss, (tuple, list)):
+            return loss
+
+        loss_sum, token_count = loss
+
+        token_count = torch.as_tensor(
+            token_count,
+            device=loss_sum.device,
+        ).detach().to(torch.float32)
+
+        group_size = 1
+
+        if dist.is_initialized():
+            parallel_state = ParallelState()
+            group = parallel_state.get_group("dp_fsdp")
+            group_size = parallel_state.get_group_size("dp_fsdp")
+
+            dist.all_reduce(
+                token_count,
+                op=dist.ReduceOp.SUM,
+                group=group,
+            )
+
+        scale = token_count.reciprocal().mul(group_size)
+
+        return loss_sum * scale

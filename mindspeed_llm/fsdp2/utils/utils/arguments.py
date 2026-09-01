@@ -1,11 +1,11 @@
 """
 Includes ModelArguments/DataArguments/ParallelArguments/TrainingArguments classes and parses the argument class using the command line inputs and yaml configuration.
 """
-
 import argparse
 from collections import defaultdict
-from dataclasses import MISSING, dataclass, field, fields, asdict
+from dataclasses import MISSING, dataclass, field, fields
 from enum import Enum
+from inspect import isclass
 import json
 import os
 import sys
@@ -13,8 +13,6 @@ import types
 from typing import Optional, List, Union, Any, Callable, Dict, Literal, TypeVar, get_type_hints, get_origin, get_args
 import yaml
 from mindspeed_llm.fsdp2.utils.logging import get_logger
-import transformers
-from packaging import version
 
 logger = get_logger(__name__)
 
@@ -24,45 +22,30 @@ class ModelArguments:
     """
     Model-related parameters: path, initialization method, etc.
     """
-
     model_name_or_path: str = field(
         metadata={"help": "Path to pretrained model or model identifier from huggingface.co/models"}
     )
-    model_id: Optional[
-        Literal[
-            "gpt_oss",
-            "qwen3",
-            "qwen3_moe",
-            "qwen3_next",
-            "step35",
-            "mamba3",
-            "minimax_m27",
-            "longcat_flash_ngram",
-            "glm52",
-            "deepseek_v4",
-        ]
-    ] = field(
+    model_id: Optional[Literal["gpt_oss", "qwen3", "qwen3_diffusion", "qwen3_moe", "qwen3_next", "step35", "qwen3_causal_biffusion_2tower"]] = field(
         default=None,
-        metadata={
-            "help": "Model type. New model needs to be registered in the class ModelRegistry of mindspeed_llm/fsdp2/models/model_registry.py"
-        },
+        metadata={"help": "Model type. New model needs to be registered in the class ModelRegistry of mindspeed_llm/fsdp2/models/model_registry.py"}
     )
     init_model_with_meta_device: bool = field(
-        default=False, metadata={"help": "Whether or not to initialize the model using the meta device."}
+        default=False,
+        metadata={"help": "Whether or not to initialize the model using the meta device."}
     )
     trust_remote_code: bool = field(
         default=False,
-        metadata={"help": "Whether or not to allow for custom models defined on the Hub in their own modeling files."},
+        metadata={"help": "Whether or not to allow for custom models defined on the Hub in their own modeling files."}
     )
     train_from_scratch: bool = field(
         default=False,
         metadata={
-            "help": "If True, initialize the model from config (random weights) instead of loading pretrained weights."
-        },
+            "help": "If True, initialize the model from config (random weights) instead of loading pretrained weights."}
     )
     # Specify tokenizer path if different from model path
     tokenizer_name_or_path: Optional[str] = field(
-        default=None, metadata={"help": "Pretrained tokenizer name or path if not the same as model_name"}
+        default=None,
+        metadata={"help": "Pretrained tokenizer name or path if not the same as model_name"}
     )
     cache_dir: Optional[str] = field(
         default=None,
@@ -82,7 +65,9 @@ class ModelArguments:
     )
     add_tokens: Optional[str] = field(
         default=None,
-        metadata={"help": "Non-special tokens to be added into the tokenizer. Use commas to separate multiple tokens."},
+        metadata={
+            "help": "Non-special tokens to be added into the tokenizer. Use commas to separate multiple tokens."
+        },
     )
     add_special_tokens: Optional[str] = field(
         default=None,
@@ -126,59 +111,54 @@ class ModelArguments:
         default=None,
         metadata={"help": "Auth token to log in with Modelers Hub."},
     )
-    quant_recipe_name: Optional[Literal["mxfp8"]] = field(
+    quant_recipe: Literal["mxfp8"] = field(
         default=None,
-        metadata={"help": "Quantization recipe name"},
+        metadata={"help": "Quantization strategy"},
     )
-    quant_format: str = field(
-        default="E4M3",
-        metadata={
-            "help": "FP8 data format used for quantization. "
-            "Supported values: 'E4M3', 'E5M2', 'HIF8'. Default is 'E4M3'."
-        },
+    quant_format: Literal["E4M3", "HYBRID", "HIF8"] = field(
+        default=None,
+        metadata={"help": "FP8 format: 'E4M3', 'HYBRID', or 'HIF8'."},
     )
     quant_block_size: int = field(
         default=32,
-        metadata={"help": "Block size for MXFP8 block-wise quantization. Default is 32."},
+        metadata={"help": "Block size for MXFP8 quantization, default 32."},
     )
     quant_apply_modules: List[str] = field(
         default_factory=lambda: ['model.layers.{*}'],
         metadata={
-            "help": "List of model module patterns to apply MXFP8 quantization."
-            "Example: 'model.layers.{*}'applies quantization to all transformer layers."
-        },
+            "help":
+                "List of model module patterns to apply MXFP8 quantization."
+                "Example: 'model.layers.{*}'applies quantization to all transformer layers."},
     )
     quant_ignored_modules: List[str] = field(
-        default_factory=lambda: ['*lm_head', '*gate'],
+        default_factory=lambda: ['lm_head'],
         metadata={"help": "List of module patterns to exclude from MXFP8 quantization. "},
     )
-    quant_converters: List[str] = field(
+    converters: List[str] = field(
         default_factory=lambda: ["quantize.linear.mx"],
         metadata={
-            "help": "This field specifies the quantization converters to use. "
-            "It's a list of strings where each string represents a specific quantization implementation."
-            "Default uses 'quantize.linear.mx' for mxfp8 quantization."
-        },
+            "help":
+                "This field specifies the quantization converters to use. "
+                "It's a list of strings where each string represents a specific quantization implementation."
+                "Default uses 'quantize.linear.mx' for mxfp8 quantization."},
     )
-    # FSDP low precision settings
-    enable_fsdp_low_precision_all_gather: bool = field(
-        default=True, metadata={"help": "Enable FSDP low precision activation gradients for memory efficiency."}
+    gemm_gradient_accumulation_fusion: bool = field(
+        default=False,
+        metadata={"help":
+                      "Enable or disable GEMM (General Matrix Multiply) gradient accumulation fusion optimization. "
+                      "When enabled, accumulates gradients from multiple mini-batches into a single GEMM operation "
+                      "to improve training efficiency and reduce memory access overhead. "},
     )
-    fsdp_low_precision_all_gather_mode: Literal["on-demand", "all"] = field(
-        default="on-demand",
-        metadata={
-            "help": "FSDP low precision all gather mode. 'on-demand' for on-demand all gather fwd or bwd weights, 'all' for all gather both fwd and bwd weights."
-        },
+    quant_gmm: bool = field(
+        default=False,
+        metadata={"help":
+                      "Whether to enable grouped matrix multiplication quantization."},
     )
+
 
     def __post_init__(self):
         if self.model_name_or_path is None:
             raise ValueError("`model_name_or_path` must be specified.")
-        if self.model_id == "deepseek_v4" and version.parse(transformers.__version__) < version.parse("5.8.1"):
-            raise EnvironmentError(
-                f"Detected model_id = deepseek_v4, current transformers version {transformers.__version__} is too low. "
-                "Please upgrade transformers to at least 5.8.1."
-            )
 
 
 @dataclass
@@ -186,16 +166,17 @@ class DataArguments:
     """
     Arguments pertaining to what data we are going to input our model for training and evaluation.
     """
-
     template: Optional[str] = field(
         default=None,
         metadata={"help": "Which template to use for constructing prompts in training and inference."},
     )
     dataset: Optional[Union[Dict[str, Any], str]] = field(
-        default=None, metadata={"help": "Train dataset: config dict or comma-separated dataset names."}
+        default=None,
+        metadata={"help": "Train dataset: config dict or comma-separated dataset names."}
     )
     eval_dataset: Optional[Union[Dict[str, Any], str]] = field(
-        default=None, metadata={"help": "Eval dataset: config dict or comma-separated eval dataset names."}
+        default=None,
+        metadata={"help": "Eval dataset: config dict or comma-separated eval dataset names."}
     )
     dataset_dir: str = field(
         default="./configs/fsdp2/data",
@@ -281,14 +262,6 @@ class DataArguments:
         default=True,
         metadata={"help": "Whether or not to enable thinking mode for reasoning models."},
     )
-    reasoning_effort: Optional[str] = field(
-        default=None,
-        metadata={"help": "Reasoning effort level for DeepSeek-V4 (None, 'high', 'max')."},
-    )
-    drop_thinking: Optional[bool] = field(
-        default=True,
-        metadata={"help": "Whether to drop thinking content in history for DeepSeek-V4."},
-    )
     tokenized_path: Optional[str] = field(
         default=None,
         metadata={
@@ -308,23 +281,25 @@ class DataArguments:
         default="lf",
         metadata={"help": "Data Manager type for building the different data manager"},
     )
-    # megatron dataset args
+    #megatron dataset args
     split: str = field(
         default="100,0,0",
-        metadata={"help": "Comma-separated list of proportions for training, validation, and test split."},
+        metadata={"help": "Comma-separated list of proportions for training, validation, and test split."}
     )
     create_attention_mask_in_dataloader: Optional[bool] = field(
-        default=False, metadata={"help": "If set, do create attention_masks in dataloader."}
+        default=False,
+        metadata={"help": "If set, do create attention_masks in dataloader."}
+    )     
+    no_shared_storage: Optional[bool] = field(
+        default=False,
+        metadata={"help": "if no shared storage, set it."}
     )
-    no_shared_storage: Optional[bool] = field(default=False, metadata={"help": "if no shared storage, set it."})
     dataloader_type: Literal["single"] = field(
         default="single",
-        metadata={"help": ("Single pass vs multiple pass data loader")},
+        metadata={
+            "help": ("Single pass vs multiple pass data loader")
+        },
     )
-    reset_attention_mask: Optional[bool] = field(
-        default=False, metadata={"help": "If set, do reset attention masks in dataloader and generate actual_seq_len."}
-    )
-    append_eod: Optional[bool] = field(default=False, metadata={"help": "Append eod token when process data"})
 
     def __post_init__(self):
         def split_arg(arg):
@@ -345,20 +320,14 @@ class DataArguments:
 
         if self.interleave_probs is not None:
             if self.mix_strategy == "concat":
-                raise ValueError(
-                    f"interleave_probs={self.interleave_probs} is not supported for mix_strategy={self.mix_strategy}."
-                )
+                raise ValueError(f"interleave_probs={self.interleave_probs} is not supported for mix_strategy={self.mix_strategy}.")
 
             self.interleave_probs = list(map(float, split_arg(self.interleave_probs)))
             if self.dataset is not None and len(self.dataset) != len(self.interleave_probs):
-                raise ValueError(
-                    f"len(dataset)={len(self.dataset)} != len(interleave_probs)={len(self.interleave_probs)}."
-                )
+                raise ValueError(f"len(dataset)={len(self.dataset)} != len(interleave_probs)={len(self.interleave_probs)}.")
 
             if self.eval_dataset is not None and len(self.eval_dataset) != len(self.interleave_probs):
-                raise ValueError(
-                    f"len(eval_dataset)={len(self.eval_dataset)} != len(interleave_probs)={len(self.interleave_probs)}."
-                )
+                raise ValueError(f"len(eval_dataset)={len(self.eval_dataset)} != len(interleave_probs)={len(self.interleave_probs)}.")
 
         if self.streaming and self.val_size > 1e-6 and self.val_size < 1:
             raise ValueError(f"val_size={self.val_size} must be integer when streaming=True.")
@@ -367,17 +336,10 @@ class DataArguments:
             raise ValueError(f"streaming=True and max_samples={self.max_samples} are incompatible.")
 
         if self.mask_history and self.train_on_prompt:
-            raise ValueError(
-                f"mask_history={self.mask_history} and train_on_prompt={self.train_on_prompt} cannot be True together."
-            )
+            raise ValueError(f"mask_history={self.mask_history} and train_on_prompt={self.train_on_prompt} cannot be True together.")
 
         if self.neat_packing:
             self.packing = True
-        if self.reset_attention_mask and not self.append_eod:
-            raise ValueError(
-                "reset_attention_mask requires append_eod to be True. "
-                "Please set append_eod=True when using reset_attention_mask."
-            )
 
         if self.packing:
             self.cutoff_len -= 1  # avoid pad_to_multiple_of, needs improve
@@ -391,17 +353,33 @@ class ParallelArguments:
     """
     MindSpeed FSDP backend parallel strategy parameters (FSDP2, TP, EP)
     """
-
-    tp_size: int = field(default=1, metadata={"help": "Tensor Parallel size. (Cols/Rows splitting)"})
-    fsdp_size: int = field(default=1, metadata={"help": "Fully Sharded Data Parallel size. (Sharding parameters)"})
+    tp_size: int = field(
+        default=1,
+        metadata={"help": "Tensor Parallel size. (Cols/Rows splitting)"}
+    )
+    fsdp_size: int = field(
+        default=1,
+        metadata={"help": "Fully Sharded Data Parallel size. (Sharding parameters)"}
+    )
     recompute: bool = field(
-        default=False, metadata={"help": "Whether to enable Gradient Checkpointing (Activation Recomputation)."}
+        default=False,
+        metadata={"help": "Whether to enable Gradient Checkpointing (Activation Recomputation)."}
     )
     # Expert Parallel (MoE)
-    ep_size: int = field(default=1, metadata={"help": "Expert Parallel size for MoE models."})
-    ep_fsdp_size: int = field(default=1, metadata={"help": "FSDP size inside Expert Parallel groups."})
-    cp_size: int = field(default=1, metadata={"help": "context parallel size."})
-    cp_type: Literal["ulysses", "ring", "kvallgather"] = field(
+    ep_size: int = field(
+        default=1,
+        metadata={"help": "Expert Parallel size for MoE models."}
+    )
+    ep_fsdp_size: int = field(
+        default=1,
+        metadata={"help": "FSDP size inside Expert Parallel groups."}
+    )
+    cp_size: int = field(
+        default=1,
+        metadata={"help": "context parallel size."}
+    )
+
+    cp_type: Literal["ulysses"] = field(
         default="ulysses",
         metadata={"help": "Use context parallel algo."},
     )
@@ -409,7 +387,7 @@ class ParallelArguments:
         default_factory=lambda: ['model.layers.{*}', 'model.embed_tokens', 'lm_head'],
         metadata={"help": "Model structure of layers with Fully Sharded Data Parallel."},
     )
-    ignored_modules: Optional[List[str]] = field(
+    ignored_modules: List[str] = field(
         default=None,
         metadata={"help": "Model structure of layers with not Fully Sharded Data Parallel."},
     )
@@ -418,18 +396,8 @@ class ParallelArguments:
         metadata={"help": "Whether to reshard parameters after forward pass (for main FSDP module)"},
     )
     shard_placement_fn: Optional[str] = field(
-        default=None, metadata={"help": "Custom shard placement function for main FSDP module"}
-    )
-    efsdp_shard_placement_fn: Optional[str] = field(
-        default='shard_by_dim_1', metadata={"help": "Custom shard placement function for main ep-FSDP module"}
-    )
-    hook_modules: List[str] = field(
-        default_factory=lambda: ['model.layers.{*}'],
-        metadata={"help": "List of modules to apply FSDP."},
-    )
-    fsdp_implementation: Literal['custom', 'native'] = field(
-        default="native",
-        metadata={"help": "FSDP implementation type: 'custom' or 'native'."},
+        default=None,
+        metadata={"help": "Custom shard placement function for main FSDP module"}
     )
     tp_colwise: List[str] = field(
         default_factory=lambda: ['*.q_proj', '*.k_proj', '*.v_proj', '*.gate_proj', '*.up_proj'],
@@ -451,9 +419,9 @@ class ParallelArguments:
         default="eager",
         metadata={
             "help": "Dispatcher strategy for Expert Parallel (MoE). "
-            "Options: 'eager' (immediate token dispatch to experts, default), "
-            "'fused' (fused routing & expert computation for higher throughput), "
-            "'mc2' (mixed compression dispatch to reduce cross-card communication cost). Defaults to 'eager'."
+                    "Options: 'eager' (immediate token dispatch to experts, default), "
+                    "'fused' (fused routing & expert computation for higher throughput), "
+                    "'mc2' (mixed compression dispatch to reduce cross-card communication cost). Defaults to 'eager'."
         },
     )
     recompute_modules: List[str] = field(
@@ -461,53 +429,23 @@ class ParallelArguments:
         metadata={"help": "Model structure of layers with Gradient Checkpointing (Activation Recomputation)."},
     )
     param_dtype: Literal["bf16", "fp16", "fp32"] = field(
-        default="bf16", metadata={"help": "Data type for FSDP parameter storage. Defaults to 'bf16'"}
+        default="bf16",
+        metadata={"help": "Data type for FSDP parameter storage. Defaults to 'bf16'"}
     )
     reduce_dtype: Literal["bf16", "fp16", "fp32"] = field(
         default="fp32",
         metadata={
-            "help": "Data type for FSDP gradient reduction . Using 'fp32' ensures numerical stability. Defaults to 'fp32'."
-        },
+            "help": "Data type for FSDP gradient reduction . Using 'fp32' ensures numerical stability. Defaults to 'fp32'."}
     )
     num_to_forward_prefetch: int = field(
         default=1,
         metadata={
-            "help": "Number of modules to prefetch during FSDP forward pass (optimizes pipeline efficiency). Defaults to 1."
-        },
+            "help": "Number of modules to prefetch during FSDP forward pass (optimizes pipeline efficiency). Defaults to 1."}
     )
     num_to_backward_prefetch: int = field(
         default=1,
         metadata={
-            "help": "Number of modules to prefetch during FSDP backward pass (optimizes pipeline efficiency). Defaults to 1."
-        },
-    )
-    enable_chunk_batch: bool = field(
-        default=False,
-        metadata={
-            "help": "Whether to enable chunk micro-batch size (ChunkMBS). "
-            "Splits a large batch into smaller micro-batches for a single FSDP unshard, "
-            "saving memory vs. increasing microbatch and saving communication vs. gradient accumulation."
-        },
-    )
-    chunk_mbs: int = field(
-        default=1,
-        metadata={"help": "Chunked micro batch size. The original batch is split into chunks of this size."},
-    )
-    chunk_mbs_batch_dim: int = field(
-        default=0,
-        metadata={"help": "Batch dimension along which to slice tensors for ChunkMBS."},
-    )
-    chunk_mbs_modules: List[str] = field(
-        default_factory=lambda: ['model.layers.{*}'],
-        metadata={"help": "Model module patterns to apply ChunkMBS to."},
-    )
-    chunk_mbs_arg_indexs: List[int] = field(
-        default_factory=lambda: [0],
-        metadata={"help": "Indices of positional arguments to chunk in the forward pass."},
-    )
-    chunk_mbs_kwarg_names: List[str] = field(
-        default_factory=lambda: ['position_embeddings', 'position_ids', 'attention_mask', 'input_ids'],
-        metadata={"help": "Names of keyword arguments to chunk in the forward pass."},
+            "help": "Number of modules to prefetch during FSDP backward pass (optimizes pipeline efficiency). Defaults to 1."}
     )
 
     def __post_init__(self):
@@ -526,89 +464,108 @@ class TrainingArguments:
     """
     Training hyperparameters: corresponding to requirements of Trainer and Optimizer/Scheduler Factory
     """
-
     output_dir: str = field(
         metadata={"help": "The output directory where the model predictions and checkpoints will be written."}
     )
-    deterministic: Optional[bool] = field(
-        default=True, metadata={"help": "Enable deterministic computation for reproducible training results."}
-    )
     # --- Optimization ---
-    optimizer: Literal["adamw", "muon", "fused_adamw"] = field(
+    optimizer: Literal["adamw", "muon"] = field(
         default="adamw",
         metadata={"help": "Optimizer. Default to adamw."},
     )
-    lr: float = field(default=1e-5, metadata={"help": "The initial learning rate."})
-    weight_decay: float = field(default=0.01, metadata={"help": "Weight decay if we apply some."})
-    adam_beta1: float = field(default=0.9, metadata={"help": "Beta1 for AdamW optimizer"})
-    adam_beta2: float = field(default=0.95, metadata={"help": "Beta2 for AdamW optimizer"})
-    adam_epsilon: float = field(default=1e-8, metadata={"help": "Epsilon for AdamW optimizer."})
-    max_grad_norm: float = field(default=1.0, metadata={"help": "Max gradient norm for clipping."})
+    lr: float = field(
+        default=1e-5,
+        metadata={"help": "The initial learning rate."}
+    )
+    weight_decay: float = field(
+        default=0.01,
+        metadata={"help": "Weight decay if we apply some."}
+    )
+    adam_beta1: float = field(
+        default=0.9,
+        metadata={"help": "Beta1 for AdamW optimizer"}
+    )
+    adam_beta2: float = field(
+        default=0.95,
+        metadata={"help": "Beta2 for AdamW optimizer"}
+    )
+    adam_epsilon: float = field(
+        default=1e-8,
+        metadata={"help": "Epsilon for AdamW optimizer."}
+    )
+    max_grad_norm: float = field(
+        default=1.0,
+        metadata={"help": "Max gradient norm for clipping."}
+    )
 
     # --- Scheduling ---
     lr_scheduler_type: Literal["cosine", "linear", "constant"] = field(
-        default="cosine", metadata={"help": "The scheduler type to use. (cosine, linear, constant)"}
+        default="cosine",
+        metadata={"help": "The scheduler type to use. (cosine, linear, constant)"}
     )
     warmup_ratio: float = field(
-        default=0.03, metadata={"help": "Linear warmup over warmup_ratio fraction of total steps."}
+        default=0.03,
+        metadata={"help": "Linear warmup over warmup_ratio fraction of total steps."}
     )
-    min_lr: float = field(default=1e-6, metadata={"help": "Minimum learning rate for cosine scheduler."})
+    min_lr: float = field(
+        default=1e-6,
+        metadata={"help": "Minimum learning rate for cosine scheduler."}
+    )
 
     # --- Training Loop Control ---
-    num_train_epochs: float = field(default=3.0, metadata={"help": "Total number of training epochs to perform."})
+    num_train_epochs: float = field(
+        default=3.0,
+        metadata={"help": "Total number of training epochs to perform."}
+    )
     max_steps: int = field(
         default=-1,
-        metadata={"help": "If > 0: set total number of training steps to perform. Overrides num_train_epochs."},
+        metadata={"help": "If > 0: set total number of training steps to perform. Overrides num_train_epochs."}
     )
     gradient_accumulation_steps: int = field(
-        default=1, metadata={"help": "Number of updates steps to accumulate before performing a backward/update pass."}
+        default=1,
+        metadata={"help": "Number of updates steps to accumulate before performing a backward/update pass."}
     )
     disable_shuffling: bool = field(
         default=False,
         metadata={"help": "Whether or not to disable the shuffling of the training set."},
     )
-    seed: int = field(default=42, metadata={"help": "Random seed that will be set at the beginning of training."})
-    indexer_loss_coeff: float = field(
-        default=1.0,
-        metadata={"help": "Loss coefficient for DSA indexer KL loss."},
-    )
-    router_aux_loss_coef: float = field(
-        default=0.0,
-        metadata={"help": "Loss coefficient for DSA indexer KL loss."},
+    seed: int = field(
+        default=42,
+        metadata={"help": "Random seed that will be set at the beginning of training."}
     )
 
     # --- IO & Logging ---
-    save_steps: int = field(default=500, metadata={"help": "Save checkpoint every X updates steps."})
+    save_steps: int = field(
+        default=500,
+        metadata={"help": "Save checkpoint every X updates steps."}
+    )
     save_total_limit: Optional[int] = field(
-        default=3, metadata={"help": "Limit the total amount of checkpoints. Deletes the older checkpoints."}
+        default=3,
+        metadata={"help": "Limit the total amount of checkpoints. Deletes the older checkpoints."}
     )
     resume_from_checkpoint: Optional[str] = field(
-        default=None, metadata={"help": "The path to a folder with a valid checkpoint for your model."}
+        default=None,
+        metadata={"help": "The path to a folder with a valid checkpoint for your model."}
     )
-    logging_steps: int = field(default=1, metadata={"help": "Log every X updates steps."})
+    logging_steps: int = field(
+        default=1,
+        metadata={"help": "Log every X updates steps."}
+    )
     log_throughput: bool = field(
         default=False,
-        metadata={
-            "help": "Whether to enable real-time logging of key throughput metrics, including tokens per second (tokens/s) and model FLOPs utilization (MFU) to quantify training/inference efficiency."
-        },
+        metadata={"help": "Whether to enable real-time logging of key throughput metrics, including tokens per second (tokens/s) and model FLOPs utilization (MFU) to quantify training/inference efficiency."},
     )
     log_cpu_memory: bool = field(
         default=False,
         metadata={"help": "Whether to enable logging of memory utilization statistics for CPU devices."},
     )
-    mtp_loss_scaling_factor: float = field(
-        default=0.3, metadata={"help": "MTP(Multi Token Prediction) loss scaling factor."}
-    )
     stage: Literal["pt", "sft"] = field(
         default="sft",
         metadata={"help": "Which stage will be performed in training."},
     )
-    # megatron train args
+    #megatron train args
     calculate_per_token_loss: bool = field(
         default=False,
-        metadata={
-            "help": "Scale cross entropy loss by the number of non-padded tokens in the global batch, versus the default behavior of assuming all tokens are non-padded"
-        },
+        metadata={"help": "Scale cross entropy loss by the number of non-padded tokens in the global batch, versus the default behavior of assuming all tokens are non-padded"}
     )
     dataloader_num_workers: int = field(
         default=0,
@@ -630,7 +587,9 @@ class TrainingArguments:
         },
     )
 
-    dataloader_pin_memory: bool = field(default=True, metadata={"help": "Whether or not to pin memory for DataLoader."})
+    dataloader_pin_memory: bool = field(
+        default=True, metadata={"help": "Whether or not to pin memory for DataLoader."}
+    )
 
     dataloader_persistent_workers: bool = field(
         default=False,
@@ -645,73 +604,75 @@ class TrainingArguments:
         default=8, metadata={"help": "Batch size per device accelerator core/CPU for training."}
     )
     save_only_model: bool = field(
-        default=False,
-        metadata={
-            "help": "When checkpointing, whether to only save the model, or also the optimizer, scheduler & rng state."
-        },
+        default=False, metadata={"help": "When checkpointing, whether to only save the model, or also the optimizer, scheduler & rng state."}
     )
     save_async: bool = field(
-        default=False,
-        metadata={"help": "Whether to save checkpoint asynchronously."},
+        default=False, metadata={"help": "Whether to save checkpoint asynchronously."},
     )
     save_epochs: int = field(
-        default=1,
-        metadata={"help": "Number of epochs between two checkpoint saves."},
+        default=1, metadata={"help": "Number of epochs between two checkpoint saves."},
     )
     save_hf_weights: bool = field(
-        default=True,
-        metadata={"help": "Save the huggingface format weights to the last checkpoint dir."},
+        default=True, metadata={"help": "Save the huggingface format weights to the last checkpoint dir."},
     )
     # --- Profiling (NPU) ---
-    profile: bool = field(default=False, metadata={"help": "Enable NPU profiling using torch_npu.profiler."})
-    profile_step_start: int = field(default=0, metadata={"help": "Start profiling at this global step (inclusive)."})
+    profile: bool = field(
+        default=False,
+        metadata={"help": "Enable NPU profiling using torch_npu.profiler."}
+    )
+    profile_step_start: int = field(
+        default=0,
+        metadata={"help": "Start profiling at this global step (inclusive)."}
+    )
     profile_step_end: int = field(
-        default=-1, metadata={"help": "Stop profiling before this global step (exclusive). If -1, profile until end."}
+        default=-1,
+        metadata={"help": "Stop profiling before this global step (exclusive). If -1, profile until end."}
     )
     profile_ranks: List[int] = field(
         default_factory=lambda: [-1],
-        metadata={"help": "List of ranks to enable profiling on. Use [-1] to profile all ranks."},
+        metadata={"help": "List of ranks to enable profiling on. Use [-1] to profile all ranks."}
     )
     profile_level: str = field(
-        default="level0", metadata={"help": "Profiling level: 'level_none', 'level0', 'level1', 'level2'."}
+        default="level0",
+        metadata={"help": "Profiling level: 'level_none', 'level0', 'level1', 'level2'."}
     )
-    profile_export_type: str = field(default="text", metadata={"help": "Export type: 'text' or 'db'."})
+    profile_export_type: str = field(
+        default="text",
+        metadata={"help": "Export type: 'text' or 'db'."}
+    )
     profile_data_simplification: bool = field(
-        default=False, metadata={"help": "Use data simplification mode in profiler."}
+        default=False,
+        metadata={"help": "Use data simplification mode in profiler."}
     )
-    profile_with_cpu: bool = field(default=False, metadata={"help": "Record CPU activities in profiler."})
-    profile_with_stack: bool = field(default=False, metadata={"help": "Record call stack in profiler."})
-    profile_with_memory: bool = field(default=False, metadata={"help": "Profile memory allocation and usage."})
-    profile_record_shapes: bool = field(default=False, metadata={"help": "Record tensor shapes in profiler."})
+    profile_with_cpu: bool = field(
+        default=False,
+        metadata={"help": "Record CPU activities in profiler."}
+    )
+    profile_with_stack: bool = field(
+        default=False,
+        metadata={"help": "Record call stack in profiler."}
+    )
+    profile_with_memory: bool = field(
+        default=False,
+        metadata={"help": "Profile memory allocation and usage."}
+    )
+    profile_record_shapes: bool = field(
+        default=False,
+        metadata={"help": "Record tensor shapes in profiler."}
+    )
     profile_save_path: str = field(
-        default="./profile", metadata={"help": "Directory to save profiling traces (TensorBoard format)."}
-    )
-    # --- msProbe precision data collection ---
-    msprobe: bool = field(default=False, metadata={"help": "Enable msProbe precision data collection."})
-    msprobe_config_path: Optional[str] = field(
-        default=None, metadata={"help": "Path to a custom msProbe config.json file."}
-    )
-    # --- Full-model module I/O and batch-input tracing ---
-    model_io_trace: bool = field(default=False, metadata={"help": "Enable model I/O tracing."})
-    model_io_trace_config_path: Optional[str] = field(
-        default=None, metadata={"help": "Path to a custom model I/O trace config.json file."}
-    )
-    model_io_trace_output_path: Optional[str] = field(
-        default=None, metadata={"help": "Directory to save model I/O trace results."}
+        default="./profile",
+        metadata={"help": "Directory to save profiling traces (TensorBoard format)."}
     )
 
     def __post_init__(self):  # Path parameter validation
         if self.output_dir is None:
             raise ValueError("`output_dir` must be specified.")
-        if self.router_aux_loss_coef is not None and self.router_aux_loss_coef < 0:
-            raise ValueError("`router_aux_loss_coef` must be >= 0")
         if self.profile:
             if self.profile_step_start < 0:
                 raise ValueError("`profile_step_start` must be >= 0")
             if self.profile_step_end != -1 and self.profile_step_end <= self.profile_step_start:
                 raise ValueError("`profile_step_end` must be > profile_step_start or -1")
-        if self.model_io_trace and not self.model_io_trace_output_path:
-            raise ValueError("`model_io_trace_output_path` must be specified when model I/O tracing is enabled.")
 
 
 @dataclass
@@ -719,23 +680,42 @@ class InferenceArguments:
     """
     Inference hyperparameters: corresponding to requirements of the inference engine and generation config
     """
-
+    
     # --- Generation Config ---
     infer_backend: Literal["huggingface"] = field(
-        default="huggingface", metadata={"help": "The inference engine backend to use."}
+        default="huggingface",
+        metadata={"help": "The inference engine backend to use."}
+    )
+    use_chat_template: bool = field(
+        default=True,
+        metadata={
+            "help": (
+                "Apply the tokenizer chat template and keep multi-turn history. "
+                "Disable this for base/pretrained completion models."
+            )
+        },
+    )
+    base_chat: bool = field(
+        default=False,
+        metadata={"help": "Use a plain-text multi-turn dialogue prompt for a base model."},
+    )
+    base_system_prompt: str = field(
+        default="You are a helpful assistant.",
+        metadata={"help": "System text used by the base-model pseudo-chat prompt."},
     )
     max_new_tokens: int = field(
         default=512,
-        metadata={"help": "The maximum numbers of tokens to generate, ignoring the number of tokens in the prompt."},
+        metadata={"help": "The maximum numbers of tokens to generate, ignoring the number of tokens in the prompt."}
     )
     do_sample: bool = field(
-        default=False, metadata={"help": "Whether or not to use sampling; use greedy decoding otherwise."}
+        default=False,
+        metadata={"help": "Whether or not to use sampling; use greedy decoding otherwise."}
     )
 
     def __post_init__(self):
         if self.max_new_tokens <= 0:
             raise ValueError("`max_new_tokens` must be strictly positive (> 0).")
-
+            
 
 @dataclass
 class OptimizationArguments:
@@ -743,60 +723,34 @@ class OptimizationArguments:
     Inference hyperparameters: corresponding to requirements of the inference engine and generation config
     """
 
-    use_fused_rmsnorm: bool = field(default=False, metadata={"help": "Use fused rmsnorm."})
+    use_fused_rmsnorm: bool = field(
+        default=False,
+        metadata={"help": "Use fused rmsnorm."}
+    )
     moe_grouped_gemm: bool = field(
         default=False,
-        metadata={
-            "help": "When there are multiple experts per rank, launch multiple local GEMM kernels in multiple streams to improve the utilization and performance with GroupedLinear in TransformerEngine."
-        },
+        metadata={"help": "When there are multiple experts per rank, launch multiple local GEMM kernels in multiple streams to improve the utilization and performance with GroupedLinear in TransformerEngine."}
     )
-    use_fused_rotary_pos_emb: bool = field(default=False, metadata={"help": "Use fused rotary-pos-emb."})
-    use_flash_attn: bool = field(default=False, metadata={"help": "use FlashAttention implementation of attention."})
-    use_sparse_flash_attn: bool = field(
+    use_fused_rotary_pos_emb: bool = field(
         default=False,
-        metadata={"help": "Use NPU sparse flash attention for DSA attention."},
+        metadata={"help": "Use fused rotary-pos-emb."}
     )
-    use_fused_lightning_indexer: bool = field(
+    use_flash_attn: bool = field(
         default=False,
-        metadata={"help": "Use NPU lightning indexer to select DSA sparse attention indices."},
+        metadata={"help": "use FlashAttention implementation of attention."}
     )
-    use_fused_lightning_indexer_loss: bool = field(
+    use_triton_gdn: bool = field(
         default=False,
-        metadata={"help": "Use fused NPU sparse lightning indexer KL loss."},
+        metadata={"help": "Use triton kernel accelerate training."}
     )
-    use_ascend_mhc: bool = field(
-        default=False,
-        metadata={"help": "Use Ascend fused operators for DeepSeek-V4 MHC pre/post."},
+    gdn_chunk_size: int = field(
+        default=64,
+        metadata={"help": "Matrix blocking size of Gated DeltaNet."}
     )
-    use_triton_swiglu_limit: bool = field(
-        default=False,
-        metadata={"help": "Use the Triton Ascend SwiGLU-with-limit kernel."},
+    chunk_loss_size: int = field(
+        default=None,
+        metadata={"help": "Chunk loss size: set to > 0 to enable chunk loss calculation"}
     )
-    pre_tokens: int = field(
-        default=1048576,
-        metadata={"help": "Previous-token window passed to attention."},
-    )
-    next_tokens: int = field(
-        default=0,
-        metadata={"help": "Next-token window passed to attention."},
-    )
-    use_triton_gdn: bool = field(default=False, metadata={"help": "Use triton kernel accelerate training."})
-    use_flash_gdn: bool = field(default=False, metadata={"help": "Use flash kernel accelerate training."})
-    gdn_chunk_size: int = field(default=64, metadata={"help": "Matrix blocking size of Gated DeltaNet."})
-    chunk_loss_size: Optional[int] = field(
-        default=None, metadata={"help": "Chunk loss size: set to > 0 to enable chunk loss calculation"}
-    )
-    use_triton_rmsnormgated: bool = field(default=False, metadata={"help": "Use triton rmsnorm."})
-    fix_router: bool = field(
-        default=False,
-        metadata={
-            "help": "Replace topk routing with round-robin for balanced expert load. For performance tuning only, not for production training."
-        },
-    )
-
-    def __post_init__(self):
-        if self.use_flash_gdn and self.use_triton_gdn:
-            raise ValueError("`use_flash_gdn` and `use_triton_gdn` cannot be True at the same time.")
 
 
 def _string_to_bool(value: Union[bool, str]) -> bool:
@@ -834,51 +788,6 @@ def _make_choice_type_function(choices: List[Any]) -> Callable[[str], Any]:
     return lambda arg: str_to_choice.get(arg, arg)
 
 
-def _validate_cross_args(args):
-    """Validate constraints that span multiple argument dataclasses."""
-    # Inference does not configure data arguments, so access them defensively to skip training-only validation.
-    data_args = getattr(args, "data", None)
-    training_args = getattr(args, "training", None)
-    if (
-        data_args is not None
-        and training_args is not None
-        and data_args.reset_attention_mask
-        and training_args.per_device_train_batch_size > 1
-    ):
-        raise ValueError(
-            "When reset_attention_mask=True, per_device_train_batch_size must be 1, "
-            f"but got {training_args.per_device_train_batch_size}."
-        )
-
-    if args.model.model_id == "qwen3_next" and args.parallel.cp_size > 1 and args.parallel.cp_type != "ulysses":
-        raise ValueError(
-            f"qwen3_next only supports 'ulysses' context parallel type when cp_size > 1, "
-            f"but got cp_type='{args.parallel.cp_type}'."
-        )
-
-    dsa_fusion_args = (
-        "use_sparse_flash_attn",
-        "use_fused_lightning_indexer",
-        "use_fused_lightning_indexer_loss",
-    )
-    enabled_dsa_fusions = [name for name in dsa_fusion_args if getattr(args.optimization, name)]
-    model_id = args.model.model_id or ""
-    supports_dsa_fusions = model_id in {"dsv32", "deepseek_v32", "deepseek_v4"} or model_id.startswith("glm5")
-    if enabled_dsa_fusions and not supports_dsa_fusions:
-        raise ValueError(
-            f"{', '.join(enabled_dsa_fusions)} only support DeepSeek-V3.2 and GLM-5 series models, "
-            f"but got model_id='{model_id or None}'."
-        )
-
-    if args.optimization.use_ascend_mhc and model_id != "deepseek_v4":
-        raise ValueError(f"use_ascend_mhc only supports model_id='deepseek_v4', but got model_id='{model_id or None}'.")
-
-    if args.optimization.use_triton_swiglu_limit and model_id != "deepseek_v4":
-        raise ValueError(
-            f"use_triton_swiglu_limit only supports model_id='deepseek_v4', but got model_id='{model_id or None}'."
-        )
-
-
 def fsdp2_parse_args(rootclass: TypeVar) -> TypeVar:
     """
     Parses the root argument class from CLI or YAML input.
@@ -907,12 +816,7 @@ def fsdp2_parse_args(rootclass: TypeVar) -> TypeVar:
     parse_result = _postprocess_json_fields(args, parser.dict_fields)
 
     # 7: Build dataclass instances
-    result = _build_dataclass_instances(rootclass, parse_result)
-
-    # 8: Cross-dataclass validation
-    _validate_cross_args(result)
-
-    return result
+    return _build_dataclass_instances(rootclass, parse_result)
 
 
 # =============================================================================
@@ -945,9 +849,7 @@ def _create_argument_parser(rootclass):
             effective_type, effective_origin = _resolve_optional_type(attr_type, origin_type)
 
             # Dispatch by type
-            if effective_origin is Union or (
-                hasattr(types, "UnionType") and isinstance(effective_origin, types.UnionType)
-            ):
+            if effective_origin is Union or (hasattr(types, "UnionType") and isinstance(effective_origin, types.UnionType)):
                 # For Union[Dict, str], we treat it as a dict field (since str is simple)
                 # But actually, we'll handle it in post-processing
                 _handle_dict(parser_kwargs, base, attr_name, attr, parser)
@@ -982,8 +884,8 @@ def _resolve_optional_type(attr_type, origin_type):
     """Extract inner type(s) from Union types, handling Optional[Union[A, B]]."""
     if origin_type is Union or (hasattr(types, "UnionType") and isinstance(origin_type, types.UnionType)):
         args = get_args(attr_type)
-        non_none_types = [t for t in args if t is not type(None)]  # pylint: disable=unidiomatic-typecheck
-
+        non_none_types = [t for t in args if t is not type(None)]
+        
         if len(non_none_types) == 0:
             raise RuntimeError(f"Union type contains only None: {attr_type}")
         elif len(non_none_types) == 1:
@@ -1132,7 +1034,7 @@ def _postprocess_json_fields(args, dict_fields):
             elif isinstance(value, str):
                 stripped = value.strip()
                 if stripped == "":
-                    parsed_value = {}
+                    parsed_value = {} 
                 elif stripped.startswith("{") and stripped.endswith("}"):
                     try:
                         parsed_value = json.loads(stripped)

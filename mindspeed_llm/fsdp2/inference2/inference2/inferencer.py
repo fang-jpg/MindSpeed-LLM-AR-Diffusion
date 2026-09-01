@@ -27,7 +27,8 @@ class Inferencer:
         # Extracted outside the while loop to avoid repeated memory allocation
         EXIT_COMMANDS = ("exit", "quit")
         ROLE_USER, ROLE_ASSISTANT = ("user", "assistant")
-        ASSISTANT_PREFIX = "Assistant: "
+        use_chat_template = getattr(self.args, "use_chat_template", True)
+        OUTPUT_PREFIX = "Assistant: " if use_chat_template else "Completion: "
         VISUAL_SEPARATOR = "\n" + "-" * 40
 
         while True:
@@ -40,15 +41,25 @@ class Inferencer:
             if not user_input:
                 continue
 
-            history.append({"role": ROLE_USER, "content": user_input})
+            if use_chat_template:
+                history.append({"role": ROLE_USER, "content": user_input})
+                inference_messages = history
+            else:
+                # Base models are text-completion models, not multi-turn chat
+                # models. Do not feed previous assistant completions back as a
+                # role-formatted conversation.
+                inference_messages = [{"role": ROLE_USER, "content": user_input}]
             
             if self.rank == 0:
-                print(ASSISTANT_PREFIX, end="", flush=True)
+                print(OUTPUT_PREFIX, end="", flush=True)
 
             response = ""
-            
+            logger.info_rank0(f">>> inference_messages: {inference_messages}")
             # 2. Use the streaming API for the typewriter effect
-            for new_text in self.chat_model.stream_chat(history):
+            for new_text in self.chat_model.stream_chat(
+                inference_messages,
+                use_chat_template=use_chat_template,
+            ):
                 if self.rank == 0:
                     print(new_text, end="", flush=True)
                 response += new_text
@@ -56,7 +67,8 @@ class Inferencer:
             # Print a visual separator after the response finishes
             logger.info_plain_rank0(VISUAL_SEPARATOR)
             
-            history.append({"role": ROLE_ASSISTANT, "content": response})
+            if use_chat_template:
+                history.append({"role": ROLE_ASSISTANT, "content": response})
 
     def _get_sync_input(self):
         """

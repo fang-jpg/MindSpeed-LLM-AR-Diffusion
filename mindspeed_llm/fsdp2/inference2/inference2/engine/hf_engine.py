@@ -25,7 +25,7 @@ class HuggingfaceEngine(BaseEngine):
         self.model = getattr(model, "model", model)
         self.tokenizer = tokenizer
         self.args = args
-
+        print("HuggingfaceEngine args:", args)
         if self.tokenizer.pad_token_id is None:
             self.tokenizer.pad_token_id = self.tokenizer.eos_token_id
 

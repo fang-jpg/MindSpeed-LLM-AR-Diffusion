@@ -1,0 +1,43 @@
+model:
+  # Set this on the command line or replace it with the local checkpoint path.
+  model_name_or_path: /path/to/qwen3-diffusion-checkpoint
+  # Leave model_id unset when the checkpoint supplies its model class through
+  # AutoModelForCausalLM + trust_remote_code. Register a model_id instead when
+  # the implementation lives in mindspeed_llm/fsdp2/models.
+  trust_remote_code: true
+  train_from_scratch: false
+
+parallel:
+  fsdp_size: 1
+  tp_size: 1
+  cp_size: 1
+  recompute: false
+  fsdp_modules:
+    - model.layers.{*}
+    - model.embed_tokens
+    - lm_head
+
+inference:
+  max_new_tokens: 128
+  diffusion_steps: 128
+  # Blocks are generated left-to-right; denoising inside each block is parallel.
+  block_length: 32
+  # Set this explicitly when tokenizer.mask_token_id is absent.
+  mask_token_id: null
+  temperature: 0.0
+  top_k: 0
+  top_p: 1.0
+  schedule: linear
+  selection: low_confidence
+  # Use padding if the checkpoint builds its own block-causal mask internally.
+  attention_mode: block_causal
+  seed: 42
+  use_chat_template: true
+  # Change to diffusion_t/timestep when the model forward requires it.
+  timestep_arg: null
+  block_index_arg: null
+  sync_tokens: true
+
+optimization:
+  use_fused_rmsnorm: false
+  use_fused_rotary_pos_emb: false
