@@ -15,6 +15,7 @@
 
 import sys
 import time
+import shutil
 import logging
 import subprocess
 from copy import deepcopy
@@ -30,7 +31,7 @@ def print_flush(prev_str, curr_str):
     difference = ''.join([char2 for char1, char2 in zip(prev_str, curr_str) if char1 != char2])
 
     if len(prev_str) < len(curr_str):
-        difference += curr_str[len(prev_str) :]
+        difference += curr_str[len(prev_str):]
 
     sys.stdout.write(difference)
 
@@ -47,10 +48,16 @@ def task_factory(args, model):
     total_tasks = args.task
 
     if total_tasks is None:
-        total_tasks = ["greedy", "do_sample", "beam_search", "beam_search_with_sampling", "chat"]
+        total_tasks = [
+            "greedy",
+            "do_sample",
+            "beam_search",
+            "beam_search_with_sampling",
+            "chat"
+        ]
 
     for task in total_tasks:
-        if task not in task_map:
+        if task not in task_map.keys():
             raise ValueError("Task name incorrect.")
 
         task_map.get(task)(
@@ -64,7 +71,12 @@ def task_greedy_search(args, model):
     instruction = "how are you?"
 
     t = time.time()
-    output = model.generate([instruction], do_sample=False, max_new_tokens=args.max_new_tokens, stream=False)
+    output = model.generate(
+        [instruction],
+        do_sample=False,
+        max_new_tokens=args.max_new_tokens,
+        stream=False
+    )
 
     if dist.get_rank() == 0:
         logging.info("\n=============== Greedy Search ================")
@@ -87,7 +99,7 @@ def task_do_sample(args, model):
         top_p=args.top_p,
         temperature=args.temperature,
         max_new_tokens=args.max_new_tokens,
-        stream=False,
+        stream=False
     )
 
     if dist.get_rank() == 0:
@@ -105,7 +117,11 @@ def task_beam_search(args, model):
 
     t = time.time()
     output = model.generate(
-        [instruction], num_beams=2, do_sample=False, max_new_tokens=args.max_new_tokens, stream=False
+        [instruction],
+        num_beams=2,
+        do_sample=False,
+        max_new_tokens=args.max_new_tokens,
+        stream=False
     )
 
     if dist.get_rank() == 0:
@@ -130,7 +146,7 @@ def task_beam_search_with_sampling(args, model):
         top_p=args.top_p,
         temperature=args.temperature,
         max_new_tokens=args.max_new_tokens,
-        stream=False,
+        stream=False
     )
 
     if dist.get_rank() == 0:
@@ -162,8 +178,8 @@ def chat_get_instruction(args, histories_no_template, histories_template, prompt
 
         histories_template.append({"role": "user", "content": prompt})
 
-        # use llamafactory template, We need to build the intermediate format ourselves
-        instruction = deepcopy(histories_template)
+        # use llamafactory template, We need to build the intermediate format ourselves 
+        instruction = deepcopy(histories_template) 
     else:
         # not use llamafactory template,keep old process
         histories_no_template.append((prompt, None))
@@ -234,8 +250,10 @@ def task_chat(args, model):
 
             if not prompt.strip():
                 continue
-
+            
             instruction = chat_get_instruction(args, histories_no_template, histories_template, prompt)
+            print("instruction:", instruction)
+
 
         dist.all_reduce(terminate_runs)
         dist.barrier()
@@ -250,7 +268,7 @@ def task_chat(args, model):
             temperature=args.temperature,
             max_new_tokens=args.max_new_tokens,
             stream=True,
-            broadcast=True,
+            broadcast=True
         )
 
         chat_print_and_update_histories(args, responses, histories_no_template, histories_template, prompt)
