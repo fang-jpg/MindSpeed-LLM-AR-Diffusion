@@ -115,6 +115,7 @@ class GPTDataset(MegatronDataset):
 
         try:
             self._pad_token_id = self.config.tokenizer.pad
+            # self._pad_token_id = _PAD_TOKEN_ID
         except Exception:
             self._pad_token_id = _PAD_TOKEN_ID
         (self.document_index, self.sample_index, self.shuffle_index) = (
@@ -173,11 +174,13 @@ class GPTDataset(MegatronDataset):
         else:
             text, _ = self._query_document_sample_shuffle_indices(idx)
 
-
+        
         text = torch.from_numpy(text).long()
         if self.config.add_extra_token_to_sequence:
             tokens = text[:-1].contiguous()
+            # tokens[tokens == 151643] = 151645
             labels = text[1:].contiguous()
+            # labels[labels == 151643] = 151645
         else:
             tokens = text
             labels = torch.roll(text, shifts=-1, dims=0)
@@ -187,6 +190,7 @@ class GPTDataset(MegatronDataset):
             not self.masks_and_position_ids_are_cacheable
             or not self.masks_and_position_ids_are_cached
         ):
+
             attention_mask, loss_mask, position_ids, actual_seq_len = _get_ltor_masks_and_position_ids(
                 tokens,
                 self.config.tokenizer.eod,
@@ -202,20 +206,22 @@ class GPTDataset(MegatronDataset):
                 self.cache_actual_seq_len = actual_seq_len
                 self.masks_and_position_ids_are_cached = True
         else:
+
             attention_mask = self.cached_attention_mask
             loss_mask = self.cached_loss_mask
             position_ids = self.cached_position_ids
             actual_seq_len = self.cache_actual_seq_len
 
         # For padded sequences, mask the loss
-        loss_mask[labels == self._pad_token_id] = 0.0
+        loss_mask[labels == _PAD_TOKEN_ID] = 0.0
 
         # For padded sequences, ensure the embedding layer can map the token ID
-        tokens[tokens == self._pad_token_id] = 0
-        labels[labels == self._pad_token_id] = 0
+        tokens[tokens == _PAD_TOKEN_ID] = self._pad_token_id
+        labels[labels == _PAD_TOKEN_ID] = -100
 
         # Batch padding sequence so we mask the loss
         if idx is None:
+            print("loss_mask is 0")
             loss_mask = torch.zeros_like(loss_mask)
         if self.config.create_attention_mask:
             batch = {
@@ -304,8 +310,9 @@ class GPTDataset(MegatronDataset):
 
         # Pad the sample if necessary
         if length < (self.config.sequence_length + self.config.add_extra_token_to_sequence):
+            print("-------------------------padding start--------------------------")
             sample_parts.append(
-                [self._pad_token_id]
+                [_PAD_TOKEN_ID]
                 * (self.config.sequence_length + self.config.add_extra_token_to_sequence - length)
             )
 
