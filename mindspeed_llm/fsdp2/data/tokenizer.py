@@ -54,9 +54,10 @@ class TokenizerFactory:
         Note: including inplace operation of model_args.
         """
         init_kwargs = _get_init_kwargs(model_args)
+        tokenizer_path = model_args.tokenizer_name_or_path or model_args.model_name_or_path
         try:
             tokenizer = AutoTokenizer.from_pretrained(
-                model_args.model_name_or_path,
+                tokenizer_path,
                 use_fast=model_args.use_fast_tokenizer,
                 split_special_tokens=model_args.split_special_tokens,
                 padding_side="right",
@@ -64,7 +65,7 @@ class TokenizerFactory:
             )
         except ValueError:  # try another one
             tokenizer = AutoTokenizer.from_pretrained(
-                model_args.model_name_or_path,
+                tokenizer_path,
                 use_fast=not model_args.use_fast_tokenizer,
                 padding_side="right",
                 **init_kwargs,
