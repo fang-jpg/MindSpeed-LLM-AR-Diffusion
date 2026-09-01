@@ -38,11 +38,11 @@ class DataManager(ABC):
         tokenizer: "PreTrainedTokenizer",
         template: "Template"
     ):
-        self.model_args=model_args
-        self.data_args=data_args
-        self.training_args=training_args
-        self.parallel_args=parallel_args
-        self.stage=stage
+        self.model_args = model_args
+        self.data_args = data_args
+        self.training_args = training_args
+        self.parallel_args = parallel_args
+        self.stage = stage
 
         self.template = template
         self.tokenizer = tokenizer
@@ -85,7 +85,7 @@ class LFDataManager(DataManager):
         self.data_collator = SFTDataCollatorWith4DAttentionMask(
             tokenizer=self.tokenizer,
             padding=True,
-            pad_to_multiple_of=parallel_args.cp_size * 2 if parallel_args.cp_size > 1 else 8,
+            pad_to_multiple_of=parallel_args.cp_size if parallel_args.cp_size > 1 else 8,
             label_pad_token_id=IGNORE_INDEX if data_args.ignore_pad_token_for_loss else self.tokenizer.pad_token_id,
             block_diag_attn=data_args.neat_packing,
             compute_dtype=torch.bfloat16
@@ -93,8 +93,8 @@ class LFDataManager(DataManager):
 
 
     def create_train_dataloader(self) -> DataLoader:
-        dataloader=self._build_dataloader(
-            dataset=self.dataset_module["train_dataset"], 
+        dataloader = self._build_dataloader(
+            dataset=self.dataset_module["train_dataset"],
             batch_size=self.training_args.per_device_train_batch_size,
             sampler_fn=self._get_train_sampler,
             is_training=True)
@@ -103,8 +103,8 @@ class LFDataManager(DataManager):
 
 
     def create_eval_dataloader(self) -> DataLoader:
-        dataloader=self._build_dataloader(
-            dataset=self.dataset_module["eval_dataset"], 
+        dataloader = self._build_dataloader(
+            dataset=self.dataset_module["eval_dataset"],
             batch_size=self.training_args.per_device_train_batch_size,
             sampler_fn=self._get_eval_sampler,
             is_training=False)
@@ -191,7 +191,7 @@ class MegatronDataManager(DataManager):
 
 
     def create_train_dataloader(self) -> DataLoader:
-        dataloader=self._build_dataloader(
+        dataloader = self._build_dataloader(
             dataset=self.train_dataset,
             data_args=self.data_args,
             training_args=self.training_args)
@@ -200,7 +200,7 @@ class MegatronDataManager(DataManager):
 
 
     def create_eval_dataloader(self) -> DataLoader:
-        dataloader=self._build_dataloader(
+        dataloader = self._build_dataloader(
             dataset=self.eval_dataset,
             data_args=self.data_args,
             training_args=self.training_args)
@@ -215,12 +215,16 @@ class MegatronDataManager(DataManager):
             return None
 
         if data_args.dataloader_type == 'single':
+            print("----------------dataset--------------")
             batch_sampler = MegatronPretrainingSampler(
                 total_samples=len(dataset),
                 consumed_samples=0,
                 micro_batch_size=training_args.per_device_train_batch_size,
                 data_parallel_rank=ps.get_rank("dp_fsdp"),
                 data_parallel_size=ps.get_group_size("dp_fsdp"))
+            print(f"len(dataset):{len(dataset)}")
+            print(f"training_args.per_device_train_batch_size:{training_args.per_device_train_batch_size}")
+            print("--------------------------------------------")
         else:
             raise Exception('{} dataloader type is not supported.'.format(
                     data_args.dataloader_type))
