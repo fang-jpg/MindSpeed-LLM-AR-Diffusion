@@ -44,6 +44,8 @@ class AutoInferencer:
         self.model_args = root_args.model
         self.parallel_args = root_args.parallel
         self.inference_args = root_args.inference
+        print("root_args:", root_args)
+        print("inference_args", self.inference_args)
         self.args = types.SimpleNamespace(**{
             k: v for ns in [root_args.model, root_args.parallel, root_args.inference, root_args.optimization]
             for k, v in ns.__dict__.items()
@@ -64,7 +66,9 @@ class AutoInferencer:
         logger.info_rank0("> Building Model for Inference...")
         
         # The model returned here is already FSDP-wrapped, each card only holds its own shard
+        print("self.model_args:", self.model_args)
         self.model = ModelFactory.create(self.model_args, self.parallel_args)
+        print(self.model)
 
         # 5. Instantiate the application-level Inferencer
         # Pass the prepared components (model, tokenizer, args) to the execution class
