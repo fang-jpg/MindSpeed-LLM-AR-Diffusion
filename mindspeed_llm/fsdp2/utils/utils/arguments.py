@@ -550,6 +550,14 @@ class TrainingArguments:
         default=1,
         metadata={"help": "Log every X updates steps."}
     )
+    log_per_token_loss: bool = field(
+        default=False,
+        metadata={"help": "Write every token's CE to output_dir/token_losses/rank_<rank>.jsonl and print rank 0 details."}
+    )
+    token_loss_logging_steps: int = field(
+        default=1,
+        metadata={"help": "Record all microbatches every X optimizer steps when log_per_token_loss is enabled."}
+    )
     log_throughput: bool = field(
         default=False,
         metadata={"help": "Whether to enable real-time logging of key throughput metrics, including tokens per second (tokens/s) and model FLOPs utilization (MFU) to quantify training/inference efficiency."},
@@ -668,6 +676,8 @@ class TrainingArguments:
     def __post_init__(self):  # Path parameter validation
         if self.output_dir is None:
             raise ValueError("`output_dir` must be specified.")
+        if self.token_loss_logging_steps < 1:
+            raise ValueError("`token_loss_logging_steps` must be >= 1.")
         if self.profile:
             if self.profile_step_start < 0:
                 raise ValueError("`profile_step_start` must be >= 0")

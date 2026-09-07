@@ -37,6 +37,12 @@ class Qwen3DiffusionOutput(ModelOutput):
     ar_token_count: Optional[torch.Tensor] = None
     diffusion_loss_sum: Optional[torch.Tensor] = None
     ar_loss_sum: Optional[torch.Tensor] = None
+    token_loss_details: Optional[dict] = None
+
+
+@dataclass
+class Qwen3TokenLossOutput(CausalLMOutputWithPast):
+    token_loss_details: Optional[dict] = None
 
 
 class Qwen3DiffusionForCausalLM(transformers.Qwen3PreTrainedModel, GenerationMixin):
@@ -57,6 +63,7 @@ class Qwen3DiffusionForCausalLM(transformers.Qwen3PreTrainedModel, GenerationMix
     _tied_weights_keys = []
     _tp_plan = {}
     _pp_plan = {}
+    supports_token_loss_logging = True
 
     def __init__(self, config):
         super().__init__(config)
@@ -174,6 +181,7 @@ class Qwen3DiffusionForCausalLM(transformers.Qwen3PreTrainedModel, GenerationMix
         eps: float = 1e-3,
         loss_ctx: Optional[callable] = None,
         loss_mask: Optional[torch.Tensor] = None,
+        log_per_token_loss: bool = False,
         **kwargs,
     ) -> CausalLMOutputWithPast:
         """Forward pass supporting bidirectional and block_diff paradigms.
@@ -197,6 +205,9 @@ class Qwen3DiffusionForCausalLM(transformers.Qwen3PreTrainedModel, GenerationMix
         # paradigm = "autoregressive"
         
         paradigm = getattr(self.config, "dlm_paradigm", "bidirectional")
+        if log_per_token_loss and loss_ctx is not None:
+            raise ValueError("Per-token loss logging requires chunk_loss_size to be disabled.")
+        token_loss_details = {} if log_per_token_loss and labels is not None else None
         # ── 1. Apply forward_process during training ──
         if labels is not None and paradigm != "autoregressive":
             noisy_inputs, masked_indices, p_mask = self.forward_process(
@@ -285,7 +296,20 @@ class Qwen3DiffusionForCausalLM(transformers.Qwen3PreTrainedModel, GenerationMix
                 shift_labels = labels
                 shift_labels = shift_labels.reshape(-1)
                 causal_logits = causal_logits.view(-1, logits.shape[-1])
-                loss = F.cross_entropy(causal_logits, shift_labels, reduction="mean", ignore_index=-100)
+                if log_per_token_loss:
+                    ar_token_loss = F.cross_entropy(
+                        causal_logits, shift_labels, reduction="none", ignore_index=-100
+                    )
+                    # Labels are already shifted by the data loader. Preserve the
+                    # original mean reduction (including its all-ignored behavior).
+                    loss = ar_token_loss.sum() / shift_labels.ne(-100).sum()
+                    token_loss_details["ar"] = {
+                        "losses": ar_token_loss.detach().reshape_as(labels),
+                        "target_ids": labels.detach(),
+                        "valid_mask": labels.ne(-100),
+                    }
+                else:
+                    loss = F.cross_entropy(causal_logits, shift_labels, reduction="mean", ignore_index=-100)
                 ar_loss_value = loss.item()
                 # if self.training and torch.is_grad_enabled():
                 #     # if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
@@ -293,12 +317,13 @@ class Qwen3DiffusionForCausalLM(transformers.Qwen3PreTrainedModel, GenerationMix
             else:
                 diff_labels = input_ids.clone()
                 # Diffusion loss: LLaDA-style on masked positions
-                token_loss = F.cross_entropy(
+                raw_diff_token_loss = F.cross_entropy(
                     logits[masked_indices],
                     diff_labels[masked_indices],
                     reduction="none",
                     ignore_index=-100
-                ) / p_mask[masked_indices].clamp_min(1e-3)
+                )
+                token_loss = raw_diff_token_loss / p_mask[masked_indices].clamp_min(1e-3)
 
                 num_mask_tokens = masked_indices.sum()
                 diff_loss = token_loss.sum()
@@ -313,6 +338,22 @@ class Qwen3DiffusionForCausalLM(transformers.Qwen3PreTrainedModel, GenerationMix
                 if dlm_weight is not None:
                     diff_loss = dlm_weight * diff_loss
                 loss = diff_loss
+                if log_per_token_loss:
+                    # Only masked positions have an observed diffusion loss.
+                    # Keep original [batch, sequence] positions after selection.
+                    raw_losses = torch.zeros_like(p_mask, dtype=raw_diff_token_loss.dtype)
+                    weighted_losses = torch.zeros_like(p_mask, dtype=token_loss.dtype)
+                    raw_losses[masked_indices] = raw_diff_token_loss.detach()
+                    weighted_losses[masked_indices] = token_loss.detach() * (
+                        dlm_weight if dlm_weight is not None else 1.0
+                    )
+                    token_loss_details["diffusion"] = {
+                        "losses": raw_losses,
+                        "target_ids": diff_labels.detach(),
+                        "valid_mask": masked_indices & diff_labels.ne(-100),
+                        "weighted_losses": weighted_losses,
+                        "p_mask": p_mask.detach(),
+                    }
 
                 # Block_diff: add AR loss from original half (shared diffusion_head)
                 ar_loss_value = 0.0
@@ -332,9 +373,17 @@ class Qwen3DiffusionForCausalLM(transformers.Qwen3PreTrainedModel, GenerationMix
                     ar_loss = F.cross_entropy(
                         flat_ar_logits,
                         flat_ar_labels,
-                        reduction="sum",
+                        reduction="none" if log_per_token_loss else "sum",
                         ignore_index=-100,
                     )
+                    if log_per_token_loss:
+                        token_loss_details["ar"] = {
+                            "losses": ar_loss.detach().reshape_as(labels),
+                            "target_ids": labels.detach(),
+                            "valid_mask": labels.ne(-100),
+                            "weighted_losses": ar_loss.detach().reshape_as(labels) * ar_weight,
+                        }
+                        ar_loss = ar_loss.sum()
 
                     # 统计整个 batch 的有效 AR token 数，而不是只使用 seq_len。
                     ar_token_count = flat_ar_labels.ne(-100).sum()
@@ -368,6 +417,7 @@ class Qwen3DiffusionForCausalLM(transformers.Qwen3PreTrainedModel, GenerationMix
                         # 注意：你当前的 diff_loss 已经乘过 dlm_weight。
                         diffusion_loss_sum=diff_loss,
                         ar_loss_sum=ar_loss,
+                        token_loss_details=token_loss_details,
                     )
                 # Phase 4: record per-component losses for the trainer to read.
                 # The trainer accesses these via _get_raw_model()._last_loss_components
@@ -381,12 +431,15 @@ class Qwen3DiffusionForCausalLM(transformers.Qwen3PreTrainedModel, GenerationMix
                     #     print(f"diff_loss:{diff_loss.item()}")
                     #     print(f"ar_loss:{ar_loss_value}")
 
-        return CausalLMOutputWithPast(
+        output_cls = Qwen3TokenLossOutput if token_loss_details is not None else CausalLMOutputWithPast
+        diagnostic_kwargs = {"token_loss_details": token_loss_details} if token_loss_details is not None else {}
+        return output_cls(
             loss=loss,
             logits=logits,
             past_key_values=outputs.past_key_values,
             hidden_states=outputs.hidden_states,
             attentions=outputs.attentions,
+            **diagnostic_kwargs,
         )
 
     @staticmethod

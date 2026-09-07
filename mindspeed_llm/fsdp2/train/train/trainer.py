@@ -15,6 +15,7 @@ from mindspeed_llm.fsdp2.distributed.clip_grad_norm import clip_grad_norm
 from mindspeed_llm.fsdp2.data.data_factory import DataManager
 from mindspeed_llm.fsdp2.data.processor.processor_utils import IGNORE_INDEX
 from mindspeed_llm.fsdp2.features.chunkloss import chunk_loss, calculate_lm_loss
+from mindspeed_llm.fsdp2.models.common.token_loss_logging import write_token_loss_logs
 from mindspeed_llm.fsdp2.checkpoint.utils import empty_cache, cleanup_old_checkpoints
 from mindspeed_llm.fsdp2.utils.dist_op import all_reduce
 from mindspeed_llm.fsdp2.utils.logging import get_logger
@@ -56,6 +57,8 @@ class Trainer:
         self.ckpt_manager = ckpt_manager
         self.train_monitor = monitor
         self.tokenizer = tokenizer
+        if getattr(args, "log_per_token_loss", False) and optimization_args.chunk_loss_size:
+            raise ValueError("Per-token loss logging requires chunk_loss_size to be disabled.")
 
         # Training state
         self.epoch = 0
@@ -252,6 +255,7 @@ class Trainer:
 
                 # --- Micro-Batch Loop ---
                 for i, inputs in enumerate(batch_samples):
+                    self._token_loss_micro_step = i + 1
                     do_sync_step = (i == len(batch_samples) - 1)
 
                     # FSDP Communication Optimization
@@ -598,10 +602,22 @@ class Trainer:
         """
         args = self.args
         device = torch.accelerator.current_device()
+        log_token_loss = (
+            getattr(args, "log_per_token_loss", False)
+            and (self.global_step + 1) % getattr(args, "token_loss_logging_steps", 1) == 0
+        )
+        if log_token_loss and self.optimization_args.chunk_loss_size:
+            raise ValueError("Per-token loss logging requires chunk_loss_size to be disabled.")
         # 1. Inject num_items_in_batch into inputs if present (for token-weighted loss)
         kwargs = {}
         if num_items_in_batch is not None:
             kwargs["num_items_in_batch"] = num_items_in_batch
+        raw_model = getattr(self.model, "model", self.model)
+        supports_token_logging = getattr(self.model, "supports_token_loss_logging", False) or getattr(
+            raw_model, "supports_token_loss_logging", False
+        )
+        if log_token_loss and supports_token_logging:
+            kwargs["log_per_token_loss"] = True
 
         labels = inputs['labels'].to(device, non_blocking=True)
         if args.stage == 'pt' and not getattr(self.model.config, "enable_diffusion_lm", True):
@@ -616,13 +632,23 @@ class Trainer:
 
         # 2. Forward pass
         outputs = self.model(**model_inputs)
+        token_loss_details = outputs.get("token_loss_details") if isinstance(outputs, dict) else None
 
         # 3. Extract loss from outputs
         uses_token_sum_loss = False
         if args.stage == 'pt' and "loss" not in outputs:
             logits = outputs.logits.contiguous().float()
             # print("_compute_language_model_pretrain_loss")
-            loss = self._compute_language_model_pretrain_loss(logits, labels, **kwargs)
+            loss = self._compute_language_model_pretrain_loss(
+                logits, labels, return_token_losses=log_token_loss, **kwargs
+            )
+            if log_token_loss:
+                loss, token_losses = loss
+                token_loss_details = {"ar": {
+                    "losses": token_losses,
+                    "target_ids": labels.detach(),
+                    "valid_mask": labels.ne(-100),
+                }}
         else:
             if isinstance(outputs, dict) and "loss" not in outputs:
                 raise ValueError(f"Model outputs have no loss key: {list(outputs.keys())}")
@@ -631,6 +657,22 @@ class Trainer:
             loss = self._normalize_token_sum_loss(loss)
             # lm_loss_output = loss.clone()
 
+
+        if log_token_loss:
+            if not token_loss_details:
+                raise ValueError(
+                    "This model does not return token_loss_details. Per-token logging is supported "
+                    "for qwen3_diffusion and pretraining models whose loss is computed by Trainer."
+                )
+            write_token_loss_logs(
+                token_loss_details,
+                inputs["input_ids"],
+                output_dir=args.output_dir,
+                step=self.global_step + 1,
+                micro_step=getattr(self, "_token_loss_micro_step", 1),
+                tokenizer=self.tokenizer,
+                position_ids=inputs.get("position_ids"),
+            )
 
         # 4. Cross-device token averaging adjustment
         # If the loss was calculated using 'mean' locally but needs global scaling based on tokens
@@ -647,7 +689,9 @@ class Trainer:
         # 5. Return loss (or tuple of loss + outputs)
         return (loss, outputs) if return_outputs else loss
 
-    def _compute_language_model_pretrain_loss(self, logits, labels, ignore_index: int = -100, **kwargs) -> torch.Tensor:
+    def _compute_language_model_pretrain_loss(
+        self, logits, labels, ignore_index: int = -100, return_token_losses: bool = False, **kwargs
+    ):
         args = self.args
 
         shift_labels = labels
@@ -655,9 +699,13 @@ class Trainer:
         logits = logits.view(-1, logits.shape[-1])
 
         ps = ParallelState()
+        token_losses = None
+        if return_token_losses:
+            token_losses = F.cross_entropy(logits, shift_labels, reduction='none', ignore_index=ignore_index)
 
         if ps.get_group_size("cp") > 1:
-            loss = F.cross_entropy(logits, shift_labels, reduction='sum', ignore_index=ignore_index)
+            loss = (token_losses.sum() if return_token_losses else
+                    F.cross_entropy(logits, shift_labels, reduction='sum', ignore_index=ignore_index))
 
             num_items_in_batch = (labels.ne(ignore_index)).sum()
             dist.all_reduce(num_items_in_batch, op=dist.ReduceOp.SUM, group=ps.get_group("cp"))
@@ -666,13 +714,18 @@ class Trainer:
             loss = loss / num_items_in_batch.item()
         else:
 
-            if args.calculate_per_token_loss:
+            if return_token_losses:
+                # Logging keeps the same scalar objective used for backward.
+                loss = token_losses.sum() / shift_labels.ne(ignore_index).sum()
+            elif args.calculate_per_token_loss:
                 loss = F.cross_entropy(logits, shift_labels, reduction='none', ignore_index=ignore_index)
                 # print(f"calculate_per_token_loss:{loss}")
             else:
                 loss = F.cross_entropy(logits, shift_labels, ignore_index=ignore_index)
                 # print(f"loss:{loss}")
 
+        if return_token_losses:
+            return loss, token_losses.detach().reshape_as(labels)
         return loss
 
     def _log_metrics(self, grad_norm=None, batch_size=0):
