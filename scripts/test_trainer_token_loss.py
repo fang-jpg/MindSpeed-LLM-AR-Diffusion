@@ -134,6 +134,71 @@ class TrainerTokenLossTest(unittest.TestCase):
         self.module.write_token_loss_logs.assert_not_called()
         self.assertNotIn("log_per_token_loss", self.trainer.model.call_args.kwargs)
 
+    def test_tuple_loss_uses_local_count_without_distributed_scaling(self):
+        self.module.ParallelState.return_value.get_group_size.return_value = 8
+        for container in (tuple, list):
+            with self.subTest(container=container.__name__):
+                numerator = torch.tensor(9.0, requires_grad=True)
+                count = torch.tensor(3.0, requires_grad=True)
+                with patch.object(self.module.dist, "is_initialized", return_value=True), \
+                        patch.object(self.module.dist, "all_reduce") as reduce_count:
+                    loss = self.trainer._normalize_token_sum_loss(container((numerator, count)))
+                reduce_count.assert_not_called()
+                torch.testing.assert_close(loss, torch.tensor(3.0))
+                loss.backward()
+                torch.testing.assert_close(numerator.grad, torch.tensor(1.0 / 3.0))
+                self.assertIsNone(count.grad)
+                self.assertEqual(count.item(), 3.0)
+
+    def test_tuple_loss_clamps_empty_count(self):
+        numerator = torch.tensor(0.0, requires_grad=True)
+        loss = self.trainer._normalize_token_sum_loss((numerator, 0))
+        self.assertEqual(loss.item(), 0.0)
+        loss.backward()
+        self.assertEqual(numerator.grad.item(), 1.0)
+
+    def test_scalar_loss_is_not_normalized_twice(self):
+        loss = torch.tensor(2.0, requires_grad=True)
+        self.assertIs(self.trainer._normalize_token_sum_loss(loss), loss)
+
+    def test_training_step_matches_default_rank_and_microbatch_mean(self):
+        # Exercise the real training_step -> _compute_loss -> normalization path.
+        # Average rank gradients explicitly: this is not a distributed backend test.
+        self.trainer.args.log_per_token_loss = False
+        self.trainer.optimizer = Mock(spec=[])
+        coefficients = torch.tensor([[120.0, 360.0], [360.0, 300.0]])
+        counts = torch.tensor([[60.0, 90.0], [120.0, 150.0]])
+        self.module.ParallelState.return_value.get_group_size.return_value = 2
+        # Also cover the final, shorter accumulation window (actual K = 1).
+        for accumulation_steps in (2, 1):
+            with self.subTest(accumulation_steps=accumulation_steps):
+                self.trainer.current_gradient_accumulation_steps = accumulation_steps
+                rank_gradients, rank_losses = [], []
+                with patch.object(self.module.dist, "is_initialized", return_value=True), \
+                        patch.object(self.module.dist, "all_reduce") as reduce_count, \
+                        patch.object(torch.cuda, "device_count", return_value=0):
+                    for rank in range(2):
+                        parameter = torch.tensor(1.0, requires_grad=True)
+                        outputs = [
+                            {"loss": (coefficients[rank, micro] * parameter.square(), counts[rank, micro])}
+                            for micro in range(accumulation_steps)
+                        ]
+                        self.trainer.model = Mock(side_effect=outputs)
+                        self.trainer.model.config.enable_diffusion_lm = True
+                        losses = [
+                            self.trainer.training_step(self.inputs.copy(), num_items_in_batch=10000)
+                            for _ in range(accumulation_steps)
+                        ]
+                        rank_losses.append(torch.stack(losses).sum())
+                        rank_gradients.append(parameter.grad.clone())
+                reduce_count.assert_not_called()
+                reference = torch.tensor(1.0, requires_grad=True)
+                expected = (coefficients[:, :accumulation_steps] * reference.square()
+                            / counts[:, :accumulation_steps]).mean()
+                expected.backward()
+                torch.testing.assert_close(torch.stack(rank_losses).mean(), expected)
+                torch.testing.assert_close(torch.stack(rank_gradients).mean(), reference.grad)
+
     def test_chunk_loss_fails_before_model_forward(self):
         self.trainer.optimization_args.chunk_loss_size = 128
         self.trainer.model = Mock()

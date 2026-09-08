@@ -36,7 +36,13 @@ Diffusion 的目标是当前位置的原始输入 token，仅被 mask 的位置�
 联合训练的 AR `weighted_loss = ar_loss_weight * loss`，
 Diffusion `weighted_loss = dlm_loss_weight * loss / max(p_mask, 1e-3)`
 （`dlm_loss_weight=None` 时权重按 1 处理）。两分支有效 token 的
-`weighted_loss` 总和等于现有联合 loss 的分子；分母仍使用现有训练逻辑。
+`weighted_loss` 总和等于联合 loss 的分子。
+联合 CPT 的归一化已对齐官方 Megatron-Bridge 默认路径：每个 rank、每个
+microbatch 使用本地分母 `被 mask 的 token 数 + labels.numel()`，分母不乘
+`ar_loss_weight`；随后除以当前梯度累积窗口的实际 microbatch 数，跨 rank
+由 FSDP 平均梯度。不跨 rank 汇总分母，也不是整个 optimizer step 的 token 加权平均。
+这里的 AR 分母包含 `-100` 标签位置，遵循官方 `numel()` 计数；这些位置仍不贡献
+AR 交叉熵，日志仍记录为 `valid=false`。这不同于仅按有效标签数归一化。
 `record_type=summary` 的 `mean_loss` 是该 rank、该 microbatch、该样本、该分支
 的有效 token 原始 CE 均值，便于独立观察 AR；它不是跨 rank 的平均值。
 

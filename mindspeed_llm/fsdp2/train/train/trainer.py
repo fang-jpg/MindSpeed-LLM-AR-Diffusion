@@ -434,6 +434,8 @@ class Trainer:
         # loss = self._compute_loss(inputs, return_outputs=False, num_items_in_batch=num_items_in_batch)
         loss_all = self._compute_loss(inputs, return_outputs=False, num_items_in_batch=num_items_in_batch)
         if self.args.stage == 'pt':
+            # Divide once by the actual accumulation length, including a short
+            # final window. Tuple losses have already been normalized locally.
             loss_all = loss_all / self.current_gradient_accumulation_steps
 
         loss = loss_all
@@ -810,6 +812,12 @@ class Trainer:
 
     @staticmethod
     def _normalize_token_sum_loss(loss):
+        """Match Megatron's default (calculate_per_token_loss=False) schedule.
+
+        Normalize each rank's micro-batch locally. Pretraining training_step
+        divides by the accumulation length; FSDP averages gradients across
+        ranks. Do not all-reduce this count or compensate by the world size.
+        """
         if not isinstance(loss, (tuple, list)):
             return loss
 
@@ -820,19 +828,4 @@ class Trainer:
             device=loss_sum.device,
         ).detach().to(torch.float32)
 
-        group_size = 1
-
-        if dist.is_initialized():
-            parallel_state = ParallelState()
-            group = parallel_state.get_group("dp_fsdp")
-            group_size = parallel_state.get_group_size("dp_fsdp")
-
-            dist.all_reduce(
-                token_count,
-                op=dist.ReduceOp.SUM,
-                group=group,
-            )
-
-        scale = token_count.reciprocal().mul(group_size)
-
-        return loss_sum * scale
+        return loss_sum / token_count.clamp_min(1)

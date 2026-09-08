@@ -385,18 +385,19 @@ class Qwen3DiffusionForCausalLM(transformers.Qwen3PreTrainedModel, GenerationMix
                         }
                         ar_loss = ar_loss.sum()
 
-                    # 统计整个 batch 的有效 AR token 数，而不是只使用 seq_len。
-                    ar_token_count = flat_ar_labels.ne(-100).sum()
+                    # Match official DGPTStep: count all AR label slots in the
+                    # local micro-batch, including -100 slots (CE ignores them).
+                    ar_token_count = flat_ar_labels.new_tensor(flat_ar_labels.numel())
 
                     # 联合 loss 的分子：
                     # dlm_weight * diffusion_loss_sum + ar_weight * ar_loss_sum
                     weighted_loss_sum = loss + ar_weight * ar_loss
 
-                    # 联合 loss 的分母。
-                    # num_mask_tokens 已经包含当前 rank 整个 batch 的 mask token。
-                    weighted_token_count = (
+                    # Official joint denominator: M + N. Objective weights
+                    # affect only the numerator, never the token counts.
+                    token_count = (
                         num_mask_tokens.to(dtype=torch.float32)
-                        + ar_weight * ar_token_count.to(dtype=torch.float32)
+                        + ar_token_count.to(dtype=torch.float32)
                     )
 
                     ar_loss_value = ar_loss.detach().item()
@@ -405,7 +406,7 @@ class Qwen3DiffusionForCausalLM(transformers.Qwen3PreTrainedModel, GenerationMix
                         print(f"ar_loss:{ar_loss_value}")
 
                     return Qwen3DiffusionOutput(
-                        loss=(weighted_loss_sum, weighted_token_count),
+                        loss=(weighted_loss_sum, token_count),
                         logits=logits,
 
                         # 保留原始三维形状，不返回已经 flatten 的 logits。

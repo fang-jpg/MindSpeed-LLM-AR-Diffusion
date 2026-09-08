@@ -4,7 +4,7 @@ Run: python scripts/test_qwen3_token_loss.py
 
 Requires torch and transformers. A small embedding backbone replaces attention;
 the production forward, LMHead, loss calculations, and autograd remain intact.
-These tests isolate loss logging and do not validate NPU or distributed training.
+These tests cover loss normalization/logging, not NPU or distributed training.
 """
 
 import contextlib
@@ -181,10 +181,33 @@ class TokenLossTests(unittest.TestCase):
         torch.testing.assert_close(output.loss[0],
                                    diffusion["weighted_losses"].sum() + ar["weighted_losses"].sum())
         torch.testing.assert_close(output.loss[1],
-                                   self.mask.sum() + model.config.ar_loss_weight * self.labels.ne(-100).sum())
+                                   self.mask.sum().float() + self.labels.numel())
         torch.testing.assert_close(output.ar_loss_sum, ar_nll.sum())
         torch.testing.assert_close(output.diffusion_loss_sum, expected_diff[self.mask].sum())
         self.assert_detached_details(output.token_loss_details)
+
+    def test_joint_default_denominator_and_gradients_for_ar_weights(self):
+        for ar_weight in (0.0, 1.0, 2.0):
+            with self.subTest(ar_weight=ar_weight):
+                model = make_model("block_diff")
+                model.config.ar_loss_weight = ar_weight
+                self.fixed_mask(model)
+                output = self.run_forward(model, enabled=False)
+                ar_nll = target_nll(output.causal_logits, self.labels).sum()
+                diffusion_nll = (target_nll(output.logits, self.input_ids)[self.mask]
+                                 / self.probabilities[self.mask].clamp_min(1e-3)).sum()
+                # Official DGPTStep counts every AR label, including -100 slots.
+                count = self.mask.sum().float() + self.labels.numel()
+                expected = (model.config.dlm_loss_weight * diffusion_nll + ar_weight * ar_nll) / count
+                actual = output.loss[0] / output.loss[1]
+                torch.testing.assert_close(output.loss[1], count)
+                self.assertEqual(output.ar_token_count.item(), self.labels.numel())
+                torch.testing.assert_close(actual, expected)
+                parameters = list(model.parameters())
+                expected_gradients = torch.autograd.grad(expected, parameters, retain_graph=True)
+                actual.backward()
+                for parameter, gradient in zip(parameters, expected_gradients):
+                    torch.testing.assert_close(parameter.grad, gradient)
 
     def test_bidirectional_logs_input_reconstruction_only(self):
         model = make_model("bidirectional")
