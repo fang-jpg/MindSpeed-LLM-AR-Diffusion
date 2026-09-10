@@ -672,6 +672,7 @@ class Trainer:
                 micro_step=getattr(self, "_token_loss_micro_step", 1),
                 tokenizer=self.tokenizer,
                 position_ids=inputs.get("position_ids"),
+                include_token_details=getattr(args, "log_token_loss_details", False),
             )
 
         # 4. Cross-device token averaging adjustment

@@ -552,7 +552,11 @@ class TrainingArguments:
     )
     log_per_token_loss: bool = field(
         default=False,
-        metadata={"help": "Write every token's CE to output_dir/token_losses/rank_<rank>.jsonl and print rank 0 details."}
+        metadata={"help": "Record raw per-token CE summaries in output_dir/token_losses/rank_<rank>.jsonl and print rank 0 summaries."}
+    )
+    log_token_loss_details: bool = field(
+        default=False,
+        metadata={"help": "Also write every token's details when log_per_token_loss is enabled. Use only for short diagnostic runs; full logs can be very large."}
     )
     token_loss_logging_steps: int = field(
         default=1,

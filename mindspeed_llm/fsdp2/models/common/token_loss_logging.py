@@ -26,10 +26,36 @@ def _cpu_values(tensor):
     return tensor.detach().cpu().tolist()
 
 
+def _summarize_on_device(tensors):
+    """Reduce per sample before transferring to CPU; never decode token IDs."""
+    valid = tensors["valid_mask"].detach().bool()
+    counts = valid.sum(dim=-1)
+    names = ["losses"]
+    if "weighted_losses" in tensors:
+        names.append("weighted_losses")
+    sums = torch.stack([
+        torch.where(valid, tensors[name].detach().float(), 0.0).sum(dim=-1)
+        for name in names
+    ], dim=-1)
+    cpu_counts = counts.cpu().tolist()
+    cpu_sums = sums.cpu().tolist()
+    summaries = []
+    for count, totals in zip(cpu_counts, cpu_sums):
+        summary = {
+            "valid_token_count": count,
+            "mean_loss": _json_number(totals[0] / count) if count else None,
+        }
+        if len(names) > 1:
+            summary["mean_weighted_loss"] = _json_number(totals[1] / count) if count else None
+        summaries.append(summary)
+    return summaries
+
+
 def write_token_loss_logs(
-    details, input_ids, *, output_dir, step, micro_step, tokenizer=None, position_ids=None
+    details, input_ids, *, output_dir, step, micro_step, tokenizer=None, position_ids=None,
+    include_token_details=False,
 ):
-    """Append every local token's raw CE and alignment information to JSONL.
+    """Append per-sample CE summaries, with optional full token diagnostics.
 
     ``details`` maps each component (for example ``ar`` or ``diffusion``) to
     ``losses``, ``target_ids`` and ``valid_mask`` tensors of shape [batch, length].
@@ -46,6 +72,10 @@ def write_token_loss_logs(
     per-batch/component summary reports the mean raw CE over valid positions;
     this local diagnostic need not equal a globally reduced training objective.
     No collectives are introduced and all inspected tensors are detached.
+
+    By default only summaries are written and only device-reduced statistics
+    are copied to CPU. Set include_token_details=True for short diagnostic runs
+    to additionally write every token (including invalid positions).
 
     Returns the log Path, or None when there are no components to log.
     """
@@ -76,8 +106,8 @@ def write_token_loss_logs(
     log_dir = Path(output_dir) / "token_losses"
     log_dir.mkdir(parents=True, exist_ok=True)
     log_path = log_dir / f"rank_{rank}.jsonl"
-    inputs = _cpu_values(input_ids)
-    positions = _cpu_values(position_ids) if position_ids is not None else None
+    inputs = _cpu_values(input_ids) if include_token_details else None
+    positions = _cpu_values(position_ids) if include_token_details and position_ids is not None else None
 
     with log_path.open("a", encoding="utf-8") as log_file:
         def emit(record):
@@ -87,6 +117,19 @@ def write_token_loss_logs(
                 logger.info("token_loss %s", line)
 
         for component, tensors in details.items():
+            if not include_token_details:
+                for batch_index, statistics in enumerate(_summarize_on_device(tensors)):
+                    emit({
+                        "record_type": "summary",
+                        "step": step,
+                        "micro_step": micro_step,
+                        "rank": rank,
+                        "component": component,
+                        "batch_index": batch_index,
+                        "token_count": sequence_length,
+                        **statistics,
+                    })
+                continue
             values = {
                 name: _cpu_values(tensors[name])
                 for name in ("losses", "target_ids", "valid_mask", "weighted_losses", "p_mask")

@@ -85,5 +85,6 @@ training:
   save_steps: 500
   logging_steps: 1
   log_per_token_loss: True
+  log_token_loss_details: False  # Summary only; keep full token dumps for short debug runs.
   token_loss_logging_steps: 1
   # log_throughput: True

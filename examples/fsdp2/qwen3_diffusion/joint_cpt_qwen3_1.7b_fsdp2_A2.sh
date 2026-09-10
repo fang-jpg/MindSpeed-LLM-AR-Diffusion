@@ -21,7 +21,8 @@
 # "
 
 # torchrun $DISTRIBUTED_ARGS train_fsdp2.py \
-#     examples/fsdp2/qwen3_diffusion/joint_cpt_qwen3_1.7b_fsdp2_A2.yaml 
+#     examples/fsdp2/qwen3_diffusion/joint_cpt_qwen3_1.7b_fsdp2_A2.yaml \
+#     2>&1 | tee /share/f50058111/logs/qwen3_1.7b_train_ar_cpt_0814_b8.log
 
 #!/bin/bash
 
