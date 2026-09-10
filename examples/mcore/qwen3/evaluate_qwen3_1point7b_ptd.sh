@@ -4,10 +4,17 @@
 export CUDA_DEVICE_MAX_CONNECTIONS=1
 
 # please fill these path configurations
-TOKENIZER_PATH="your tokenizer path"
-CHECKPOINT="your model ckpt path"
-DATA_PATH="your data path"
+# HF_MODEL_PATH=${HF_MODEL_PATH:-/share/dataset/x00840191/model_train/ckpt/phase4_cpt_ar_duffision_0807/models/global_step_17000/}
+# MCORE_OUTPUT_PATH=${MCORE_OUTPUT_PATH:-/share/dataset/x00840191/models/ar_diff_0807_17000/}
+TOKENIZER_PATH="/share/dataset/x00840191/model_train/ckpt/phase4_cpt_ar_duffision_0807/models/global_step_24000/"
+CHECKPOINT="/share/dataset/x00840191/models/ar_diff_0807_24000/"
+DATA_PATH="/home/c00633840/testdata/mmlu/data/test/"
 TASK="mmlu"
+
+# CKPT_LOAD_DIR="/home/c00633840/ckpt/qwen3_1.7b_mcore/"
+# CKPT_SAVE_DIR="/home/c00633840/ckpt/phase0_out/"
+# DATA_PATH="/home/c00633840/dataset/alpaca_text_document"
+# TOKENIZER_PATH="/home/c00633840/models/Qwen3-1.7B-Base/"
 
 # Change for multinode config
 MASTER_ADDR=localhost
@@ -74,5 +81,4 @@ torchrun $DISTRIBUTED_ARGS evaluation.py \
     --seed 42 \
     --bf16 \
     --transformer-impl local \
-    --ckpt-format torch \
     | tee logs/evaluate_qwen3_1poine7b_ptd.log

@@ -6,8 +6,10 @@ from typing import Optional
 
 import torch
 from torch import Tensor
+import acl
 
 from megatron.core import InferenceParams, mpu, parallel_state, tensor_parallel
+from megatron.core.extensions.transformer_engine import TEDelayedScaling
 from megatron.core.fp8_utils import get_fp8_context
 from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.tensor_parallel import (
@@ -21,9 +23,9 @@ from megatron.core.utils import make_viewless_tensor
 from megatron.training import get_args
 from megatron.training.utils import get_batch_on_this_cp_rank
 
-from mindspeed.core.context_parallel.get_batch_utils import set_actual_seq_len, get_actual_seq_len
 from mindspeed_llm.training.utils import get_mtp_batch_list
-from mindspeed_llm.tasks.models.transformer.deepseek4.mhc import get_mhc_spec, hc_repeat
+from mindspeed.core.context_parallel.get_batch_utils import set_actual_seq_len, get_actual_seq_len, get_ring_degree
+from mindspeed.core.context_parallel.utils import pad_data
 
 
 def mtp_reduce_loss_in_tracker():
@@ -36,7 +38,9 @@ def mtp_reduce_loss_in_tracker():
     if tracker.get('reduce_group') is not None:
         torch.distributed.all_reduce(values, group=tracker.get('reduce_group'))
     if tracker.get('avg_group') is not None:
-        torch.distributed.all_reduce(values, group=tracker['avg_group'], op=torch.distributed.ReduceOp.SUM)
+        torch.distributed.all_reduce(
+            values, group=tracker['avg_group'], op=torch.distributed.ReduceOp.SUM
+        )
         tracker["values"] = values / tracker['avg_group'].size()
 
 
@@ -55,10 +59,10 @@ def get_mtp_num_layers_to_build(config: TransformerConfig) -> int:
 def mtp_layer_init_wrapper(fn):
     @wraps(fn)
     def wrapper(
-        self,
-        config,
-        submodules,
-        layer_number,
+            self,
+            config,
+            submodules,
+            layer_number,
     ):
         fn(
             self,
@@ -66,47 +70,31 @@ def mtp_layer_init_wrapper(fn):
             submodules,
             layer_number,
         )
-        self.transformer_layer = build_module(submodules.transformer_layer, config=self.config, is_mtp_layer=True)
-
         # fn move out of layer
         self.final_layernorm = None
 
         # set mtp_idx for tnd
         self.transformer_layer.mtp_idx = self.layer_number
-        self_attention = self.transformer_layer.self_attention
-        if hasattr(self_attention, "mtp_idx"):
-            self_attention.mtp_idx = self.layer_number
-        elif hasattr(self_attention, "core_attention"):
-            self_attention.core_attention.mtp_idx = self.layer_number
-        args = get_args()
-        hc_head_spec = get_mhc_spec(args.enable_mhc)
-        self.hc_head_spec = hc_head_spec
-        self.hc_head = build_module(self.hc_head_spec, config=config, mhc_position='head', layer_number=-1)
+        self.transformer_layer.self_attention.core_attention.mtp_idx = self.layer_number
 
     return wrapper
 
 
-def mtp_layer_forward(
-    self,
-    decoder_input: Tensor,
-    hidden_states: Tensor,
-    attention_mask: Tensor,
-    context: Tensor = None,
-    context_mask: Tensor = None,
-    rotary_pos_emb: Tensor = None,
-    rotary_pos_cos: Tensor = None,
-    rotary_pos_sin: Tensor = None,
-    attention_bias: Tensor = None,
-    inference_params: InferenceParams = None,
-    packed_seq_params: PackedSeqParams = None,
-    sequence_len_offset: Tensor = None,
-    input_ids: Tensor = None,
-    pre_process: Tensor = None,
-    post_process: Tensor = None,
-):
-    args = get_args()
+def mtp_layer_forward(self,
+        decoder_input: Tensor,
+        hidden_states: Tensor,
+        attention_mask: Tensor,
+        context: Tensor = None,
+        context_mask: Tensor = None,
+        rotary_pos_emb: Tensor = None,
+        rotary_pos_cos: Tensor = None,
+        rotary_pos_sin: Tensor = None,
+        attention_bias: Tensor = None,
+        inference_params: InferenceParams = None,
+        packed_seq_params: PackedSeqParams = None,
+        sequence_len_offset: Tensor = None,):
     if context is not None:
-        raise NotImplementedError("multi token prediction + cross attention is not yet supported.")
+        raise NotImplementedError(f"multi token prediction + cross attention is not yet supported.")
 
     hidden_states = make_viewless_tensor(inp=hidden_states, requires_grad=True, keep_graph=True)
 
@@ -122,9 +110,13 @@ def mtp_layer_forward(
 
     with rng_context, fp8_context:
         decoder_input = self.enorm(decoder_input)
-        decoder_input = make_viewless_tensor(inp=decoder_input, requires_grad=True, keep_graph=True)
+        decoder_input = make_viewless_tensor(
+            inp=decoder_input, requires_grad=True, keep_graph=True
+        )
         hidden_states = self.hnorm(hidden_states)
-        hidden_states = make_viewless_tensor(inp=hidden_states, requires_grad=True, keep_graph=True)
+        hidden_states = make_viewless_tensor(
+            inp=hidden_states, requires_grad=True, keep_graph=True
+        )
         # At the (k - 1)-th MTP module, concatenates the i-th tocken's hidden_states
         # and the (i + K)-th tocken's embedding, and combine them with linear projection.
         hidden_states = torch.cat((decoder_input, hidden_states), -1)
@@ -134,10 +126,7 @@ def mtp_layer_forward(
         # For sequence parallel, scatter after linear_fc and before transformer layer.
         if self.sequence_parallel:
             hidden_states = scatter_to_sequence_parallel_region(hidden_states)
-        if pre_process:
-            hidden_states = hc_repeat(hidden_states, args.enable_mhc, args.hc_mult)
         hidden_states, _ = self.transformer_layer(
-            input_ids=input_ids,
             hidden_states=hidden_states,
             attention_mask=attention_mask,
             context=context,
@@ -150,8 +139,6 @@ def mtp_layer_forward(
             packed_seq_params=packed_seq_params,
             sequence_len_offset=sequence_len_offset,
         )
-        if post_process:
-            hidden_states = self.hc_head(hidden_states, mhc_stage='head')
 
     return hidden_states
 
@@ -199,8 +186,6 @@ def mtp_block_forward(
     output_layer=None,
     output_weight: Optional[torch.Tensor] = None,
     compute_language_model_loss=None,
-    pre_process: Tensor = None,
-    post_process: Tensor = None,
 ) -> Tensor:
     """
     Perform the forward pass through all of the MTP modules.
@@ -219,22 +204,20 @@ def mtp_block_forward(
 
     # With dualpipev schedules, last stage use embedding weight from first stage instead of initializing by itself.
     if embedding.word_embeddings.weight is None:
-        from mindspeed.core.pipeline_parallel.dualpipev.dualpipev_schedules import get_shared_embedding_from_dual_chunk
-
+        from mindspeed.core.pipeline_parallel.dualpipev.dualpipev_schedules import \
+            get_shared_embedding_from_dual_chunk
         embedding.word_embeddings.weight = get_shared_embedding_from_dual_chunk()
 
     hidden_states_main_model = hidden_states
     for layer_number in range(len(self.layers)):
         # get input_data from mtp_batch_list or not
         input_ids, position_ids, labels, loss_mask, attention_mask = get_mtp_layer_input(
-            (input_ids, position_ids, labels, loss_mask, attention_mask), mtp_batch_list, layer_number
-        )
+        (input_ids, position_ids, labels, loss_mask, attention_mask), mtp_batch_list, layer_number)
 
         # embedding
         decoder_input = embedding(input_ids=input_ids, position_ids=position_ids)
         # norm, linear projection and transformer
         hidden_states = self.layers[layer_number](
-            input_ids=input_ids,
             decoder_input=decoder_input,
             hidden_states=hidden_states,
             attention_mask=attention_mask,
@@ -244,8 +227,6 @@ def mtp_block_forward(
             rotary_pos_sin=rotary_pos_sin,
             packed_seq_params=packed_seq_params,
             sequence_len_offset=sequence_len_offset,
-            pre_process=pre_process,
-            post_process=post_process,
             **(extra_block_kwargs or {}),
         )
         # Layer norm before shared head layer.
@@ -286,7 +267,9 @@ def mtp_block_forward(
         mtp_loss *= parallel_state.get_context_parallel_world_size()
         mtp_loss_scale = self.mtp_loss_scaling_factor / self.config.mtp_num_layers
         if self.config.calculate_per_token_loss:
-            hidden_states_main_model = MTPLossAutoScaler.apply(hidden_states_main_model, mtp_loss_scale * mtp_loss)
+            hidden_states_main_model = MTPLossAutoScaler.apply(
+                hidden_states_main_model, mtp_loss_scale * mtp_loss
+            )
         else:
             hidden_states_main_model = MTPLossAutoScaler.apply(
                 hidden_states_main_model, mtp_loss_scale * mtp_loss / num_tokens
@@ -298,23 +281,24 @@ def mtp_block_forward(
 def get_mtp_layer_input(input_data, mtp_batch_list, layer_number):
     if mtp_batch_list:
         input_ids, position_ids, labels, loss_mask, attention_mask = (
-            mtp_batch_list[layer_number][k] for k in ('tokens', 'position_ids', 'labels', 'loss_mask', 'attention_mask')
+            mtp_batch_list[layer_number][k]
+            for k in ('tokens', 'position_ids', 'labels', 'loss_mask', 'attention_mask')
         )
     else:
         input_ids, position_ids, labels, loss_mask, attention_mask = input_data
-
+    
     if loss_mask is None:
         # if loss_mask is not provided, use all ones as loss_mask
         loss_mask = torch.ones_like(labels)
-
+    
     if labels is None:
-        raise AssertionError("labels should not be None for calculating multi token prediction loss.")
+        raise AssertionError(f"labels should not be None for calculating multi token prediction loss.")
 
     if not mtp_batch_list:
         input_ids, _ = roll_tensor(input_ids, shifts=-1, dims=-1)
         labels, _ = roll_tensor(labels, shifts=-1, dims=-1)
         loss_mask, _ = roll_tensor(loss_mask, shifts=-1, dims=-1)
-
+    
     return input_ids, position_ids, labels, loss_mask, attention_mask
 
 
@@ -358,28 +342,3 @@ def generate_mtp_batch_list_on_this_tp_rank(batch):
         mtp_batch_list.append(mtp_batch)
 
     return mtp_batch_list
-
-
-def track_mtp_metrics(loss_scale, iteration, writer, wandb_writer=None, total_loss_dict=None):
-    """Track the Multi-Token Prediction (MTP) metrics for logging."""
-    MTPLossLoggingHelper.reduce_loss_in_tracker()
-    tracker = MTPLossLoggingHelper.tracker
-    if "values" not in tracker:
-        return
-    mtp_losses = tracker["values"] * loss_scale
-    mtp_num_layers = mtp_losses.shape[0]
-    for i in range(mtp_num_layers):
-        name = f"mtp_{i + 1} loss"
-        loss = mtp_losses[i]
-        if total_loss_dict is not None:
-            total_loss_dict[name] = loss
-        if writer is not None:
-            writer.add_scalar(name, loss, iteration)
-        if wandb_writer is not None:
-            wandb_writer.log({f"{name}": loss}, iteration)
-
-    for group_key in ['reduce_group', 'avg_group']:
-        if (group := tracker.get(group_key)) is not None:
-            torch.distributed.barrier(group)
-            break
-    MTPLossLoggingHelper.clean_loss_in_tracker()

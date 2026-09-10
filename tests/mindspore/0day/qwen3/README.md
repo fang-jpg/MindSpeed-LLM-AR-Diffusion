@@ -10,7 +10,7 @@
 
 ### 启动脚本
 
-使用Qwen3模型目录下的[HuggingFace转Megatron脚本](https://gitcode.com/Ascend/MindSpeed-LLM/blob/master/convert_ckpt_v2.py)
+使用Qwen3模型目录下的[HuggingFace转Megatron脚本](../../../../convert_ckpt.py)
 
 ```commandline
 #稠密模型
@@ -194,7 +194,7 @@ GPUS_PER_NODE=8
 MASTER_PORT=6000
 MASTER_ADDR=localhost # 主节点IP
 NNODES=1
-NODE_RANK=0
+NODE_RANK=0  
 MASTER_PORT=9110
 log_dir=msrun_log_pretrain # log输出路径
 ```

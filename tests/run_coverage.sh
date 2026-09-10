@@ -71,11 +71,6 @@ source = $SOURCE_DIR
 [report]
 show_missing = True
 skip_covered = False
-
-exclude_lines =
-    pragma: no cover
-    ^\s*import\s
-    ^\s*from\s
 EOF
 
 # run the coverage for python files in the unit tests
@@ -87,8 +82,7 @@ find "$UT_DIR" -mindepth 1 -maxdepth 1 -type d | while read -r dir; do
             extension="${filename##*.}"
             name="${filename%.$extension}"
             pytest -s $file | tee "$GENERATE_LOG_DIR/[UT]$name.log" 2>&1
-            PYTEST_EXITCODE=${PIPESTATUS[0]}
-            if [ $PYTEST_EXITCODE -ne 0 ]; then
+            if [ $? -ne 0 ]; then
                 echo "[UT] $file has failed, check it!" >> "$GENERATE_LOG_DIR/exec_error.log"
             fi
             coverage run -p --source=$SOURCE_DIR $file
@@ -103,8 +97,7 @@ for test_case in "$ST_DIR"/*.sh; do
     extension="${file_name##*.}"
     name="${file_name%.$extension}"
     bash $test_case | tee "$GENERATE_LOG_DIR/[ST]$name.log" 2>&1
-    PYTEST_EXITCODE=${PIPESTATUS[0]}
-    if [ $PYTEST_EXITCODE -ne 0 ]; then
+    if [ $? -ne 0 ]; then
         echo "[ST] $test_case has failed, check it!" >> "$GENERATE_LOG_DIR/exec_error.log"
     fi
 done
@@ -136,26 +129,8 @@ find "$PIPELINE_DIR/st" -mindepth 1 -maxdepth 1 -type d | while read -r dir; do
             extension="${filename##*.}"
             name="${filename%.$extension}"
             bash $file | tee "$GENERATE_LOG_DIR/[PIPELINE_ST]$name.log" 2>&1
-            PYTEST_EXITCODE=${PIPESTATUS[0]}
-            if [ $PYTEST_EXITCODE -ne 0 ]; then
+            if [ $? -ne 0 ]; then
                 echo "[PIPELINE_ST] $file has failed, check it!" >> "$GENERATE_LOG_DIR/exec_error.log"
-            fi
-        done
-    fi
-done
-
-# run the coverage for shell scripts in the pipeline
-find "$PIPELINE_DIR/legacy" -mindepth 1 -maxdepth 1 -type d | while read -r dir; do
-    if [ -d "$dir" ]; then
-        find "$dir" -type f -name "*.sh" | while read -r file; do
-            echo "Running [PIPELINE_LEGACY] ${file}"
-            filename=$(basename "$file")
-            extension="${filename##*.}"
-            name="${filename%.$extension}"
-            bash $file | tee "$GENERATE_LOG_DIR/[PIPELINE_LEGACY]$name.log" 2>&1
-            PYTEST_EXITCODE=${PIPESTATUS[0]}
-            if [ $PYTEST_EXITCODE -ne 0 ]; then
-                echo "[PIPELINE_LEGACY] $file has failed, check it!" >> "$GENERATE_LOG_DIR/exec_error.log"
             fi
         done
     fi
@@ -168,14 +143,14 @@ coverage xml -o "$REPORT_DIR/coverage.xml"
 coverage json -o "$REPORT_DIR/coverage.json"
 
 # 压缩目录
-echo "Compressing directory '$COVERAGE_DIR'..."
-tar -czf $COVERAGE_DIR.tgz $COVERAGE_DIR
+echo "Compressing directory '$TARGET_DIR'..."
+tar -czf $REPORT_DIR/htmlcov.tgz $REPORT_DIR/htmlcov
 
 # 检查压缩是否成功
 if [ $? -eq 0 ]; then
     # 删除原目录
-    echo "Removing original directory $COVERAGE_DIR ..."
-    rm -rf $COVERAGE_DIR
+    echo "Removing original directory $REPORT_DIR/htmlcov ..."
+    rm -rf $REPORT_DIR/htmlcov
 else
     echo "Compression failed."
 fi

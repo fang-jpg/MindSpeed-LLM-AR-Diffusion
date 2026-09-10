@@ -127,8 +127,7 @@ GPT_ARGS="
     --attention-softmax-in-fp32 \
     --no-gradient-accumulation-fusion \
     --transformer-impl transformer_engine \
-    --no-bias-dropout-fusion \
-    --ckpt-format torch
+    --no-bias-dropout-fusion
 "
 
 # FP8_ARGS="
@@ -137,7 +136,6 @@ GPT_ARGS="
 # "
 
 DATA_ARGS="
-    --handler-name GeneralPretrainHandler \
     --data-path $DATA_PATH \
     --split 100,0,0
 "

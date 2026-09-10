@@ -87,12 +87,10 @@ GPT_ARGS="
     --swap-attention \
     --recompute-activation-function \
     --use-fused-ring-attention-update \
-    --bf16 \
-    --ckpt-format torch
+    --bf16
 "
 
 DATA_ARGS="
-    --handler-name GeneralPretrainHandler \
     --data-path ${DATA_PATH} \
     --split 949,50,1
 "

@@ -1,5 +1,7 @@
 #!/bin/bash
 
+
+
 export CUDA_DEVICE_MAX_CONNECTIONS=1
 export PYTORCH_NPU_ALLOC_CONF=expandable_segments:True
 export HCCL_CONNECT_TIMEOUT=3600
@@ -133,7 +135,6 @@ GPT_ARGS="
     --norm-epsilon 1e-6 \
     --manual-gc \
     --manual-gc-interval 50 \
-    --ckpt-format torch
 "
 
 CKPT_ARGS="
@@ -162,7 +163,6 @@ TRAIN_ARGS="
 "
 
 DATA_ARGS="
-    --handler-name GeneralPretrainHandler \
     --no-shared-storage \
     --data-path $DATA_PATH \
     --split 100,0,0

@@ -1,0 +1,10 @@
+{
+  "mask_token_id": 151936,
+  "dlm_paradigm": "block_diff",
+  "block_size": 8,
+  "dlm_loss_weight": 1.0,
+  "ar_loss_weight": 1.0,
+  "dp_varying_mask_ratio": false,
+  "enable_diffusion_lm": true,
+  "diffusion_lm": true
+}

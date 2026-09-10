@@ -35,8 +35,8 @@ docs/zh/
 │   ├── models/             # Models supported by the PyTorch framework
 │   │   └── supported_models.md
 │   ├── training/           # Training solution documents
-│   │   ├── install_guide.md  # Installation guide
 │   │   ├── quick_start.md    # Quick start guide
+│   │   ├── install_guide.md  # Installation guide
 │   │   ├── evaluation/       # Model evaluation
 │   │   │   ├── evaluation_guide.md
 │   │   │   ├── models_evaluation.md
@@ -58,6 +58,7 @@ docs/zh/
 │       ├── data_process_sft_sharegpt_style.md # ShareGPT-style data processing
 │       ├── data_process_dpo_pairwise.md       # Pairwise data processing
 │       ├── data_process_pretrain.md           # Pretraining data processing
+│       ├── checkpoint_convert_hf_mcore.md     # Weight conversion
 │       ├── checkpoint_convert_hf_mcore_large_params.md  # Weight conversion V2
 │       ├── checkpoint_convert_hf_dcp.md       # Hugging Face-DCP weight conversion
 │       ├── profiling.md                       # Performance analysis
@@ -142,7 +143,7 @@ docs/zh/
 
 | Content | Description |
 |------|------|
-| [checkpoint_convert_hf_mcore](pytorch/tools/checkpoint_convert_hf_mcore_large_params.md) | Supports two-way weight conversion between Hugging Face and Megatron-core, and supports LoRA weight merging. |
+| [checkpoint_convert_hf_mcore](pytorch/tools/checkpoint_convert_hf_mcore.md) | Supports two-way weight conversion between Hugging Face and Megatron-core, and supports LoRA weight merging. |
 | [checkpoint_convert_hf_mcore_large_params](pytorch/tools/checkpoint_convert_hf_mcore_large_params.md) | Supports weight conversion among different formats such as MCore and Hugging Face for large-parameter models. |
 | [checkpoint_convert_hf_dcp](pytorch/tools/checkpoint_convert_hf_dcp.md) | Weight conversion tool between Hugging Face and DCP. |
 | [data_process_pretrain](pytorch/tools/data_process_pretrain.md) | Data preprocessing for pretraining tasks. |

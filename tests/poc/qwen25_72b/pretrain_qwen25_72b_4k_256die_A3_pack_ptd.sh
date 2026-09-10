@@ -76,8 +76,7 @@ MODEL_ARGS="
     --no-gradient-accumulation-fusion \
     --reset-attention-mask \
     --overlap-grad-reduce \
-    --overlap-param-gather \
-    --ckpt-format torch
+    --overlap-param-gather
 "
 
 TRAIN_ARGS="
@@ -98,7 +97,6 @@ TRAIN_ARGS="
 "
 
 DATA_ARGS="
-    --handler-name GeneralPretrainHandler \
     --no-shared-storage \
     --data-path $DATA_PATH \
     --split 100,0,0
@@ -108,9 +106,7 @@ CKPT_ARGS="
     --load ${CKPT_LOAD_DIR} \
     --no-load-optim \
     --no-load-rng \
-    --save ${CKPT_SAVE_DIR} \
-    --enable-hf2mg-convert \
-    --model-type-hf qwen25
+    --save ${CKPT_SAVE_DIR}
 "
 
 OUTPUT_ARGS="

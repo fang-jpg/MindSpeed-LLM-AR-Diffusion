@@ -14,68 +14,19 @@
 # limitations under the License.
 
 import math
-from typing import Any, Dict, Optional, Union
-from dataclasses import dataclass, field
+from typing import Any, Dict, Optional, Tuple
 from torch import Tensor
 
 from megatron.core import tensor_parallel
 from megatron.core.transformer.transformer_layer import TransformerLayerSubmodules
-from megatron.core.utils import deprecate_inference_params
+from megatron.core.utils import WrappedTensor, deprecate_inference_params
 from megatron.core.transformer.transformer_layer import TransformerLayer as MegatronTransformerLayer
-from megatron.core.transformer import TransformerConfig, ModuleSpec, build_module
-from megatron.core.transformer.identity_op import IdentityOp, IdentityFuncOp
+from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.transformer.moe.moe_layer import MoELayer
 from megatron.core.transformer.moe.experts import GroupedMLP, SequentialMLP
 from megatron.core.utils import make_viewless_tensor
 from megatron.training import get_args
-
-
-@dataclass
-class CustomTransformerLayerSubmodules:
-    """
-    Configuration class for specifying the submodules of a transformer layer.
-
-    This class defines the structure and default implementations for various
-    components of a transformer layer, allowing for flexible customization
-    of the layer's architecture.
-
-    Args:
-        input_layernorm (Union[ModuleSpec, type]): Specification for the input layer normalization.
-        self_attention (Union[ModuleSpec, type]): Specification for the self-attention mechanism.
-        self_attn_bda (Union[ModuleSpec, type]): Specification for the bias-dropout-add operation
-            after self-attention.
-        pre_cross_attn_layernorm (Union[ModuleSpec, type]): Specification for the layer
-            normalization before cross-attention.
-        cross_attention (Union[ModuleSpec, type]): Specification for the cross-attention mechanism.
-        cross_attn_bda (Union[ModuleSpec, type]): Specification for the bias-dropout-add operation
-            after cross-attention.
-        pre_mlp_layernorm (Union[ModuleSpec, type]): Specification for the layer normalization
-            before the MLP.
-        mlp (Union[ModuleSpec, type]): Specification for the MLP in Dense layer.
-        mlp_bda (Union[ModuleSpec, type]): Specification for the bias-dropout-add operation
-            after the MLP.
-        sharded_state_dict_keys_map (Dict[str, str]): Mapping for sharded tensor keys to be applied
-            in the `sharded_state_dict` method.
-    """
-
-    input_layernorm: Union[ModuleSpec, type] = IdentityOp
-    self_attention: Union[ModuleSpec, type] = IdentityOp
-    self_attn_bda: Union[ModuleSpec, type] = IdentityFuncOp
-
-    pre_cross_attn_layernorm: Union[ModuleSpec, type] = IdentityOp
-    cross_attention: Union[ModuleSpec, type] = IdentityOp
-    cross_attn_bda: Union[ModuleSpec, type] = IdentityFuncOp
-
-    pre_mlp_layernorm: Union[ModuleSpec, type] = IdentityOp
-    mlp: Union[ModuleSpec, type] = IdentityOp
-    mlp_bda: Union[ModuleSpec, type] = IdentityFuncOp
-
-    # Mapping for sharded tensor keys to be applied in `sharded_state_dict` method
-    sharded_state_dict_keys_map: Dict[str, str] = field(default_factory=dict)
-
-    attn_mhc: Union[ModuleSpec, type] = IdentityOp
-    mlp_mhc: Union[ModuleSpec, type] = IdentityOp
 
 
 class TransformerLayer(MegatronTransformerLayer):
@@ -84,19 +35,17 @@ class TransformerLayer(MegatronTransformerLayer):
     """
 
     def __init__(
-        self,
-        config: TransformerConfig,
-        submodules: TransformerLayerSubmodules,
-        layer_number: int = 1,
-        hidden_dropout: float = None,
-        is_mtp_layer: bool = False,
+            self,
+            config: TransformerConfig,
+            submodules: TransformerLayerSubmodules,
+            layer_number: int = 1,
+            hidden_dropout: float = None,
     ):
-        super().__init__(config=config, submodules=submodules, layer_number=layer_number, hidden_dropout=hidden_dropout)
+        super().__init__(config=config,
+                         submodules=submodules,
+                         layer_number=layer_number,
+                         hidden_dropout=hidden_dropout)
 
-        self.is_mtp = is_mtp_layer
-        # build hash module for router
-        if hasattr(self.mlp, 'router') and self.mlp.router is not None and (not is_mtp_layer):
-            self.mlp.router.build_hash_module()
         # For mcore activation re-computation
         if self.mlp.__class__ is MoELayer:
             if isinstance(self.mlp.experts, GroupedMLP):
@@ -108,47 +57,9 @@ class TransformerLayer(MegatronTransformerLayer):
             self.mlp.layer_number = self.layer_number
         # set mtp_idx
         args = get_args()
-        if args.mtp_num_layers:
+        if args.mtp_num_layers and hasattr(self.self_attention, "core_attention"):
             self.mtp_idx = 0
-            if hasattr(self.self_attention, "mtp_idx"):
-                self.self_attention.mtp_idx = 0
-            elif hasattr(self.self_attention, "core_attention"):
-                self.self_attention.core_attention.mtp_idx = 0
-
-        self.attn_mhc = build_module(
-            submodules.attn_mhc,
-            config=config,
-            mhc_position='attn',
-            layer_number=self.layer_number,
-            is_mtp_layer=is_mtp_layer,
-        )
-        self.mlp_mhc = build_module(
-            submodules.mlp_mhc,
-            config=config,
-            mhc_position='mlp',
-            layer_number=self.layer_number,
-            is_mtp_layer=is_mtp_layer,
-        )
-
-    def forward(self, *args, **kwargs):
-        """
-        Perform a forward pass through the transformer layer.
-
-        This method calls the core computation of a transformer layer, including
-        self-attention, cross-attention (if applicable), and feed-forward operations.
-        """
-
-        attention_out, residual, context = self._forward_attention(*args, **kwargs)
-        output = self._forward_mlp(attention_out, residual, kwargs.get("input_ids", None))
-
-        if hasattr(self.attn_mhc, 'discard_mhc_pre_ascend_output'):
-            self.attn_mhc.discard_mhc_pre_ascend_output(output)
-        if hasattr(self.attn_mhc, 'discard_mhc_post_ascend_output'):
-            self.attn_mhc.discard_mhc_post_ascend_output(output)
-        if hasattr(self.mlp_mhc, 'discard_mhc_pre_ascend_output'):
-            self.mlp_mhc.discard_mhc_pre_ascend_output(output)
-
-        return output, context
+            self.self_attention.core_attention.mtp_idx = 0
 
     def _forward_attention(
         self,
@@ -163,7 +74,6 @@ class TransformerLayer(MegatronTransformerLayer):
         inference_context: Optional[Any] = None,
         packed_seq_params: Optional[PackedSeqParams] = None,
         sequence_len_offset: Optional[Tensor] = None,
-        input_ids: Optional[Tensor] = None,
         *,
         inference_params: Optional[Any] = None,
     ):
@@ -197,18 +107,15 @@ class TransformerLayer(MegatronTransformerLayer):
         # Residual connection.
         residual = hidden_states
 
-        # mHC pre
-        post, comb = None, None
-        hidden_states = self.attn_mhc(hidden_states, mhc_stage='pre')
-        if isinstance(hidden_states, tuple):
-            hidden_states, post, comb = hidden_states[0], hidden_states[1], hidden_states[2]
-
         # Optional Input Layer norm
         if self.recompute_input_layernorm:
             self.input_layernorm_checkpoint = tensor_parallel.CheckpointWithoutOutput()
-            input_layernorm_output = self.input_layernorm_checkpoint.checkpoint(self.input_layernorm, hidden_states)
+            input_layernorm_output = self.input_layernorm_checkpoint.checkpoint(
+                self.input_layernorm, hidden_states
+            )
         else:
             input_layernorm_output = self.input_layernorm(hidden_states)
+
         # Self attention.
         attention_output_with_bias = self.self_attention(
             input_layernorm_output,
@@ -231,24 +138,16 @@ class TransformerLayer(MegatronTransformerLayer):
         if self.recompute_input_layernorm:
             # discard the output of the input layernorm and register the recompute
             # as a gradient hook of attention_output_with_bias[0]
-            self.input_layernorm_checkpoint.discard_output_and_register_recompute(attention_output_with_bias[0])
+            self.input_layernorm_checkpoint.discard_output_and_register_recompute(
+                attention_output_with_bias[0]
+            )
 
         # inside the module provided in the `bias_dropout_add_spec` module?
         with self.bias_dropout_add_exec_handler():
             hidden_states = self.self_attn_bda(self.training, self.config.bias_dropout_fusion)(
                 attention_output_with_bias, residual, self.hidden_dropout
             )
-        if hasattr(self.self_attention, 'discard_csa_attention_output'):
-            self.self_attention.discard_csa_attention_output(hidden_states)
 
-        # mHC post
-        hidden_states = self.attn_mhc(
-            hidden_states,
-            mhc_stage='post',
-            residual=residual,
-            post=post,
-            comb=comb,
-        )
         # Residual connection.
         residual = hidden_states
 
@@ -275,37 +174,33 @@ class TransformerLayer(MegatronTransformerLayer):
         # Residual connection.
         residual = hidden_states
 
-        return hidden_states, residual, context
-
-    def _forward_mlp(self, attn_output, residual, input_ids=None):
-        args = get_args()
-
-        # mHC pre
-        post, comb = None, None
-        attn_output = self.mlp_mhc(attn_output, mhc_stage='pre')
-        if isinstance(attn_output, tuple):
-            attn_output, post, comb = attn_output[0], attn_output[1], attn_output[2]
-
         # Optional Layer norm post the cross-attention.
         if self.recompute_pre_mlp_layernorm:
             self.pre_mlp_norm_checkpoint = tensor_parallel.CheckpointWithoutOutput()
-            pre_mlp_layernorm_output = self.pre_mlp_norm_checkpoint.checkpoint(self.pre_mlp_layernorm, attn_output)
+            pre_mlp_layernorm_output = self.pre_mlp_norm_checkpoint.checkpoint(
+                self.pre_mlp_layernorm, hidden_states
+            )
         else:
-            pre_mlp_layernorm_output = self.pre_mlp_layernorm(attn_output)
+            pre_mlp_layernorm_output = self.pre_mlp_layernorm(hidden_states)
 
+        return pre_mlp_layernorm_output, residual, context
+
+    def _forward_mlp(self, pre_mlp_layernorm_output, residual):
+        args = get_args()
         # MLP.
         if self.recompute_mlp:
-            mlp_output_with_bias = tensor_parallel.checkpoint(self.mlp, False, pre_mlp_layernorm_output, input_ids)
+            mlp_output_with_bias = tensor_parallel.checkpoint(
+                self.mlp, False, pre_mlp_layernorm_output
+            )
         else:
-            if args.n_hash_layers >= 1:
-                mlp_output_with_bias = self.mlp(pre_mlp_layernorm_output, input_ids)
-            else:
-                mlp_output_with_bias = self.mlp(pre_mlp_layernorm_output)
+            mlp_output_with_bias = self.mlp(pre_mlp_layernorm_output)
 
         if self.recompute_pre_mlp_layernorm:
             # discard the output of the pre-mlp layernorm and register the recompute
             # as a gradient hook of mlp_output_with_bias[0]
-            self.pre_mlp_norm_checkpoint.discard_output_and_register_recompute(mlp_output_with_bias[0])
+            self.pre_mlp_norm_checkpoint.discard_output_and_register_recompute(
+                mlp_output_with_bias[0]
+            )
 
         if args.scale_depth is not None:
             mlp_output, mlp_bias = mlp_output_with_bias
@@ -324,9 +219,8 @@ class TransformerLayer(MegatronTransformerLayer):
         # won't result in memory savings (like the data loader, or
         # p2p_communication), it serves to document the origin of this
         # 'view' tensor.
-        output = make_viewless_tensor(inp=hidden_states, requires_grad=hidden_states.requires_grad, keep_graph=True)
-
-        # mHC post
-        output = self.mlp_mhc(output, mhc_stage='post', residual=residual, post=post, comb=comb)
+        output = make_viewless_tensor(
+            inp=hidden_states, requires_grad=hidden_states.requires_grad, keep_graph=True
+        )
 
         return output

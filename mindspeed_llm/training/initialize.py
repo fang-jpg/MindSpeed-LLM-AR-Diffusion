@@ -25,14 +25,11 @@ from megatron.training import get_args, print_rank_0
 from megatron.training.arguments import validate_args
 from megatron.training.yaml_arguments import validate_yaml
 from megatron.training.checkpointing import load_args_from_checkpoint
-from megatron.training.async_utils import init_persistent_async_worker
 from megatron.training.global_vars import set_global_variables
 from megatron.training.initialize import (
-    _initialize_distributed,
-    _set_random_seed,
-    _init_autoresume,
-    _initialize_tp_communicators,
-    _warmup_jit_function,
+    _initialize_distributed, _set_random_seed,
+    _init_autoresume, _initialize_tp_communicators,
+    _warmup_jit_function
 )
 
 from mindspeed.core.tensor_parallel.ascend_turbo.initialize import initialize_cfg_from_args
@@ -47,16 +44,6 @@ logger = getLogger(__name__)
 
 
 def _compile_dependencies():
-    """
-    Compile dataset index builder dependencies on the first rank of each node.
-
-    This function compiles the C++/CUDA helpers for dataset indexing on one GPU
-    per node to avoid redundant compilation across all ranks.
-
-    Note:
-        Only the first rank on each node (rank % device_count == 0) performs
-        the compilation to save time in multi-GPU setups.
-    """
     device_count = torch.cuda.device_count()
     if device_count == 0:
         raise ZeroDivisionError
@@ -64,17 +51,14 @@ def _compile_dependencies():
         start_time = time.time()
         print('> compiling dataset index builder ...')
         from megatron.core.datasets.utils import compile_helpers
-
         compile_helpers()
-        print(
-            '>>> done with dataset index builder. Compilation time: {:.3f} seconds'.format(time.time() - start_time),
-            flush=True,
-        )
+        print('>>> done with dataset index builder. Compilation time: {:.3f} '
+              'seconds'.format(time.time() - start_time), flush=True)
 
 
 def initialize_megatron(
     extra_args_provider=None,
-    args_defaults=None,
+    args_defaults={},
     ignore_unknown_args=False,
     allow_no_cuda=False,
     skip_mpu_initialization=False,
@@ -97,14 +81,10 @@ def initialize_megatron(
     parse_args = parse_args_decorator(megatron.training.arguments.parse_args)
     args = parse_args(extra_args_provider, ignore_unknown_args)
 
-    if args_defaults is None:
-        args_defaults = {}
     if args.use_checkpoint_args or args_defaults.get("use_checkpoint_args", False):
-        ensure_valid(args.load is not None, "--use-checkpoints-args requires --load argument")
+        ensure_valid(args.load is not None,
+                     "--use-checkpoints-args requires --load argument")
         load_args_from_checkpoint(args)
-
-    if args.async_save and args.use_persistent_ckpt_worker:
-        init_persistent_async_worker()
 
     if args.yaml_cfg is not None:
         args = validate_yaml(args, args_defaults)
@@ -184,7 +164,6 @@ def coc_registration_wrapper(fn):
     def wrapper(*args, **kwargs):
         res = fn(*args, **kwargs)
         from mindspeed.core.tensor_parallel.lcal_coc.user_config import initialize_coc_from_cfg
-
         args = get_args()
         initialize_coc_from_cfg(args)
         return res
@@ -198,14 +177,14 @@ def initialize_megatron_wrapper(fn):
         result = fn(*args, **kwargs)
 
         args = get_args()
-        # ========= 1) Data preprocessing (independent of weight conversion) =========
+         # ========= 1) Data preprocessing (independent of weight conversion) =========
         data_path = getattr(args, "data_path", None)
         if data_path:
             # Support only single path; extract first component
             if isinstance(data_path, (list, tuple)):
                 raw_path = str(data_path[0])
             else:
-                raw_path = str(data_path).split(",", maxsplit=1)[0]
+                raw_path = str(data_path).split(",")[0]
 
             raw_path = raw_path.strip().strip('"').strip("'")
 
@@ -231,6 +210,7 @@ def initialize_megatron_wrapper(fn):
 
         # ========= 2) Weight conversion (always checked after preprocessing) =========
         if getattr(args, 'enable_hf2mg_convert', False):
+
             logger.info("[InitHook] Starting weight conversion check...")
 
             # Add path validation
@@ -240,19 +220,22 @@ def initialize_megatron_wrapper(fn):
             # If hf conversion is enabled, check if the path is a valid huggingface weight path
             files = os.listdir(args.load)
             if not (
-                any(f == 'config.json' for f in files)
-                and any(f.endswith(('.bin', '.safetensors')) and 'model' in f.lower() for f in files)
+                any(f == 'config.json' for f in files) and
+                any(f.endswith(('.bin', '.safetensors')) and 'model' in f.lower() for f in files)
             ):
                 raise ValueError(
                     f"When enable_hf2mg_convert is enabled, path {args.load} is not a valid HuggingFace path."
                 )
 
             # Supported model types
-            unsupported_models = ['deepseek3', 'deepseek4', 'longcat']
-            if args.model_type_hf in unsupported_models:
+            supported_models = [
+                'llama2', 'qwen3', 'qwen3-moe', 'deepseek3', 'glm45-moe', 'bailing_mini',
+                'qwen3-next', 'seed-oss', 'deepseek32', 'magistral', 'deepseek2-lite', 'mamba2'
+            ]
+            if args.model_type_hf not in supported_models:
                 raise ValueError(
                     f"Current --enable-hf2mg-convert does not support model type '{args.model_type_hf}'. "
-                    f"Unsupported models: {', '.join(unsupported_models)}"
+                    f"Supported models: {', '.join(supported_models)}"
                 )
 
             if not getattr(args, "mg_save_dir", None):
@@ -285,7 +268,9 @@ def initialize_megatron_wrapper(fn):
         if getattr(args, 'enable_mg2hf_convert', False):
             shared = is_shared_path(args.save)
             if not shared:
-                raise ValueError(f"When enable_mg2hf_convert is enabled, path {args.save} should be shared path.")
+                raise ValueError(
+                    f"When enable_mg2hf_convert is enabled, path {args.save} should be shared path."
+                )
 
         return result
 

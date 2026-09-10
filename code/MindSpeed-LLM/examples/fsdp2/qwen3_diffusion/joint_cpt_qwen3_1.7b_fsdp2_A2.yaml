@@ -1,0 +1,79 @@
+model:
+  # Point to a Qwen3-1.7B-Base directory that ALSO contains
+  # config_diffusion.json (or whose config.json has been extended with the
+  # diffusion fields: mask_token_id, dlm_paradigm=block_diff, block_size,
+  # dlm_loss_weight, ar_loss_weight, enable_diffusion_lm).
+  # If your model dir only has the stock config.json, copy
+  # examples/fsdp2/qwen3_diffusion/config_diffusion.json into the model
+  # dir and merge its fields into config.json before launching.
+  model_name_or_path: /home/c00633840/models/Qwen3-1.7B-Base/
+  model_id: qwen3_diffusion          # ModelRegistry key (Phase 2)
+  trust_remote_code: False
+  train_from_scratch: False          # CPT: load pretrained weights
+
+data:
+  dataset:
+      file_name:
+        - /home/c00633840/dataset/neo_cc/comm_math_code/RedStone_QA_oq_part_text_document
+        - /home/c00633840/dataset/neo_cc/comm_math_code/swallow_code_ablation_exp11_scor_text_document
+  # dataset:
+  #   file_name: /home/c00633840/dataset/data/qwen3_diff_cpt_text_document
+  # 如果你希望按权重混合：
+    # interleave_probs: "0.5,0.3,0.2"
+    # mix_strategy: interleave_under
+  template: qwen3
+  cutoff_len: 4096
+  max_samples: 100000
+  overwrite_cache: True
+  preprocessing_num_workers: 4
+  data_manager_type: mg
+
+parallel:
+  fsdp_size: 8
+  fsdp_modules:
+    - model.layers.{*}
+    - model.embed_tokens
+    - lm_head
+    - diffusion_head                    # Phase 4: diffusion_head is a new
+                                         # standalone head, must be sharded
+  tp_size: 1
+  ep_size: 1
+  ep_modules:
+    - model.layers.{*}.mlp.experts
+  ep_fsdp_size: 1
+  ep_fsdp_modules:
+    - model.layers.{*}.mlp.experts
+  ep_dispatcher: eager
+  recompute: True
+  recompute_modules:
+    - model.layers.{*}
+
+training:
+  # Key choice: use stage='sft' so the trainer KEEPS labels and expects
+  # the model to return outputs['loss']. Qwen3DiffusionForCausalLM.forward
+  # computes the joint AR+Diffusion loss internally and returns it via
+  # CausalLMOutputWithPast(loss=...), which is exactly what 'sft' wants.
+  # Using stage='pt' would strip labels (trainer.py:652-653), breaking
+  # forward_process which needs labels to mask.
+  stage: pt
+  per_device_train_batch_size: 1
+  gradient_accumulation_steps: 4         # GBS = 1*4*8 = 32
+  dataloader_num_workers: 4
+  seed: 42
+  dataloader_drop_last: True
+  output_dir: /home/c00633840/ckpt/phase4_joint_cpt_tmp/
+  optimizer: adamw
+  lr: 1e-05                              # CPT: small lr to preserve base
+  weight_decay: 0.01
+  adam_beta1: 0.9
+  adam_beta2: 0.95
+  adam_epsilon: 1e-08
+  max_grad_norm: 1.0
+  lr_scheduler_type: cosine
+  warmup_ratio: 0.03
+  min_lr: 1e-06
+  num_train_epochs: 1.0
+  max_steps: 2000                        # Smoke run; bump up after pass
+  save_steps: 500
+  logging_steps: 1
+  log_throughput: True

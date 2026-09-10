@@ -83,8 +83,7 @@ GPT_ARGS="
     --no-load-optim \
     --no-load-rng \
     --lr 1.25e-6 \
-    --sequence-parallel \
-    --ckpt-format torch
+    --sequence-parallel
 "
 
 DATA_ARGS="

@@ -1,0 +1,34 @@
+{
+  "lora_mappings": {
+    "linear_proj": [
+      "layers_self_attention_linear_proj"
+    ],
+    "linear_fc1": [
+      "layers_mlp_gate_proj",
+      "layers_mlp_up_proj",
+      "layers_mlp_experts_gate_proj",
+      "layers_mlp_experts_up_proj"
+    ],
+    "linear_fc2": [
+      "layers_mlp_linear_fc2",
+      "layers_mlp_experts_linear_fc2"
+    ],
+    "linear_qkv": {
+      "unpack": [
+        "layers_self_attention_linear_q_proj",
+        "layers_self_attention_linear_k_proj",
+        "layers_self_attention_linear_v_proj"
+      ],
+      "pack_gqa": [
+        "layers_self_attention_linear_qkv_pack"
+      ],
+      "pack_self": [
+        "layers_self_attention_linear_qkv_pack"
+      ],
+      "pack_mla": [
+        "layers_self_attention_linear_q_proj",
+        "layers_self_attention_linear_kv_proj"
+      ]
+    }
+  }    
+}

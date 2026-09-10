@@ -65,7 +65,7 @@
         <td></td>
     </tr>
 
-</table>
+</table>    
 
 ## 测试用例占用蓝区资源登记
 
@@ -144,15 +144,6 @@
         <td>/data/ci/cache/qwen3-30b-pp4tp2layer4</td>
     </tr>
     <tr>
-        <td>tune_qwen3_30b_a3b_4K_full_ptd_tp4_pp2_ep1.sh</td>
-        <td>/data/ci/models/Qwen3-30B-A3B/hf/Qwen3-30B-A3B</td>
-        <td>/data/ci/models/Qwen3-30B-A3B/mg/qwen3-30b-layer4</td>
-        <td>/data/ci/datasets/origin/alpaca/train-00000-of-00001-a09b74b3ef9c3b56.parquet</td>
-        <td>data/ci/datasets/processed/qwen3_30b_convert_alpaca</td>
-        <td>/</td>
-        <td>/</td>
-    </tr>
-    <tr>
         <td>test_mamba2_hf2mcore_tp1pp2</td>
         <td>/data/ci/models/mamba2/hf/mamba2-2.7b-hf</td>
         <td>/</td>
@@ -207,11 +198,11 @@
         <td>/</td>
     </tr>
     <tr>
-        <td>dpo_qwen3_8b_tp2_pp1_cyclic_pairwise</td>
-        <td>/data/ci/models/Qwen3-8B/hf/Qwen3-8B</td>
-        <td>/data/ci/models/Qwen3-8B/mg/qwen3-8b-layer1-tp2pp1</td>
+        <td>dpo_llama2_tp1_pp1_cyclic_pairwise</td>
+        <td>/data/ci/models/llama2/hf/llama-2-7b-hf</td>
+        <td>/data/ci/models/llama2/mg/llama2-7b_2l_tp1pp1</td>
         <td>/</td>
-        <td>/data/ci/datasets/processed/qwen3-8b-dpo/orca_rlhf</td>
+        <td>/data/ci/datasets/processed/orca/orca_rlhf</td>
         <td>/</td>
         <td>/</td>
     </tr>
@@ -241,15 +232,6 @@
         <td>/data/ci/cache/llama3-8b-dataset/llama3_8b</td>
         <td>/</td>
         <td>/data/ci/cache/llama-3-8b-tp1pp8</td>
-    </tr>
-    <tr>
-        <td>tune_qwen3_8b_lora_tp2pp1.sh</td>
-        <td>/data/ci/models/Qwen3-8B/hf/Qwen3-8B</td>
-        <td>/data/ci/cache/qwen3-8b-layer1-lora-tp2pp1</td>
-        <td>/data/ci/datasets/origin/alpaca/train-00000-of-00001-a09b74b3ef9c3b56.parquet</td>
-        <td>/data/ci/cache/qwen3-8b-dataset/qwen3_8b</td>
-        <td>/</td>
-        <td>/data/ci/cache/qwen3-8b-layer1-lora-tp2pp1</td>
     </tr>
     <tr>
         <td>test_rlhf_qwen25_7b_tp2_pp2</td>
@@ -329,175 +311,6 @@
         <td>/data/ci/models/Seed-OSS-36B-Instruct/mg/Seed-OSS-36B-tp2pp2/</td>
         <td>/</td>
         <td>/data/ci/datasets/processed/seed-oss/alpaca_text_document</td>
-        <td>/</td>
-        <td>/</td>
-    </tr>
-    <tr>
-        <td>tune_qwen25_7b_tp1pp4_layerwise_disaggregated</td>
-        <td>/data/ci/models/qwen25/hf/Qwen2.5-7B/</td>
-        <td>/</td>
-        <td>/</td>
-        <td>/data/ci/datasets/tune_dataset/alpaca/alpaca</td>
-        <td>/</td>
-        <td>/data/ci/cache/save_dir</td>
-    </tr>
-    <tr>
-        <td>qwen3-30b-layer2-dist</td>
-        <td>/data/ci/models/Qwen3-30B-A3B/hf/Qwen3-30B-A3B/</td>
-        <td>/data/ci/models/Qwen3-30B-A3B/mg/qwen3-30b-layer2-dist/</td>
-        <td>/data/ci/datasets/origin/alpaca/train-00000-of-00001-a09b74b3ef9c3b56.parquet</td>
-        <td>/data/ci/datasets/processed/qwen3_30b_dist/alpaca_text_document</td>
-        <td>/</td>
-        <td>/data/ci/cache/qwen3-30b-layer2-dist</td>
-    </tr>
-    <tr>
-        <td>pretrain_qwen3_8b_general_cp_ring</td>
-        <td>/data/ci/models/Qwen3-8B/hf/Qwen3-8B</td>
-        <td>/data/ci/models/Qwen3-8B/mg/qwen3-8b-layer1-tp2pp1/</td>
-        <td>/data/ci/datasets/origin/alpaca/train-00000-of-00001-a09b74b3ef9c3b56.parquet</td>
-        <td>/data/ci/datasets/processed/qwen3-8b/alpaca_text_document</td>
-        <td>/</td>
-        <td>/</td>
-    </tr>
-    <tr>
-        <td>tune_qwen25_7b_vtp_tp2pp4_layerwise_disaggregated</td>
-        <td>/data/ci/models/qwen25/hf/Qwen2.5-7B/</td>
-        <td>/</td>
-        <td>/</td>
-        <td>/data/ci/datasets/tune_dataset/alpaca</td>
-        <td>/</td>
-        <td>/data/ci/cache/save_dir</td>
-    </tr>
-    <tr>
-        <td>tune_qwen25_7b_vdp_tp2vdp2pp2_layerwise_disaggregated</td>
-        <td>/data/ci/models/qwen25/hf/Qwen2.5-7B/</td>
-        <td>/</td>
-        <td>/</td>
-        <td>/data/ci/datasets/tune_dataset/alpaca</td>
-        <td>/</td>
-        <td>/data/ci/cache/save_dir</td>
-    </tr>
-    <tr>
-        <td>tune_qwen25_7b_vtp_vdp_vtp2vdp2pp2_layerwise_disaggregated</td>
-        <td>/data/ci/models/qwen25/hf/Qwen2.5-7B/</td>
-        <td>/</td>
-        <td>/</td>
-        <td>/data/ci/datasets/tune_dataset/alpaca</td>
-        <td>/</td>
-        <td>/data/ci/cache/save_dir</td>
-    </tr>
-    <tr>
-        <td>qwen3_8b_tp2_pp2_vpp2_noop_layer</td>
-        <td>/data/ci/models/Qwen3-8B/hf/Qwen3-8B/</td>
-        <td>/data/ci/models/Qwen3-8B/mg/qwen3_8b_L8_np07/</td>
-        <td>/</td>
-        <td>/data/ci/datasets/processed/qwen3-8b/alpaca_text_documen</td>
-    </tr>
-    <tr>
-        <td>deepseek4_flash_mcore_tp1_pp1_ep8</td>
-        <td>/data/ci/models/deepseek4-flash/hf/DeepSeek-V4-Flash/</td>
-        <td>/data/ci/models/deepseek4-flash/mg/deepseekv4-flash-tp1-pp1-ep8-16experts/</td>
-        <td>/data/ci/datasets/origin/train-00000-of-00001-a09b74b3ef9c3b56.parquet</td>
-        <td>/data/ci/cache/deepseek4-flash-dataset/deepsee4-flash</td>
-        <td>/</td>
-        <td>/</td>
-    </tr>
-    <tr>
-        <td>pretrain_minimax_m2p7_4K_fsdp2</td>
-        <td>/data/ci/models/minimax-m2.7/hf/minimax-m2.7/</td>
-        <td>/</td>
-        <td>/</td>
-        <td>/data/ci/datasets/origin/train-00000-of-00001-a09b74b3ef9c3b56.parquet</td>
-        <td>/</td>
-        <td>/</td>
-    </tr>
-    <tr>
-        <td>pretrain_step_3p5_flash_4K_fsdp2</td>
-        <td>/data/ci/models/step3.5/hf/step3.5-flash/</td>
-        <td>/data/ci/models/step3.5/mg/step3.5-flash-layer4/</td>
-        <td>/</td>
-        <td>/data/ci/datasets/origin/train-00000-of-00001-a09b74b3ef9c3b56.parquet</td>
-        <td>/</td>
-        <td>/</td>
-    </tr>
-    <tr>
-        <td>qwen3_30b_tp4_cp2_ep2</td>
-        <td>/data/ci/models/Qwen3-30B-A3B/hf/Qwen3-30B-A3B/</td>
-        <td>/data/ci/models/Qwen3-30B-A3B/mg/qwen3-30b-layer1-tp4pp1ep2/</td>
-        <td>/</td>
-        <td>/data/ci/datasets/processed/qwen3_30b_dist/alpaca_text_document</td>
-        <td>/</td>
-        <td>/</td>
-    </tr>
-    <tr>
-        <td>qwen3_8b_tp2_pp4_vpp2</td>
-        <td>/data/ci/models/Qwen3-8B/hf/Qwen3-8B/</td>
-        <td>/data/ci/models/Qwen3-8B/mg/qwen3-8b-layer16-tp2pp4vpp2-generated/</td>
-        <td>/</td>
-        <td>/data/ci/datasets/processed/qwen3-8b/alpaca_text_document/</td>
-        <td>/</td>
-        <td>/</td>
-    </tr>
-    <tr>
-        <td>pretrain_qwen3_8b_4k_hybridcp_gqa</td>
-        <td>/data/ci/models/Qwen3-8B/hf/Qwen3-8B</td>
-        <td>/data/ci/models/Qwen3-8B/mg/qwen3-8b-layer1-tp2pp1</td>
-        <td>/</td>
-        <td>/data/ci/datasets/processed/chatglm3-dataset-alpaca/alpaca_text_document</td>
-        <td>/</td>
-        <td>/data/ci/cache/save_dir</td>
-    </tr>
-    <tr>
-        <td>qwen3_8b_tp2_pp4_vpp2_swap</td>
-        <td>/data/ci/models/Qwen3-8B/hf/Qwen3-8B</td>
-        <td>/data/ci/models/Qwen3-8B/mg/qwen3-8b-tp2pp2</td>
-        <td>/data/ci/datasets/origin/alpaca/train-00000-of-00001-a09b74b3ef9c3b56.parquet</td>
-        <td>/data/ci/datasets/processed/pretrain_dataset/alpaca_text_document</td>
-        <td>/</td>
-        <td>/</td>
-    </tr>
-    <tr>
-        <td>pretrain_glm52_tp1pp2ep1_dsa_share_index</td>
-        <td>/data/ci/models/glm52/hf/glm52_hf</td>
-        <td>/data/ci/models/glm52/mg/glm52_layer10_tp1pp2ep1</td>
-        <td>/data/ci/datasets/origin/train-00000-of-00001-a09b74b3ef9c3b56.parquet</td>
-        <td>/</td>
-        <td>/</td>
-        <td>/</td>
-    </tr>
-    <tr>
-        <td>pretrain_deepseek4_flash_1k_fsdp2_cp2</td>
-        <td>/data/ci/models/deepseek4-flash/hf/DeepSeek-V4-Flash-4L-hf-convert/</td>
-        <td>/</td>
-        <td>/data/ci/datasets/origin/train-00000-of-00001-a09b74b3ef9c3b56.parquet</td>
-        <td>/</td>
-        <td>/</td>
-        <td>/</td>
-    </tr>
-    <tr>
-        <td>pretrain_qwen3_moe_30b_4K_fsdp2</td>
-        <td>/data/ci/models/Qwen3-30B-A3B/hf/Qwen3-30B-A3B-layer2</td>
-        <td>/</td>
-        <td>/data/ci/datasets/origin/train-00000-of-00001-a09b74b3ef9c3b56.parquet</td>
-        <td>/</td>
-        <td>/</td>
-        <td>/</td>
-    </tr>
-    <tr>
-        <td>pretrain_mamba3_2k_fsdp2</td>
-        <td>/data/ci/models/mamba3/hf/mamba3</td>
-        <td>/</td>
-        <td>/data/ci/datasets/origin/train-00000-of-00001-a09b74b3ef9c3b56.parquet</td>
-        <td>/</td>
-        <td>/</td>
-        <td>/</td>
-    </tr>
-    <tr>
-        <td>pretrain_longcat_flash_lite_4k_fsdp2</td>
-        <td>/data/ci/models/Longcat-Flash-Lite/hf/Longcat-Flash-Lite</td>
-        <td>/</td>
-        <td>/data/ci/datasets/origin/alpaca/train-00000-of-00001-a09b74b3ef9c3b56.parquet</td>
-        <td>/</td>
         <td>/</td>
         <td>/</td>
     </tr>

@@ -98,8 +98,7 @@ GPT_ARGS="
     --enable-hbmfault-repair \
     --use-distributed-optimizer \
     --bf16 \
-    --overlap-grad-reduce \
-    --ckpt-format torch
+    --overlap-grad-reduce
 "
 
 DATA_ARGS="

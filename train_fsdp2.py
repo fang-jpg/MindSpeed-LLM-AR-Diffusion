@@ -1,15 +1,15 @@
 import os
+import sys
 import types
 
 from dataclasses import dataclass, field, fields
 import torch
-
 try:
-    import torch_npu  # noqa: F401
-    from torch_npu.contrib import transfer_to_npu  # noqa: F401
+    import torch_npu
+    from torch_npu.contrib import transfer_to_npu
 except ImportError:
     pass
-from transformers import AutoConfig, is_torch_npu_available
+from transformers import AutoConfig, AutoModelForCausalLM, is_torch_npu_available
 
 from mindspeed_llm.fsdp2.models.model_factory import ModelFactory
 from mindspeed_llm.fsdp2.optim.optimizer import OptimizerFactory
@@ -21,20 +21,15 @@ from mindspeed_llm.fsdp2.data.tokenizer import TokenizerFactory
 from mindspeed_llm.fsdp2.data.template import get_template_and_fix_tokenizer
 from mindspeed_llm.fsdp2.utils.logging import setup_global_logging, get_logger
 from mindspeed_llm.fsdp2.utils.arguments import (
-    ModelArguments,
-    DataArguments,
-    ParallelArguments,
-    TrainingArguments,
-    OptimizationArguments,
-    fsdp2_parse_args,
+    ModelArguments, DataArguments, ParallelArguments, TrainingArguments, OptimizationArguments, fsdp2_parse_args
 )
 from mindspeed_llm.fsdp2.utils.global_vars import set_args
 from mindspeed_llm.fsdp2.utils.train_monitor import TrainMonitor
 from mindspeed_llm.fsdp2.utils.device import set_accelerator_compatible
-from mindspeed_llm.fsdp2.utils.coverage import auto_coverage
 
-from fsdp_turbo.utils.random import set_seed
-from fsdp_turbo.utils.torch_patch import apply_hccl_premul_sum_patch
+from mindspeed.fsdp.utils.random import set_seed
+from mindspeed.fsdp.utils.torch_patch import apply_hccl_premul_sum_patch
+from mindspeed_llm.fsdp2.utils.coverage import auto_coverage
 
 
 logger = get_logger(__name__)
@@ -46,7 +41,6 @@ logger = get_logger(__name__)
 @dataclass
 class Arguments:
     """Root arguments class containing model, data, parallel, and training arguments."""
-
     model: ModelArguments = field(default_factory=ModelArguments)
     data: DataArguments = field(default_factory=DataArguments)
     parallel: ParallelArguments = field(default_factory=ParallelArguments)
@@ -68,7 +62,7 @@ class MindSpeedAutoTrainer:
         self._parse_args()
 
         # 2. Initialize distributed environment
-        self._initialize(seed=self.training_args.seed, deterministic=self.training_args.deterministic)
+        self._initialize(seed=self.training_args.seed)
 
         self.rank = torch.distributed.get_rank()
         self._print_parsed_args()
@@ -78,19 +72,17 @@ class MindSpeedAutoTrainer:
         self.tokenizer = self._build_tokenizer()
         self.template = get_template_and_fix_tokenizer(self.tokenizer, self.data_args)
         self.data_manager = self._build_data_manager(self.tokenizer, self.template)
-        self.train_dataloader = self.data_manager.create_train_dataloader()
         self.optimizer = self._build_optimizer(self.model)
         self.lr_scheduler = self._build_scheduler(self.optimizer)
         self.checkpoint_manager = self._build_checkpointer()
         self.train_monitor = self._build_monitor()
-        self.model.apply_model_hooks(self.optimizer)
 
         # 4. Dependency Injection
         self.trainer = Trainer(
             model=self.model,
             optimizer=self.optimizer,
             lr_scheduler=self.lr_scheduler,
-            train_dataloader=self.train_dataloader,
+            data_manager=self.data_manager,
             args=self.training_args,
             parallel_args=self.parallel_args,
             optimization_args=self.optimization_args,
@@ -101,9 +93,9 @@ class MindSpeedAutoTrainer:
         )
 
     @staticmethod
-    def _initialize(seed: int, deterministic: bool):
+    def _initialize(seed: int):
         """
-        Static initialization method: Receives external seed and local_rank,
+        Static initialization method: Receives external seed and local_rank, 
         avoiding dependency on hardcoding or self.
         """
         if is_torch_npu_available():
@@ -113,14 +105,12 @@ class MindSpeedAutoTrainer:
         elif torch.cuda.is_available():
             fallback = torch.cuda
             dist_backend = "nccl"
-        else:
-            raise RuntimeError("No supported accelerator found (NPU/CUDA)")
 
         set_accelerator_compatible(fallback)
         setup_global_logging(level="INFO")
 
         # --- 1. Handle Local Rank (Device Index) ---
-        # Logic: Prioritize environment variables (injected by torchrun/accelerate),
+        # Logic: Prioritize environment variables (injected by torchrun/accelerate), 
         # then fallback to arguments, and finally default to 0.
         env_local_rank = int(os.environ.get("LOCAL_RANK", -1))
 
@@ -137,7 +127,7 @@ class MindSpeedAutoTrainer:
 
         # --- 2. Dynamically set random seed ---
         # MindSpeed's set_seed usually handles offset for different ranks.
-        set_seed(seed, set_deterministic=deterministic)
+        set_seed(seed, set_deterministic=True)
 
         # --- 3. Initialize distributed process group ---
         # Simple fault tolerance: Manual injection for single-script runs (non-torchrun)
@@ -153,7 +143,11 @@ class MindSpeedAutoTrainer:
         world_size = int(os.environ["WORLD_SIZE"])
 
         if not torch.distributed.is_initialized():
-            torch.distributed.init_process_group(backend=dist_backend, rank=rank, world_size=world_size)
+            torch.distributed.init_process_group(
+                    backend=dist_backend,
+                    rank=rank,
+                    world_size=world_size
+            )
 
     def train(self):
         self.trainer.train(resume_from_checkpoint=self.training_args.resume_from_checkpoint)
@@ -166,29 +160,20 @@ class MindSpeedAutoTrainer:
         self.training_args = root_args.training
         self.optimization_args = root_args.optimization
 
-        self.args = types.SimpleNamespace(
-            **{
-                k: v
-                for ns in [
-                    root_args.model,
-                    root_args.data,
-                    root_args.parallel,
-                    root_args.training,
-                    root_args.optimization,
-                ]
-                for k, v in ns.__dict__.items()
-            }
-        )
+        self.args = types.SimpleNamespace(**{
+            k: v for ns in [root_args.model, root_args.data, root_args.parallel, root_args.training, root_args.optimization]
+            for k, v in ns.__dict__.items()
+        })
 
         set_args(self.args)
+        
 
     def _print_parsed_args(self):
         arg_modules = [
             ("ModelArguments", self.model_args),
             ("DataArguments", self.data_args),
             ("ParallelArguments", self.parallel_args),
-            ("TrainingArguments", self.training_args),
-            ("OptimizationArguments", self.optimization_args),
+            ("TrainingArguments", self.training_args)
         ]
         for module_name, arg_instance in arg_modules:
             logger.info_plain_rank0(f"\n {module_name}")
@@ -218,27 +203,27 @@ class MindSpeedAutoTrainer:
             optimizer_type=self.training_args.optimizer,
             weight_decay=self.training_args.weight_decay,
             betas=(self.training_args.adam_beta1, self.training_args.adam_beta2),
-            adam_epsilon=self.training_args.adam_epsilon,
+            adam_epsilon=self.training_args.adam_epsilon
         )
 
     def _build_scheduler(self, optimizer):
         logger.info_rank0("> Building LR Scheduler...")
+        # Determine max steps
         if self.training_args.max_steps > 0:
             max_steps = self.training_args.max_steps
         else:
-            steps_in_epoch = len(self.train_dataloader)
-            total_updates_per_epoch = steps_in_epoch // self.training_args.gradient_accumulation_steps + int(
-                steps_in_epoch % self.training_args.gradient_accumulation_steps > 0
-            )
-            max_steps = total_updates_per_epoch * self.training_args.num_train_epochs
-
+            # If in Epoch mode, estimate or provide a large number temporarily.
+            # While FSDP2Trainer calculates total_steps more accurately, 
+            # we rely on args.max_steps or a default large value here for factory construction.
+            max_steps = 100000 
+        
         return SchedulerFactory.create(
             optimizer=optimizer,
             train_steps=max_steps,
             lr=self.training_args.lr,
             lr_decay_style=self.training_args.lr_scheduler_type,
             lr_warmup_ratio=self.training_args.warmup_ratio,
-            lr_min=self.training_args.min_lr,
+            lr_min=self.training_args.min_lr
         )
 
     def _build_data_manager(self, tokenizer, template):
@@ -251,12 +236,15 @@ class MindSpeedAutoTrainer:
             training_args=self.training_args,
             stage="sft",
             tokenizer=tokenizer,
-            template=template,
+            template=template
         )
 
     def _build_monitor(self):
         logger.info_rank0("> Building Monitor...")
-        hf_config = AutoConfig.from_pretrained(self.model_args.model_name_or_path, trust_remote_code=True)
+        hf_config = AutoConfig.from_pretrained(
+            self.model_args.model_name_or_path,
+            trust_remote_code=True
+        )
         return TrainMonitor(self.training_args, hf_config)
 
     def _build_checkpointer(self):
@@ -273,11 +261,10 @@ class AutoTrainer:
     Unified entry point for Training.
     Dispatches to MindSpeedAutoTrainer (New) or McoreAutoTrainer (Old) based on configuration.
     """
-
     def __init__(self):
         # Strategy Dispatch: Prioritize environment variable TRAINING_BACKEND
         # To run MindSpeed FSDP code, set: export TRAINING_BACKEND=mindspeed_fsdp
-        logger.info_rank0(">>> [AutoTrainer] Initializing MindSpeed FSDP backend...")
+        logger.info_rank0(f">>> [AutoTrainer] Initializing MindSpeed FSDP backend...")
         self.trainer = MindSpeedAutoTrainer()
 
     def train(self):
@@ -289,8 +276,6 @@ class AutoTrainer:
 def main():
     trainer = AutoTrainer()
     trainer.train()
-
-
 # ==============================================================================
 # [Entry Point]
 # ==============================================================================

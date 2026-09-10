@@ -35,15 +35,14 @@
 
 > [!NOTE]
 >
-> For version maintenance of MindSpeed LLM, see [Version Maintenance Policy](https://gitcode.com/Ascend/MindSpeed-LLM/tree/master#%E7%89%88%E6%9C%AC%E7%BB%B4%E6%8A%A4%E7%AD%96%E7%95%A5).
+> For version maintenance of MindSpeed LLM, see [Version Maintenance Policy](../../README_en.md#version-maintenance-policy).
 
 ### Related Product Version Mapping
 
 **Table 1** MindSpeed LLM software version compatibility matrix
 
-| MindSpeed LLM version | MindSpeed Core code branch name | Megatron version | PyTorch version | TorchNPU version | CANN version | Python version |
+| MindSpeed LLM Version | MindSpeed Core code branch name | Megatron Version | PyTorch Version | Ascend Extension for PyTorch Version | CANN Version | Python Version |
 | -------------------- | ------------------------------ | ---------------- | --------------- | ----------------------------------- | ------------ | -------------- |
-| master (under development) | master (under development) | core_v0.12.1 | 2.7.1 | In development | In development | Python 3.10 |
 | 26.0.0 (commercial) | 26.0.0_core_r0.12.1 | core_v0.12.1 | 2.7.1 | 26.0.0 | 9.0.0 | Python 3.10 |
 | 2.3.0 (commercial) | 2.3.0_core_r0.12.1 | core_v0.12.1 | 2.7.1 | 7.3.0 | 8.5.0 | Python 3.10 |
 | 2.2.0 (commercial) | 2.2.0_core_r0.12.1 | core_v0.12.1 | 2.7.1 | 7.2.0 | 8.3.RC1 | Python 3.10 |
@@ -54,7 +53,7 @@
 
 ## Version Compatibility Information
 
-| MindSpeed LLM version | CANN version | TorchNPU version |
+| MindSpeed LLM Version | CANN Version | Ascend Extension for PyTorch Version |
 | -- | -- | -- |
 | 26.0.0 | CANN 9.0.0<br>CANN 8.5.0<br>CANN 8.3.RC1<br>CANN 8.2.RC1<br>CANN 8.1.RC1 | 26.0.0 |
 | 2.3.0 | CANN 8.5.0<br>CANN 8.3.RC1<br>CANN 8.2.RC1<br>CANN 8.1.RC1<br>CANN 8.0.0<br> | 7.3.0 |
@@ -79,7 +78,7 @@ None.
 
 | Component | Description | Purpose |
 | -- | -- | -- |
-| MindSpeed LLM | Model retirement | Dense model retirement list:<br>Llama-2-34B<br>Llama-3-8B/70B<br>Llama-3.1-8B/50B/70B/200B<br>Llama-3.2-1B/3B<br>Llama-3.3-70B-Instruct<br>ChatGLM3-6B<br>GLM4-9B<br>Baichuan2-7B/13B<br>InternLM2.5-1.8B/7B/20B<br>Qwen2.5-0.5B/1.5B/3B/7B/14B/32B<br>Qwen3-8B (Megatron FSDP2)<br><br>MoE model retirement list:<br>Qwen3-30B (Megatron FSDP2)<br>GPT4-MoE-175B<br>Hunyuan-389B |
+| MindSpeed LLM | Model retirement | Dense model retirement list:<br>LLaMA2-34B<br>LLaMA3-8B/70B<br>LLaMA3.1-8B/50B/70B/200B/405B<br>LLaMA3.2-1B/3B<br>LLaMA3.3-70B-Instruct<br>ChatGLM3-6B<br>GLM4-9B<br>Baichuan2-7B/13B<br>InternLM2.5-1.8B/7B/20B<br>Qwen2.5-0.5B/1.5B/3B/7B/14B/32B<br>Qwen3-8B (Megatron FSDP2)<br><br>MoE model retirement list:<br>Qwen3-30B (Megatron FSDP2)<br>GPT4-MoE-175B<br>Hunyuan-389B |
 
 ### API Changes
 
@@ -95,7 +94,7 @@ None.
 
 ## Upgrade Impact
 
-### Impact on the Current System during Upgrade
+### Impact on the System during the Upgrade
 
 - Service impact.
 
@@ -105,7 +104,7 @@ None.
 
     It has no impact on communication.
 
-### Impact on the Current System after Upgrade
+### Impact on the System After the Upgrade
 
 None.
 
@@ -113,7 +112,7 @@ None.
 
 | Document | Summary | Update Notes |
 | -- | -- | -- |
-| [MindSpeed LLM Installation Guide](./pytorch/training/install_guide.md) | This guide helps you install MindSpeed LLM on an NPU. It covers hardware and operating system compatibility, driver firmware and CANN base software installation, and the complete installation process based on the PyTorch framework. It helps you quickly build a distributed LLM training environment. | - |
+| [MindSpeed LLM Installation Guide](./pytorch/training/install_guide.md) | This guide helps you install MindSpeed LLM on an NPU using the PyTorch framework. It covers hardware and operating system compatibility, driver firmware and CANN base software installation, and the full installation process using the PyTorch framework. It helps you quickly build a distributed LLM training environment. | - |
 | [Quick Start: Qwen3-8B Model Pretraining and Fine-Tuning](./pytorch/training/quick_start.md) | Using Qwen3-8B as an example, this guide helps developers who are new to MindSpeed LLM complete pretraining and fine-tuning tasks on the NPU. It helps you quickly get started with distributed LLM training. | - |
 
 ## Virus Scan and Vulnerability Fix List

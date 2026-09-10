@@ -83,8 +83,7 @@ GPT_ARGS="
     --norm-epsilon 1e-5 \
     --swiglu \
     --seed 42 \
-    --bf16 \
-    --ckpt-format torch
+    --bf16
 "
 
 OPTIM_ARGS="

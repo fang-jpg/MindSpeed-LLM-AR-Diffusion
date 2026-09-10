@@ -1,4 +1,4 @@
-<h1 align="center"> <img src="docs/en/pytorch/figures/readme/logo.png" height="110px" width="500px"> </h1>
+# <p align="center"> <img src="docs/zh/pytorch/figures/readme/logo.png" height="110px" width="500px"> </p>
 
 <p align="center">
     <a href="https://gitcode.com/ascend/MindSpeed-LLM/blob/master/LICENSE">
@@ -57,17 +57,11 @@ Ways to join:
 
 ---
 
-- [Apr. 25, 2026]: 🚀 [**DeepSeekV4-Flash** fixed-length data pretraining support](./examples/mcore/deepseek4_flash/README.md) 【Prototype】
-
-- [Apr. 16, 2026]: 🚀 [**MiniMax_M27** model support](./examples/fsdp2/minimax_m27/) 【Prototype】
-
-- [Mar. 28, 2026]: 🚀 [**Mamba3-block** demo model support](./examples/fsdp2/mamba3/) 【Prototype】
-- [Mar. 27, 2026]: 🌴 MindSpeed LLM released the [v26.0.0 branch](https://gitcode.com/Ascend/MindSpeed-LLM/tree/26.0.0), which supports core_v0.12.1.
 - [Mar. 10, 2026]: 🚀 MindSpeed LLM model sunset plan phase two ([link](https://gitcode.com/Ascend/MindSpeed-LLM/issues/1224)) started. Thank you for every contribution over the years.
 - [Feb. 12, 2026]: 🚀 [**GLM-5** model support](./examples/mcore/glm5) 【Prototype】
 - [Feb. 11, 2026]: 🚀 [**Step-3.5-Flash** model support](./examples/fsdp2/step35) 【Prototype】
 - [Feb. 10, 2026]: 🚀 [FSDP2 training backend is now available, supporting the **Qwen3-Next** model](./examples/fsdp2/qwen3_next) 【Prototype】
-- [Feb. 04, 2026]: 🚀 [**Qwen3-Coder-Next** model support for the mcore backend](./examples/mcore/qwen3_coder_next) 【Prototype】
+- [Feb. 04, 2026]: 🚀 [**Qwen3-Coder-Next** model support for the MCore backend](examples/mcore/qwen3_coder_next) 【Prototype】
 - [Jan. 28, 2026]: 🌴 [Community image package 2.3.0 branch is now available](https://gitcode.com/Ascend/MindSpeed-LLM/blob/2.3.0/docs/pytorch/install_guide.md) 【Prototype】
 - [Jan. 23, 2026]: 🌴 [Community image package 2.2.0 branch is now available](https://gitcode.com/Ascend/MindSpeed-LLM/blob/2.2.0/docs/pytorch/install_guide.md) 【Prototype】
 - [Jan. 16, 2026]: 🌴 MindSpeed LLM released the [v2.3.0 branch](https://gitcode.com/Ascend/MindSpeed-LLM/tree/2.3.0), which supports core_v0.12.1.
@@ -85,16 +79,10 @@ Ways to join:
 - [Jul. 25, 2025]: 🌴 MindSpeed LLM released the [v2.1.0 branch](https://gitcode.com/Ascend/MindSpeed-LLM/tree/2.1.0), which supports core_r0.8.0.
 - [Jul. 10, 2025]: 🚀 Features in the **[DeepSeek-R1](https://gitcode.com/Ascend/MindSpeed-RL/blob/master/docs/zh/solutions/r1_zero_deepseek_671b.md)** series are being rolled out gradually.
 - [May. 19, 2025]: 🚀 Simultaneous first-release support for the **Qwen3** model series
-- [Mar. 27, 2025]: 🚀 **[DeepSeek-R1-ZERO Qwen-7B](https://gitcode.com/ascend/MindSpeed-RL/blob/master/docs/zh/solutions/r1_zero_qwen25_7b.md)** **[DeepSeek-R1-ZERO Qwen-32B](https://gitcode.com/ascend/MindSpeed-RL/blob/master/docs/zh/solutions/r1_zero_qwen25_32b.md)**
+- [Mar. 27, 2025]: 🚀 **[DeepSeek-R1-ZERO Qwen-7B](https://gitcode.com/ascend/MindSpeed-RL/blob/master/docs/zh/solutions/r1_zero_qwen25_7b.md)** **[DeepSeek-R1-ZERO Qwen-32B](https://gitcode.com/ascend/MindSpeed-RL/blob/master/docs/zh/solutions/r1_zero_qwen25_32b.md)**.
 - [Mar. 26, 2025]: 🚀 **[DeepSeek-V3-671B model suite](./examples/mcore/deepseek3)** is now available.
 
 Note: 【Prototype】 indicates that the feature has not been fully validated. If you encounter any issues while using it, please report them in the [issue tracker](https://gitcode.com/Ascend/MindSpeed-LLM/issues).
-
-- [MindSpeed LLM takes the lead in supporting MiniMax M2.7 training reproduction and accelerates model iteration to complete complex tasks](https://mp.weixin.qq.com/s/FWcQLu8InQvLh6YBd5Sq2w)
-- [Say goodbye to tedious preprocessing. MindSpeed LLM launches Train_from_HF to enable load-and-train](https://mp.weixin.qq.com/s/kMUVWyCYLGKgceHzYXjigg)
-- [Fast response. MindSpeed LLM seamlessly adapts to Step-3.5-Flash, unlocking new possibilities for large-scale MoE deployment](https://mp.weixin.qq.com/s/g7f_mpDgnvsc22P6XGxbmg)
-- [MindSpeed LLM receives a major upgrade. It now supports the FSDP training backend and day-level adaptation for the Qwen3-Next-Coder model](https://mp.weixin.qq.com/s/Ihfc54P66bcO0r2j_mMX8A)
-- [Get started quickly with the Qwen3-Coder-Next model on Ascend. A step-by-step guide is here.](https://mp.weixin.qq.com/s/yo0RlfU9gIY20NKyYQp4QA)
 
 # Directory Structure
 
@@ -102,27 +90,27 @@ Note: 【Prototype】 indicates that the feature has not been fully validated. I
 
 The MindSpeed LLM project code is organized according to modular design principles. For details, see the [Project Guide](./docs/en/project_guide.md).
 
-``` shell
+```bash
 MindSpeed-LLM/
- ├── ci                        # CI watchdog.
- ├── configs                   # Configuration files.
- ├── docs                      # Project documentation.
- ├── examples                  # Model example scripts.
- ├── mindspeed_llm             # Core code.
- ├── tests                     # Test cases.
- ├── convert_ckpt.py           # Weight conversion tool.
- ├── convert_ckpt_v2.py        # Weight conversion tool v2.
- ├── preprocess_data.py        # Data preprocessing tool.
- ├── pretrain_gpt.py           # Pretraining workflow.
- ├── pretrain_mamba.py         # Pretraining workflow for Mamba models.
- ├── posttrain_gpt.py          # Post-training workflow.
- ├── preprocess_prompt.py      # Prompt preprocessing tool.
- ├── rlhf_gpt.py               # RLHF training workflow.
- ├── train_fsdp2.py            # FSDP2 training workflow.
- ├── inference.py              # Model inference tool.
- ├── evaluation.py             # Model evaluation tool.
- ├── setup.py                  # Installation configuration file.
- ├── README.md                 # Project overview document.
+ ├── ci                        # CI watchdog
+ ├── configs                   # Configuration files
+ ├── docs                      # Project documentation
+ ├── examples                  # Model example scripts
+ ├── mindspeed_llm             # Core code
+ ├── tests                     # Test cases
+ ├── convert_ckpt.py           # Weight conversion tool
+ ├── convert_ckpt_v2.py        # Weight conversion tool v2
+ ├── preprocess_data.py        # Data preprocessing tool
+ ├── pretrain_gpt.py           # Pretraining workflow
+ ├── pretrain_mamba.py         # Pretraining workflow for Mamba models
+ ├── posttrain_gpt.py          # Post-training workflow
+ ├── preprocess_prompt.py      # Prompt preprocessing tool
+ ├── rlhf_gpt.py               # RLHF training workflow
+ ├── train_fsdp2.py            # FSDP2 training workflow
+ ├── inference.py              # Model inference tool
+ ├── evaluation.py             # Model evaluation tool
+ ├── setup.py                  # Installation configuration file
+ ├── README.md                 # Project overview document
 ```
 
 # Documentation Navigation
@@ -173,7 +161,369 @@ MindSpeed LLM now includes built-in support for pretraining and fine-tuning more
 
 ---
 
-MindSpeed LLM includes training solutions such as distributed pretraining and distributed fine-tuning. For details, see [Training Solutions and Features](./docs/en/pytorch/features/README.md).
+MindSpeed LLM includes training solutions such as distributed pretraining and distributed fine-tuning.
+
+## Distributed Pretraining
+
+The measured pretraining performance based on MindSpeed LLM is as follows.
+
+<table>
+  <thead>
+    <tr>
+      <th>Model Series</th>
+      <th>Experimental Model</th>
+      <th>Hardware</th>
+      <th>Cluster Size</th>
+      <th>MFU</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td rowspan="3">Llama-2</td>
+      <td><a href="./examples/mcore/llama2/pretrain_llama2_7b_pack_ptd.sh">Llama-2-7B</a></td>
+      <td>Atlas 900 A2 PODc</td>
+      <td>1x8</td>
+      <td>69.0%</td>
+    </tr>
+    <tr>
+      <td><a href="./examples/mcore/llama2/pretrain_llama2_13b_pack_ptd.sh">Llama-2-13B</a></td>
+      <td>Atlas 900 A2 PODc</td>
+      <td>1x8</td>
+      <td>64.7%</td>
+    </tr>
+    <tr>
+      <td><a href="./examples/mcore/llama2/pretrain_llama2_70b_pack_ptd.sh">Llama-2-70B</a></td>
+      <td>Atlas 900 A2 PODc</td>
+      <td>4x8</td>
+      <td>44.1%</td>
+    </tr>
+    <tr>
+      <td>Mixtral</td>
+      <td><a href="https://gitcode.com/Ascend/MindSpeed-LLM/blob/2.2.0/examples/mcore/mixtral/pretrain_mixtral_8x7b_ptd.sh">Mixtral-8x7B</a></td>
+      <td>Atlas 900 A2 PODc</td>
+      <td>8x8</td>
+      <td>31.7%</td>
+    </tr>
+  </tbody>
+</table>
+
+### Pretraining Solutions
+
+<table>
+  <thead>
+    <tr>
+      <th>Solution Category</th>
+      <th>MCore</th>
+      <th>Released</th>
+      <th>Contributor</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><a href="docs/en/pytorch/training/pretrain/mcore/pretrain.md">Multi-dataset pretraining</a></td>
+      <td>✅</td>
+      <td>✅</td>
+      <td rowspan="2">[Ascend]</td>
+    </tr>
+    <tr>
+      <td><a href="docs/en/pytorch/training/pretrain/mcore/pretrain_eod.md">Multi-sample pack-mode pretraining</a></td>
+      <td>✅</td>
+      <td>❌</td>
+</tr>
+  </tbody>
+</table>
+
+### Acceleration Features
+
+<table><thead>
+  <tr>
+    <th>Scenario</th>
+    <th>Feature</th>
+    <th>MCore</th>
+    <th>Released</th>
+    <th>Contributor</th>
+  </tr></thead>
+<tbody>
+  <tr>
+    <td rowspan="5">SPTD parallelism</td>
+    <td><a href="https://gitcode.com/Ascend/MindSpeed/blob/26.0.0_core_r0.12.1/docs/en/features/tensor-parallel.md">Tensor parallelism</a></td>
+    <td>✅</td>
+    <td>✅</td>
+    <td rowspan="29">[Ascend]</td>
+  </tr>
+  <tr>
+    <td><a href="https://gitcode.com/Ascend/MindSpeed/blob/26.0.0_core_r0.12.1/docs/en/features/pipeline-parallel.md">Pipeline parallelism</a></td>
+    <td>✅</td>
+    <td>✅</td>
+  </tr>
+  <tr>
+    <td><a href="docs/en/pytorch/features/mcore/virtual_pipeline_parallel.md">Virtual pipeline parallelism</a></td>
+    <td>✅</td>
+    <td>✅</td>
+  </tr>
+  <tr>
+    <td><a href="https://gitcode.com/Ascend/MindSpeed/blob/26.0.0_core_r0.12.1/docs/en/features/sequence-parallel.md">Sequence parallelism</a></td>
+    <td>✅</td>
+    <td>✅</td>
+  </tr>
+  <tr>
+    <td><a href="https://gitcode.com/Ascend/MindSpeed/blob/26.0.0_core_r0.12.1/docs/en/features/noop-layers.md">noop layers</a></td>
+    <td>✅</td>
+    <td>✅</td>
+  </tr>
+  <tr>
+    <td rowspan="3">Long-sequence parallelism</td>
+    <td><a href="docs/en/pytorch/features/mcore/ring-attention-context-parallel.md">Ascend Ring Attention Long-sequence parallelism</a></td>
+    <td>✅</td>
+    <td>✅</td>
+  </tr>
+  <tr>
+    <td><a href="https://gitcode.com/Ascend/MindSpeed/blob/26.0.0_core_r0.12.1/docs/en/features/ulysses-context-parallel.md">Ulysses Long-sequence parallelism</a></td>
+    <td>✅</td>
+    <td>✅</td>
+  </tr>
+  <tr>
+    <td><a href="https://gitcode.com/Ascend/MindSpeed/blob/26.0.0_core_r0.12.1/docs/en/features/hybrid-context-parallel.md">Hybrid long-sequence parallelism</a></td>
+    <td>✅</td>
+    <td>✅</td>
+  </tr>
+  <tr>
+    <td rowspan="2">MoE</td>
+    <td><a href="https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/transformer/moe/README.md">MoE parallelism</a></td>
+    <td>✅</td>
+    <td>✅</td>
+  </tr>
+  <tr>
+    <td><a href="https://gitcode.com/Ascend/MindSpeed/blob/26.0.0_core_r0.12.1/docs/en/features/megatron_moe/megatron-moe-allgather-dispatcher.md">MoE rerouting communication optimization</a></td>
+    <td>✅</td>
+    <td>✅</td>
+  </tr>
+  <tr>
+    <td rowspan="6">Memory optimization</td>
+    <td><a href="https://gitcode.com/Ascend/MindSpeed/blob/26.0.0_core_r0.12.1/docs/en/features/reuse-fp32-param.md">Parameter copy reuse</a></td>
+    <td>✅</td>
+    <td>✅</td>
+  </tr>
+    <tr>
+    <td><a href="https://gitcode.com/Ascend/MindSpeed/blob/26.0.0_core_r0.12.1/docs/en/features/distributed-optimizer.md">Distributed optimizer</a></td>
+    <td>✅</td>
+    <td>✅</td>
+  </tr>
+  <tr>
+    <td><a href="https://gitcode.com/Ascend/MindSpeed/blob/26.0.0_core_r0.12.1/docs/en/features/swap_attention.md">Swap Attention</a></td>
+    <td>✅</td>
+    <td>✅</td>
+  </tr>
+  <tr>
+    <td><a href="docs/en/pytorch/features/mcore/recompute_relative.md">Recomputation</a></td>
+    <td>✅</td>
+    <td>✅</td>
+  </tr>
+  <tr>
+    <td><a href="https://gitcode.com/Ascend/MindSpeed/blob/26.0.0_core_r0.12.1/docs/en/features/norm-recompute.md">Norm recomputation</a></td>
+    <td>✅</td>
+    <td>✅</td>
+  </tr>
+  <tr>
+    <td><a href="docs/en/pytorch/features/mcore/o2.md">O2 BF16 Optimizer</a></td>
+    <td>✅</td>
+    <td>❌</td>
+  </tr>
+  <tr>
+    <td rowspan="7">Fusion operators</td>
+    <td><a href="https://gitcode.com/Ascend/MindSpeed/blob/26.0.0_core_r0.12.1/docs/en/features/flash-attention.md">Flash attention</a></td>
+    <td>✅</td>
+    <td>✅</td>
+  </tr>
+  <tr>
+    <td><a href="docs/en/pytorch/features/mcore/variable_length_flash_attention.md">Flash attention variable length</a></td>
+    <td>✅</td>
+    <td>✅</td>
+  </tr>
+  <tr>
+    <td><a href="https://gitcode.com/Ascend/MindSpeed/blob/26.0.0_core_r0.12.1/docs/en/features/rms_norm.md">Fused rmsnorm</a></td>
+    <td>✅</td>
+    <td>✅</td>
+  </tr>
+  <tr>
+    <td><a href="https://gitcode.com/Ascend/MindSpeed/blob/26.0.0_core_r0.12.1/docs/en/features/swiglu.md">Fused swiglu</a></td>
+    <td>✅</td>
+    <td>✅</td>
+  </tr>
+  <tr>
+    <td><a href="https://gitcode.com/Ascend/MindSpeed/blob/26.0.0_core_r0.12.1/docs/en/features/rotary-embedding.md">Fused rotary position embedding</a></td>
+    <td>✅</td>
+    <td>✅</td>
+  </tr>
+  <tr>
+    <td><a href="https://gitcode.com/Ascend/MindSpeed/blob/26.0.0_core_r0.12.1/docs/en/features/megatron_moe/megatron-moe-gmm.md">GMM</a></td>
+    <td>✅</td>
+    <td>✅</td>
+  </tr>
+  <tr>
+    <td><a href="https://gitcode.com/Ascend/MindSpeed/blob/26.0.0_core_r0.12.1/docs/en/features/npu_matmul_add.md">Matmul Add</a></td>
+    <td>✅</td>
+    <td>✅</td>
+  </tr>
+  <tr>
+    <td rowspan="6">Communication optimization</td>
+    <td><a href="https://gitcode.com/Ascend/MindSpeed/blob/26.0.0_core_r0.12.1/docs/en/features/async-ddp-param-gather.md">Gradient reduce communication-compute overlap</a></td>
+    <td>✅</td>
+    <td>✅</td>
+  </tr>
+  <tr>
+    <td><a href="https://gitcode.com/Ascend/MindSpeed/blob/26.0.0_core_r0.12.1/docs/en/features/recompute_independent_pipelining.md">Recompute in advance</a></td>
+    <td>✅</td>
+    <td>✅</td>
+  </tr>
+  <tr>
+    <td><a href="https://gitcode.com/Ascend/MindSpeed/blob/26.0.0_core_r0.12.1/docs/en/features/async-ddp-param-gather.md">Weight all-gather communication-compute overlap</a></td>
+    <td>✅</td>
+    <td>✅</td>
+  </tr>
+  <tr>
+    <td><a href="docs/en/pytorch/features/mcore/mc2.md">MC2</a></td>
+    <td>✅</td>
+    <td>❌</td>
+  </tr>
+  <tr>
+    <td><a href="docs/en/pytorch/features/mcore/communication-over-computation.md">CoC</a></td>
+    <td>✅</td>
+    <td>❌</td>
+  </tr>
+  <tr>
+    <td><a href="https://gitcode.com/Ascend/MindSpeed/blob/26.0.0_core_r0.12.1/docs/en/features/hccl-replace-gloo.md">Ascend Gloo archive flushing optimization</a></td>
+    <td>✅</td>
+    <td>✅</td>
+  </tr>
+</tbody></table>
+
+## Distributed Fine-Tuning
+
+The measured instruction fine-tuning performance based on MindSpeed LLM is as follows.
+
+<table>
+  <tr>
+    <th>Model</th>
+    <th>Hardware</th>
+    <th>Cluster</th>
+    <th>Solution</th>
+    <th>Sequence</th>
+    <th>Performance</th>
+    <th>MFU</th>
+  </tr>
+  <tr>
+    <td rowspan="3">Llama-2-7B</td>
+    <td rowspan="3">Atlas 900 A2 PODc</td>
+    <td rowspan="3">1x8</td>
+    <td>Full-parameter</td>
+    <td><a href="./examples/mcore/llama2/tune_llama2_7b_full_ptd.sh">dynamic</a></td>
+    <td>15.87 samples/s</td>
+    <td>-</td>
+  </tr>
+  <tr>
+    <td>Full-parameter</td>
+    <td><a href="./examples/mcore/llama2/tune_llama2_7b_full_pack_16k.sh">16K</a></td>
+    <td>1.14 samples/s</td>
+    <td>37.4%</td>
+  </tr>
+  <tr>
+    <td>Full-parameter</td>
+    <td><a href="./examples/mcore/llama2/tune_llama2_7b_full_pack_32k.sh">32K</a></td>
+    <td>0.51 samples/s</td>
+    <td>48.4%</td>
+  </tr>
+  <tr>
+    <td rowspan="1">Llama-2-13B</td>
+    <td rowspan="1">Atlas 900 A2 PODc</td>
+    <td rowspan="1">1x8</td>
+    <td>Full-parameter</td>
+    <td><a href="https://gitcode.com/ascend/MindSpeed-LLM/blob/2.0.0/examples/legacy/llama2/tune_llama2_13b_full_ptd.sh">dynamic</a></td>
+    <td>50.4 samples/s</td>
+    <td>-</td>
+  </tr>
+  <tr>
+    <td>Llama-2-70B</td>
+    <td>Atlas 900 A2 PODc</td>
+    <td>1x8</td>
+    <td>LoRA</td>
+    <td><a href="https://gitcode.com/ascend/MindSpeed-LLM/blob/2.0.0/examples/legacy/llama2/tune_llama2_70b_lora_ptd.sh">dynamic</a></td>
+    <td>15.2 samples/s</td>
+    <td>-</td>
+  </tr>
+</table>
+
+### Fine-Tuning Solution
+
+<table><thead>
+  <tr>
+    <th>Solution</th>
+    <th>MCore</th>
+    <th><a href="docs/en/pytorch/training/finetune/mcore/lora_finetune.md">LoRA</a></th>
+    <th><a href="docs/en/pytorch/training/finetune/mcore/qlora_finetune.md">QLoRA</a></th>
+    <th>Released</th>
+    <th>Contributor</th>
+  </tr></thead>
+<tbody>
+  <tr>
+    <td><a href="docs/en/pytorch/training/finetune/mcore/instruction_finetune.md">Single-sample fine-tuning</a></td>
+    <td>✅</td>
+    <td>✅</td>
+    <td>✅</td>
+    <td>✅</td>
+    <td>[Ascend]</td>
+  </tr>
+  <tr>
+    <td><a href="docs/en/pytorch/training/finetune/mcore/multi_sample_pack_finetune.md">Multi-sample pack fine-tuning</a></td>
+    <td>✅</td>
+    <td>✅</td>
+    <td>❌</td>
+    <td>❌</td>
+    <td>[NAIE]</td>
+  </tr>
+    <tr>
+    <td><a href="docs/en/pytorch/training/finetune/mcore/multi_turn_conversation.md">Multi-turn conversation fine-tuning</a></td>
+    <td>✅</td>
+    <td>✅</td>
+    <td>❌</td>
+    <td>❌</td>
+    <td>[Ascend]</td>
+  </tr>
+</tbody></table>
+
+### Acceleration Features
+
+<table><thead>
+  <tr>
+    <th>Scenario</th>
+    <th>Feature</th>
+    <th>MCore</th>
+    <th>Released</th>
+    <th>Contributor</th>
+  </tr></thead>
+<tbody>
+  <tr>
+    <td rowspan="1"><a href="docs/en/pytorch/training/finetune/mcore/lora_finetune.md">LoRA fine-tuning</a></td>
+    <td><a href="docs/en/pytorch/features/mcore/cc_lora.md">CCLoRA</a></td>
+    <td>✅</td>
+    <td>✅</td>
+    <td>[Ascend]</td>
+  </tr>
+  <tr>
+      <td rowspan="1"><a href="docs/en/pytorch/training/finetune/mcore/qlora_finetune.md">QLoRA fine-tuning</a></td>
+    <td><a href="docs/en/pytorch/features/mcore/cc_lora.md">CCLoRA</a></td>
+    <td>❌</td>
+    <td>❌</td>
+    <td>[NAIE]</td>
+  </tr>
+  <tr>
+    <td>Long-sequence fine-tuning</td>
+    <td><a href="docs/en/pytorch/features/mcore/fine-tuning-with-context-parallel.md">Long-sequence CP</a></td>
+    <td>✅</td>
+    <td>❌</td>
+    <td>[Ascend]</td>
+  </tr>
+</tbody></table>
 
 # Online Inference
 
@@ -193,19 +543,19 @@ MindSpeed LLM includes training solutions such as distributed pretraining and di
       <td><a href="docs/en/pytorch/training/inference/inference.md">Streaming inference</a></td>
       <td>✅</td>
       <td>✅</td>
-      <td>【NAIE】</td>
+      <td>[NAIE]</td>
     </tr>
     <tr>
       <td><a href="docs/en/pytorch/training/inference/chat.md">Chat conversation</a></td>
       <td>✅</td>
       <td>✅</td>
-      <td>【NAIE】</td>
+      <td>[NAIE]</td>
     </tr>
     <tr>
       <td><a href="docs/en/pytorch/features/mcore/yarn.md">YARN context extension</a></td>
       <td>✅</td>
       <td>❌</td>
-      <td>【Ascend】</td>
+      <td>[Ascend]</td>
     </tr>
   </tbody>
 </table>
@@ -228,40 +578,40 @@ See the [open dataset evaluation baselines](docs/en/pytorch/training/evaluation/
   <tbody>
     <tr>
       <td rowspan="8"><a href="docs/en/pytorch/training/evaluation/evaluation_guide.md">Evaluation</a></td>
-      <td><a href="https://people.eecs.berkeley.edu/~hendrycks/data.tar">MMLU</a></td>
+      <td><a href="https://huggingface.co/datasets/cais/mmlu/resolve/main/data.tar?utm_source=chatgpt.com">MMLU</a></td>
       <td>✅</td>
       <td>❌</td>
-      <td>【NAIE】</td>
+      <td>[NAIE]</td>
     </tr>
     <tr>
       <td><a href="https://huggingface.co/datasets/ceval/ceval-exam/tree/main">CEval</a></td>
       <td>✅</td>
       <td>❌</td>
-      <td>【NAIE】</td>
+      <td>[NAIE]</td>
     </tr>
     <tr>
       <td><a href="https://github.com/google-research-datasets/boolean-questions">BoolQ</a></td>
       <td>✅</td>
       <td>❌</td>
-      <td>【NAIE】</td>
+      <td>[NAIE]</td>
     </tr>
     <tr>
       <td><a href="https://github.com/suzgunmirac/BIG-Bench-Hard/tree/main/bbh">BBH</a></td>
       <td>✅</td>
       <td>❌</td>
-      <td>【NAIE】</td>
+      <td>[NAIE]</td>
     </tr>
     <tr>
       <td><a href="https://github.com/ruixiangcui/AGIEval/tree/main">AGIEval</a></td>
       <td>✅</td>
       <td>❌</td>
-      <td>【NAIE】</td>
+      <td>[NAIE]</td>
     </tr>
     <tr>
       <td><a href="https://github.com/openai/human-eval/tree/master/data">HumanEval</a></td>
       <td>✅</td>
       <td>❌</td>
-      <td>【NAIE】</td>
+      <td>[NAIE]</td>
     </tr>
   </tbody>
 </table>
@@ -272,14 +622,14 @@ See the [open dataset evaluation baselines](docs/en/pytorch/training/evaluation/
 
 ## Weight Conversion
 
-MindSpeed LLM supports two-way weight conversion between Hugging Face and Megatron-core formats, and it supports merging LoRA weights. For parameters and usage instructions for the weight conversion feature, see [Weight Conversion](docs/en/pytorch/tools/checkpoint_convert_hf_mcore_large_params.md).
+MindSpeed LLM supports two-way weight conversion between Hugging Face and Megatron-core formats, and it supports merging LoRA weights. For parameters and usage instructions for the weight conversion feature, see [Weight Conversion](docs/en/pytorch/tools/checkpoint_convert_hf_mcore.md).
 
 <table>
   <thead>
     <tr>
-      <th>Source format</th>
-      <th>Target format</th>
-      <th>Sharding features</th>
+      <th>Source Format</th>
+      <th>Target Format</th>
+      <th>Sharding Features</th>
       <th>LoRA</th>
       <th>Contributor</th>
       <th>Released</th>
@@ -291,7 +641,7 @@ MindSpeed LLM supports two-way weight conversion between Hugging Face and Megatr
       <td>Megatron-core</td>
       <td>tp, pp, dpp, vpp, cp, ep, loop layer</td>
       <td>❌</td>
-      <td rowspan="3">【Ascend】</td>
+      <td rowspan="3">[Ascend]</td>
       <td rowspan="3">❌</td>
     </tr>
     <tr>
@@ -315,7 +665,7 @@ MindSpeed LLM supports data preprocessing for pretraining, instruction fine-tuni
 <table>
   <thead>
     <tr>
-      <th>Task scenario</th>
+      <th>Task Scenario</th>
       <th>Dataset</th>
       <th>MCore</th>
       <th>Released</th>
@@ -328,7 +678,7 @@ MindSpeed LLM supports data preprocessing for pretraining, instruction fine-tuni
       <td><a href="docs/en/pytorch/tools/data_process_pretrain.md">Pretraining data processing</a></td>
       <td>✅</td>
       <td>✅</td>
-      <td rowspan="3">【Ascend】</td>
+      <td rowspan="3">[Ascend]</td>
     </tr>
     <tr>
       <td rowspan="2">Fine-tuning</td>
@@ -362,7 +712,7 @@ MindSpeed LLM supports data preprocessing for pretraining, instruction fine-tuni
       <td><a href="docs/en/pytorch/tools/profiling.md">Collect profiling data on Ascend chips</a></td>
       <td>✅</td>
       <td>❌</td>
-      <td>【Ascend】</td>
+      <td>[Ascend]</td>
     </tr>
   </tbody>
 </table>
@@ -381,11 +731,11 @@ MindSpeed LLM supports data preprocessing for pretraining, instruction fine-tuni
   </thead>
   <tbody>
     <tr>
-      <td rowspan="2">High availability</td>
+      <td rowspan="1">High availability</td>
       <td><a href="docs/en/pytorch/tools/deterministic_computation.md">Enable deterministic computation on Ascend chips</a></td>
       <td>✅</td>
       <td>❌</td>
-      <td rowspan="2">【Ascend】</td>
+      <td rowspan="1">[Ascend]</td>
     </tr>
   </tbody>
 </table>
@@ -396,7 +746,7 @@ MindSpeed LLM supports data preprocessing for pretraining, instruction fine-tuni
 
 MindSpeed LLM versions go through the following five maintenance stages:
 
-| **Status** | **Time** | **Description** |
+| Status | Time | Description |
 | ------------------- | --------- | ------------------------------------------------------------ |
 | Planning | 1 to 3 months | Planned features. |
 | Development | 3 months | Features under development. |
@@ -406,17 +756,18 @@ MindSpeed LLM versions go through the following five maintenance stages:
 
 MindSpeed LLM released version maintenance policy:
 
-| **MindSpeed LLM version** | **Corresponding tag** | **Maintenance policy** | **Current status** | **Release date** | **Next status** | **EOL date** |
-| --------------------- | ------------| ------------ | ------------ | ------------ | ---------------------- | ----------- |
-| 2.3.0 | v2.3.0 | Regular release | Maintenance | 2025/12/30 | Expected to enter no-maintenance status starting 2026/6/30 | |
-| 2.2.0 | v2.2.0 | Regular release | Maintenance | 2025/9/30 | Expected to enter no-maintenance status starting 2026/3/30 | |
-| 2.1.0 | v2.1.0 | Regular release | EOL | 2025/6/30 | End of life | 2025/12/30 |
-| 2.0.0 | v2.0.0 | Regular release | EOL | 2025/3/30 | End of life | 2025/9/30 |
-| 1.0.0 | v1.0.0 | Regular release | EOL | 2024/12/30 | End of life | 2025/6/30 |
-| 1.0.RC3 | v1.0.RC3.0 | Regular release | EOL | 2024/09/30 | End of life | 2025/3/30 |
-| 1.0.RC2 | v1.0.RC2.0 | Regular release | EOL | 2024/06/30 | End of life | 2024/12/30 |
-| 1.0.RC1 | v1.0.RC1.0 | Regular release | EOL | 2024/03/30 | End of life | 2024/9/30 |
-| bk_origin_23 | \ | Demo | EOL | 2023 | End of life | 2024/6/30 |
+| MindSpeed LLM Version | Corresponding Tag | Maintenance Policy | Current Status | Release Date | Next Status | EOL Date |
+|---------------------|------------| ------------ | ------------ |------------|-----------------| ----------- |
+| 26.0.0              | v26.0.0    | Regular release     | Maintenance         | Mar 30, 2026  | Expected to enter no-maintenance status starting Sep 30, 2026 |             |
+| 2.3.0               | v2.3.0     | Regular release     | Maintenance         | Dec 30, 2025 | Expected to enter no-maintenance status starting Jun 30, 2026 |             |
+| 2.2.0               | v2.2.0     | Regular release     | Maintenance         | Sep 30, 2025  | Expected to enter no-maintenance status starting Mar 30, 2026 |             |
+| 2.1.0               | v2.1.0     | Regular release     | EOL         | Jun 30, 2025  | End of life          |     Dec 30, 2025        |
+| 2.0.0               | v2.0.0     | Regular release     | EOL          | Mar 30, 2025  | End of life          | Sep 30, 2025    |
+| 1.0.0               | v1.0.0     | Regular release     | EOL          | Dec 30, 2024 | End of life          | Jun 30, 2025    |
+| 1.0.RC3             | v1.0.RC3.0 | Regular release     | EOL          | Sep 30, 2024 | End of life          | Mar 30, 2025    |
+| 1.0.RC2             | v1.0.RC2.0 | Regular release     | EOL          | Jun 30, 2024 | End of life          | Dec 30, 2024   |
+| 1.0.RC1             | v1.0.RC1.0 | Regular release     | EOL          | Mar 30, 2024 | End of life          | Sep 30, 2024    |
+| bk_origin_23        | \          | Demo        | EOL          | 2023       | End of life          | Jun 30, 2024     |
 
 # Security Statement
 
@@ -442,19 +793,37 @@ If you do not want your dataset to be mentioned in MindSpeed LLM model descripti
 # License Statement
 
 - The license for the MindSpeed LLM product is described in [LICENSE](LICENSE).
-- The documents in the `docs` directory of the MindSpeed LLM tool are subject to the CC-BY 4.0 license. See [LICENSE](./docs/zh/LICENSE) for details.
+- The documents in the `docs` directory of the MindSpeed LLM tool are subject to the CC-BY 4.0 license. See [LICENSE](./docs/LICENSE) for details.
 
 # Contribution Statement
 
----
+**1. Reporting Issues**
 
-If you want to report issues or contribute code to MindSpeed LLM, see the [Contribution Guide](./CONTRIBUTING.md).
+- If you find any issues, first check the repository [issues list](https://gitcode.com/Ascend/MindSpeed-LLM/issues) and try to find similar issues or solutions.
 
-# FAQ
+- If the existing [issues list](https://gitcode.com/Ascend/MindSpeed-LLM/issues) does not contain your issue, you can [submit a new issue](https://gitcode.com/Ascend/MindSpeed-LLM/issues/create/choose) and provide a clear problem description, reproduction steps, and environment information where possible.
 
----
+**2. Performance Optimization and New Features**
 
-For common questions about basic MindSpeed LLM usage, see the [MindSpeed LLM FAQ](./docs/en/FAQ.md). If the FAQ does not cover your question, you can search for similar issues in the repository [issues list](https://gitcode.com/Ascend/MindSpeed-LLM/issues), or submit a new issue.
+- For performance optimization proposals, use the `Performance` label when submitting the issue and describe the performance optimization feature and usage scenario.
+
+- For new feature suggestions or discussions, use the `Feature` label when submitting the issue and describe the background, expectations, and proposal.
+
+**3. Code Contribution Process**
+
+To submit code changes, follow these brief steps:
+
+- Develop and commit on your personal branch, then open a Pull Request (PR) to this repository.
+
+- Register for a PR review slot at our [SIG regular meetings](https://gitcode.com/Ascend/MindSpeed-LLM/issues/1108) by filling in the specified format, and attend the corresponding review meeting on time.
+
+- Modify the PR according to review comments and update it.
+
+- After the PR passes review, enter `compile` in the comment area to trigger the gated CI pipeline.
+
+- After the PR CI passes and the PR obtains enough labels, the repository Committer will perform the final review and merge it into the development branch.
+
+Thank you for your participation and contribution. We look forward to advancing the project together with you.
 
 # Acknowledgments
 

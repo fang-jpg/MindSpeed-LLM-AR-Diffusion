@@ -40,8 +40,6 @@ from megatron.core import mpu, parallel_state
 from megatron.core.utils import get_model_config
 from megatron.core.enums import ModelType
 from megatron.training.checkpointing import save_checkpoint
-from megatron.training import async_utils as async_utils_mod  # noqa: F401
-from megatron.training.async_utils import maybe_finalize_async_save
 from megatron.training.initialize import initialize_megatron
 from megatron.training.initialize import write_args_to_tensorboard
 from megatron.training.arguments import core_transformer_config_from_args
@@ -70,8 +68,6 @@ from mindspeed_llm.training.initialize import set_jit_fusion_options
 from mindspeed_llm.tasks.posttrain.lora.utils import is_enable_lora
 from mindspeed_llm.training.utils import get_actual_attn_ratio, clear_actual_attn_ratio, is_distributed_ckpt_complete
 from mindspeed_llm.training.checkpointing import _convert_weights_mg2hf
-from mindspeed_llm.tools.model_io_trace import ModelIOTraceManager
-from mindspeed_llm.tools.msprobe import MsProbeManager
 
 
 # The earliest we can measure the start time.
@@ -81,45 +77,12 @@ _TRAIN_START_TIME = time.time()
 try:
     from torch_npu.utils import reset_thread_affinity
     reset_thread_affinity()
-except Exception as e:  # noqa: F841
+except Exception as e:
     logging.warning("fail to call reset_thread_affinity, please upgrade torch_npu.")
     pass
 
 
-def _enable_npu_datadump_step_end():
-    """
-    Enable NPU data dump at the end of a training step.
-
-    This function stops and steps the MSTT debugger for NPU data dumping
-    if the npu_datadump flag is enabled.
-
-    Note:
-        This is used for debugging and profiling NPU operations.
-    """
-    args = get_args()
-    if not getattr(args, "npu_datadump", False):
-        return
-
-    from mindspeed.functional.npu_datadump.npu_datadump import MSTT_DEBUGGER
-    MSTT_DEBUGGER.stop()
-    MSTT_DEBUGGER.step()
-
-
 def update_save_checkpoint_chmod(save_path, permission=0o640):
-    """
-    Update file permissions for saved checkpoint files.
-
-    This function modifies the file permissions of saved checkpoints for security
-    when high availability mode is disabled.
-
-    Args:
-        save_path (str): Path to the saved checkpoint file.
-        permission (int, optional): File permission mode. Defaults to 0o640.
-
-    Note:
-        Permission updates are skipped when high availability is enabled
-        to avoid conflicts with HA mechanisms.
-    """
     args = get_args()
     if args.enable_high_availability:
         return
@@ -211,7 +174,7 @@ def model_provider_func_wrapper(model_provider_func):
                         if _name in layer:
                             module.register_forward_hook(_hook)
 
-            if args.recompute_granularity == 'full':
+            if args.recompute_method == 'block' and args.recompute_granularity == 'full':
                 _create_hooks(model, args.lora_register_forward_hook)
 
             model.print_trainable_parameters()
@@ -283,7 +246,7 @@ def get_profiler():
     else:
         raise ValueError(f"profiler_level only supports level0,"
                          f" 1, 2, and level_none, but gets {args.profile_level}")
-
+    
     if args.profile_export_type == 'text':
         profile_export_type = torch_npu.profiler.ExportType.Text
     elif args.profile_export_type == 'db':
@@ -291,7 +254,7 @@ def get_profiler():
     else:
         raise ValueError(f"profile_export_type only supports text or db,"
                          f"but gets {args.export_type}")
-
+        
     experimental_config = torch_npu.profiler._ExperimentalConfig(
         aic_metrics=torch_npu.profiler.AiCMetrics.PipeUtilization,
         profiler_level=profiler_level,
@@ -350,17 +313,20 @@ def build_train_args(*input_args):
             configure_lr_for_lu_lora_layers
         )
 
-        # pylint: disable=unexpected-keyword-arg
         model, optimizer, opt_param_scheduler = setup_model_and_optimizer(
             model_provider, model_type,
             lr_mult=args.lu_lora_lr_ratio,
             scale_lr_cond=lambda name, _: 'lora_B' in name if args.lu_lora_lr_ratio != 1.0 else None
         )
-        # pylint: enable=unexpected-keyword-arg
 
         opt_param_scheduler = configure_lr_for_lu_lora_layers(model, opt_param_scheduler, args)
     else:
-        model_provider_func = get_model_provider_func(args, model_provider)
+        # If with MTP and dualpipev, change model_provider func.
+        if args.mtp_num_layers is not None and args.schedules_method == "dualpipev":
+            from mindspeed.core.pipeline_parallel.dualpipev.mtp_utils import model_provider_mtp
+            model_provider_func = model_provider_mtp
+        else:
+            model_provider_func = model_provider
         model, optimizer, opt_param_scheduler = setup_model_and_optimizer(
             model_provider_func, model_type)
     timers('model-and-optimizer-setup').stop()
@@ -403,11 +369,9 @@ def build_train_args(*input_args):
     app_metrics['app_build_dataiters_finish_time'] = one_logger_utils.get_timestamp_in_ms()
 
     # Track if training is enabled. Can only be done once args.do_train is assigned after dataloader is built.
-    # pylint: disable=too-many-function-args
     one_logger_utils.track_config_flags(args.train_iters, args.skip_train, args.do_train,
                                         args.do_valid, args.do_test, args.dataloader_type,
                                         args.retro_project_dir, args.retro_cyclic_train_iters)
-    # pylint: enable=too-many-function-args
 
     # Print setup timing.
     print_rank_0('done with setup ...')
@@ -421,19 +385,7 @@ def build_train_args(*input_args):
     return train_args, test_data_iterator_list
 
 
-def get_model_provider_func(args, model_provider):
-    # If with MTP and dualpipev, change model_provider func.
-    if args.spec and 'deepseek4_spec' in args.spec[0]:
-        model_provider_func = model_provider
-    elif args.mtp_num_layers is not None and args.schedules_method == "dualpipev":
-        from mindspeed.core.pipeline_parallel.dualpipev.mtp_utils import model_provider_mtp
-        model_provider_func = model_provider_mtp
-    else:
-        model_provider_func = model_provider
-    return model_provider_func
-
-
-def pretrain(train_valid_test_dataset_provider,  # pylint: disable=dangerous-default-value
+def pretrain(train_valid_test_dataset_provider,
              model_provider,
              model_type,
              forward_step_func,
@@ -475,10 +427,6 @@ def pretrain(train_valid_test_dataset_provider,  # pylint: disable=dangerous-def
 
     args = get_args()
     timers = get_timers()
-    msprobe_manager = MsProbeManager(
-        enabled=args.msprobe,
-        config_path=args.msprobe_config_path,
-    )
 
 
     if args.log_progress:
@@ -516,7 +464,7 @@ def pretrain(train_valid_test_dataset_provider,  # pylint: disable=dangerous-def
     forward_step_func, model, optimizer, opt_param_scheduler, train_data_iterator, valid_data_iterator, process_non_loss_data_func, config = train_args
     test_data_iterator = test_data_iterator_list[0]
     one_logger = get_one_logger()
-    one_logger and one_logger.log_metrics(app_metrics)  # pylint: disable=expression-not-assigned
+    one_logger and one_logger.log_metrics(app_metrics)
     if not args.do_train and not args.do_valid and not args.do_test:
         raise RuntimeError('no data loaded, you might give wrong data path.')
 
@@ -541,24 +489,20 @@ def pretrain(train_valid_test_dataset_provider,  # pylint: disable=dangerous-def
                     forward_step_func,
                     model, optimizer, opt_param_scheduler,
                     train_data_iterator, valid_data_iterator,
-                    process_non_loss_data_func, config,
-                    msprobe_manager=msprobe_manager)
+                    process_non_loss_data_func, config)
             else:
                 iteration, num_floating_point_operations_so_far = train(
                     forward_step_func,
                     model, optimizer, opt_param_scheduler,
                     train_data_iterator, valid_data_iterator,
-                    process_non_loss_data_func, config,
-                    msprobe_manager=msprobe_manager)
+                    process_non_loss_data_func, config)
 
         print_datetime('after training is done')
 
         if args.save and iteration != 0 and iteration % args.save_interval != 0:
-            # pylint: disable=possibly-used-before-assignment
             save_checkpoint(iteration, model, optimizer, opt_param_scheduler,
                             num_floating_point_operations_so_far)
-            # pylint: enable=possibly-used-before-assignment
-        one_logger and one_logger.log_metrics({  # pylint: disable=expression-not-assigned
+        one_logger and one_logger.log_metrics({
             'app_train_loop_finish_time': one_logger_utils.get_timestamp_in_ms()
         })
     else:
@@ -579,14 +523,8 @@ def pretrain(train_valid_test_dataset_provider,  # pylint: disable=dangerous-def
                                    test_data_iterator, model,
                                    iteration, process_non_loss_data_func, config,
                                    verbose=True, write_to_tensorboard=not args.skip_train)
-    # this is to make sure all async saves are finished before the training ends
-    maybe_finalize_async_save(blocking=True, terminate=True)
 
-    # - blocking=True: wait for all in-progress async saves to finish; if False, only finalize
-    #   already-completed requests and do not wait for ongoing saves.
-    # - terminate=True: shut down the async queue after finalization (no new tasks), used for
-    #   full cleanup at the end of training.
-    one_logger and one_logger.log_metrics({  # pylint: disable=expression-not-assigned
+    one_logger and one_logger.log_metrics({
         'app_finish_time': one_logger_utils.get_timestamp_in_ms()
     })
     one_logger_utils.finish()
@@ -594,7 +532,7 @@ def pretrain(train_valid_test_dataset_provider,  # pylint: disable=dangerous-def
 
 def train(forward_step_func, model, optimizer, opt_param_scheduler,
           train_data_iterator, valid_data_iterator,
-          process_non_loss_data_func, config, msprobe_manager=None):
+          process_non_loss_data_func, config):
     """Train the model function."""
     args = get_args()
     timers = get_timers()
@@ -612,17 +550,6 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
 
     # Iterations.
     iteration = args.iteration
-    if msprobe_manager is None:
-        msprobe_manager = MsProbeManager(
-            enabled=args.msprobe,
-            config_path=args.msprobe_config_path,
-        )
-    model_io_trace_manager = ModelIOTraceManager(
-        enabled=args.model_io_trace,
-        config_path=args.model_io_trace_config_path,
-        output_path=args.model_io_trace_output_path,
-    )
-    msprobe_manager.set_init_step(iteration)
 
     # Track E2E metrics at the start of training
     one_logger_utils.on_train_start(iteration=iteration, consumed_train_samples=args.consumed_train_samples,
@@ -659,7 +586,7 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
     print_datetime('before the start of training step')
     report_memory_flag = True
     pre_hook_enabled = False
-    exit = False  # pylint: disable=redefined-builtin
+    exit = False
 
     if args.manual_gc:
         # Disable the default garbage collector and perform the collection manually.
@@ -696,7 +623,7 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
     if is_profile_enabled():
         prof = get_profiler()
         prof.start()
-
+    
     start_iteration = iteration
     # Disable forward pre-hook to start training to ensure that errors in checkpoint loading
     # or random initialization don't propagate to all ranks in first all-gather (which is a
@@ -710,7 +637,6 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
         pre_hook_enabled = False
 
     while iteration < args.train_iters:
-        maybe_finalize_async_save(blocking=False)
 
         # Update number of microbatches first without consistency check to decide if a
         # checkpoint should be saved. If the number of microbatches is different
@@ -731,8 +657,6 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
         update_num_microbatches(args.consumed_train_samples, consistency_check=True)
 
         args.curr_iteration = iteration
-        msprobe_manager.start_step(model)
-        model_io_trace_manager.start_step(model, iteration)
         loss_dict, skipped_iter, should_checkpoint, should_exit, exit_code, grad_norm, num_zeros_in_grad = \
             train_step(forward_step_func,
                        train_data_iterator,
@@ -740,10 +664,7 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
                        optimizer,
                        opt_param_scheduler,
                        config)
-        msprobe_manager.end_step()
-        model_io_trace_manager.end_step()
-        _enable_npu_datadump_step_end()
-
+        
         # Enable forward pre-hooks after first set of forward and backward passes.
         # When running in fp16, skip all NaN iterations until steady-state loss scaling value
         # is reached.
@@ -761,7 +682,7 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
                     enable_forward_pre_hook(model)
                     config.param_sync_func = param_sync_func
                     pre_hook_enabled = True
-
+                    
         iteration += 1
         batch_size = mpu.get_data_parallel_world_size() * \
                      args.micro_batch_size * \
@@ -813,12 +734,10 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
                 gc.collect()
             prefix = 'iteration {}'.format(iteration)
             timers('eval-time', log_level=0).start(barrier=True)
-            # pylint: disable=no-value-for-parameter
             evaluate_and_print_results(prefix, forward_step_func,
                                        valid_data_iterator, model,
                                        iteration, process_non_loss_data_func,
                                        config, False)
-            # pylint: enable=no-value-for-parameter
             eval_duration += timers('eval-time').elapsed()
             eval_iterations += args.eval_iters
             timers('eval-time').stop()
@@ -841,8 +760,7 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
                                          opt_param_scheduler,
                                          num_floating_point_operations_so_far,
                                          checkpointing_context=None)
-                if not args.async_save:
-                    update_save_checkpoint_chmod(config.save)
+                update_save_checkpoint_chmod(config.save)
                 print_datetime('exiting program after receiving SIGTERM.')
                 exit = True
                 break
@@ -861,8 +779,7 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
                         _convert_weights_mg2hf(args, iteration)
                 else:
                     logging.warning("checkpoint not found, cannot convert mg2hf")
-            if not args.async_save:
-                update_save_checkpoint_chmod(config.save)
+            update_save_checkpoint_chmod(config.save)
             saved_checkpoint = True
 
         # Exiting based on duration
@@ -880,8 +797,7 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
                                              opt_param_scheduler,
                                              num_floating_point_operations_so_far,
                                              checkpointing_context=None)
-                    if not args.async_save:
-                        update_save_checkpoint_chmod(config.save)
+                    update_save_checkpoint_chmod(config.save)
                 print_datetime('exiting program after {} minutes'.format(train_time))
                 exit = True
                 break
@@ -893,8 +809,7 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
                                          opt_param_scheduler,
                                          num_floating_point_operations_so_far,
                                          checkpointing_context=None)
-                if not args.async_save:
-                    update_save_checkpoint_chmod(config.save)
+                update_save_checkpoint_chmod(config.save)
             torch.distributed.barrier()
             print_datetime('exiting program at iteration {}'.format(iteration))
             exit = True
@@ -915,10 +830,6 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
         prof.stop()
 
     one_logger_utils.track_e2e_metrics()
-
-    maybe_finalize_async_save(blocking=True, terminate=True)
-    if args.save and args.async_save:
-        update_save_checkpoint_chmod(config.save)
 
     # Flush TensorBoard and WandB writers.
     writer = get_tensorboard_writer()
@@ -966,7 +877,7 @@ def training_log(loss_dict, total_loss_dict, learning_rate, decoupled_learning_r
     timers = get_timers()
     writer = get_tensorboard_writer()
     wandb_writer = get_wandb_writer()
-    one_logger = get_one_logger()  # noqa: F841
+    one_logger = get_one_logger()
 
     # Advanced, skipped, and Nan iterations.
     advanced_iters_key = 'advanced iterations'
@@ -990,11 +901,9 @@ def training_log(loss_dict, total_loss_dict, learning_rate, decoupled_learning_r
                 key, torch.tensor([0.0], dtype=torch.float, device='cuda')) + loss_dict[key]
         else:
             value = loss_dict[key].float().sum().item()
-            # pylint: disable=comparison-with-itself
             is_nan = value == float('inf') or \
                      value == -float('inf') or \
                      value != value
-            # pylint: enable=comparison-with-itself
             got_nan = got_nan or is_nan
     total_loss_dict[nan_iters_key] = total_loss_dict.get(
         nan_iters_key, 0) + int(got_nan)
@@ -1065,7 +974,7 @@ def training_log(loss_dict, total_loss_dict, learning_rate, decoupled_learning_r
         if wandb_writer:
             wandb_writer.log({'batch-size': batch_size}, iteration)
         for key in loss_dict:
-            writer.add_scalar(key , loss_dict[key], iteration)
+            writer.add_scalar(key, loss_dict[key], iteration)
             writer.add_scalar(key + ' vs samples', loss_dict[key],
                               args.consumed_train_samples)
             if wandb_writer:
@@ -1398,7 +1307,6 @@ def num_floating_point_operations(args, batch_size):
         if args.multi_latent_attention:
             if args.group_query_attention:
                 raise ValueError("group_query_attention should not be enabled")
-            # pylint: disable=pointless-string-statement
             '''
             Basic arithmetic
             let B is batch size, s is seq_len, h is embedding dim,
@@ -1412,7 +1320,6 @@ def num_floating_point_operations(args, batch_size):
             https://arxiv.org/abs/2305.10403
             https://arxiv.org/abs/2205.05198
             '''
-            # pylint: enable=pointless-string-statement
             ## MLA
             if args.q_lora_rank is None:
                 q_term = args.hidden_size * args.num_attention_heads * (args.qk_head_dim + args.qk_pos_emb_head_dim)

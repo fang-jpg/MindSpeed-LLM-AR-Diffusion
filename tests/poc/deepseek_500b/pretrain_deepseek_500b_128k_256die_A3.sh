@@ -3,7 +3,7 @@ export CUDA_DEVICE_MAX_CONNECTIONS=1
 export PYTORCH_NPU_ALLOC_CONF=expandable_segments:True
 
 NPUS_PER_NODE=16
-MASTER_ADDR=localhost #主节点ip
+MASTER_ADDR=localhost #主节点ip 
 MASTER_PORT=6000
 NNODES=16
 NODE_RANK=0
@@ -104,8 +104,7 @@ GPT_ARGS="
     --use-fused-ring-attention-update \
     --fix-router \
     --distributed-timeout-minutes 120 \
-    --bf16 \
-    --ckpt-format torch
+    --bf16
 "
 
 CKPT_ARGS="
@@ -118,7 +117,6 @@ CKPT_ARGS="
 "
 
 DATA_ARGS="
-    --handler-name GeneralPretrainHandler \
     --data-path $DATA_PATH \
     --split 100,0,0
 "

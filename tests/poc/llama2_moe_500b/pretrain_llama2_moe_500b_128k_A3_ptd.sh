@@ -38,8 +38,8 @@ GPT_ARGS="
     --hidden-size 4096 \
     --ffn-hidden-size 4096 \
     --num-attention-heads 32 \
-    --tokenizer-type PretrainedFromHF \
-    --tokenizer-name-or-path ${TOKENIZER_MODEL} \
+    --tokenizer-type Llama2Tokenizer \
+    --tokenizer-model ${TOKENIZER_MODEL} \
     --seq-length 131072 \
     --max-position-embeddings 131072 \
     --micro-batch-size 1 \
@@ -87,12 +87,10 @@ GPT_ARGS="
     --enable-recompute-layers-per-pp-rank \
     --use-fused-ring-attention-update \
     --fix-router \
-    --bf16 \
-    --ckpt-format torch
+    --bf16
 "
 
 DATA_ARGS="
-    --handler-name GeneralPretrainHandler \
     --data-path ${DATA_PATH} \
     --split 949,50,1
 "
@@ -113,3 +111,4 @@ python3 -m torch.distributed.launch ${DISTRIBUTED_ARGS} pretrain_gpt.py \
     --save ${CKPT_SAVE_DIR} \
     --transformer-impl local \
     | tee logs/train_llama2_moe_500b_128k_A3_ptd.log
+

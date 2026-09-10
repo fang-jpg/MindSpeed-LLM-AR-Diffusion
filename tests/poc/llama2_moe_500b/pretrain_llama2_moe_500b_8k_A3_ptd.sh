@@ -46,8 +46,8 @@ GPT_ARGS="
     --hidden-size 4096 \
     --ffn-hidden-size 4096 \
     --num-attention-heads 32 \
-    --tokenizer-type PretrainedFromHF \
-    --tokenizer-name-or-path ${TOKENIZER_MODEL} \
+    --tokenizer-type Llama2Tokenizer \
+    --tokenizer-model ${TOKENIZER_MODEL} \
     --seq-length 8192 \
     --max-position-embeddings 8192 \
     --micro-batch-size 1 \
@@ -93,12 +93,10 @@ GPT_ARGS="
     --use-fused-moe-token-permute-and-unpermute \
     --recompute-in-advance \
     --fix-router \
-    --bf16 \
-    --ckpt-format torch
+    --bf16
 "
 
 DATA_ARGS="
-    --handler-name GeneralPretrainHandler \
     --data-path ${DATA_PATH} \
     --split 949,50,1
 "

@@ -20,12 +20,12 @@ This document explains how to quickly install MindSpeed LLM, the PyTorch-based d
 >
 > The "√" in the table indicates support, and "x" indicates no support.
 
-- For the OSs supported by each hardware product in physical machine deployment scenarios, see the [Compatibility Query Assistant](https://www.hiascend.com/hardware/compatibility).
-- For the OSs supported by each hardware product in VM and container deployment scenarios, see the "[OS Compatibility](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/900/softwareinst/instg/instg_0101.html?OS=openEuler&InstallType=netyum)" section in CANN Software Installation.
+<!--- For the OSs supported by each hardware product in physical machine deployment scenarios, see the [Compatibility Query Assistant](https://www.hiascend.com/hardware/compatibility).
+- For the OSs supported by each hardware product in VM and container deployment scenarios, see [OS Compatibility](https://www.hiascend.com/document/detail/en/CANNCommunityEdition/900/softwareinst/instg/instg_0101.html?OS=openEuler&InstallType=netyum) in CANN Software Installation for the community edition.-->
 
 ## Preparation before Installation
 
-See the "[Related Product Version Compatibility](../../release_notes_llm.md#related-product-version-mapping)" section in the Release Notes to download and install the corresponding software version.
+See [Related Product Version Compatibility](../../release_notes_llm.md#related-product-version-mapping) in the Release Notes to download and install the corresponding software version.
 
 > [!NOTICE]
 >
@@ -50,9 +50,8 @@ chmod +x Ascend-hdk-<chip_type>-npu-firmware_<version>.run
 > [!NOTE]
 >
 > - Before using the image, confirm the machine model. The latest image supports only the AArch64 architecture. Run `uname -a` to verify.
-> - The image is pre-installed with CANN 9.0.0 and TorchNPU 26.0.0. You can use it as needed.
+> - The image is pre-installed with CANN 9.0.0 and Ascend Extension for PyTorch 26.0.0. You can use it as needed.
 > - If your environment is incompatible with the provided image, choose [Method 2: Installation from Source](#method-2-installation-from-source).
-> - The master branch will be updated with new images. For custom image building, see [Image Overview](../../../../docker/OVERVIEW.md).
 
 1. Pull the image.
 
@@ -122,8 +121,8 @@ chmod +x Ascend-hdk-<chip_type>-npu-firmware_<version>.run
          -v /usr/local/Ascend/driver/lib64/:/usr/local/Ascend/driver/lib64/ \
          -v /usr/local/Ascend/driver/version.info:/usr/local/Ascend/driver/version.info \
          -v /etc/ascend_install.info:/etc/ascend_install.info \
-         -v /path/to/data:/data \
-         -v /path/to/weights:/weights \
+         -v /data:/data \
+         -v /weights:/weights \
          mindspeed-llm:26.0.0-a3-openeuler24.03-py3.11-aarch64 bash
       ```
 
@@ -138,11 +137,9 @@ chmod +x Ascend-hdk-<chip_type>-npu-firmware_<version>.run
 
 ### Method 2: Installation from Source
 
-Follow these steps to obtain the corresponding source code, install the required dependencies, and complete the installation of MindSpeed LLM.
-
 1. Install CANN.
 
-   Install the matching versions of the NPU driver and firmware, and install the CANN software, including the Toolkit, ops, and NNAL packages, and configure the CANN environment variables. For details, see [CANN Software Installation](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/900/softwareinst/instg/instg_0000.html).
+   Install the matching versions of the NPU driver and firmware, and install the CANN software, including the Toolkit, ops, and NNAL packages, and configure the CANN environment variables. For details, see [CANN Software Installation](https://www.hiascend.com/document/detail/en/CANNCommunityEdition/900/softwareinst/instg/instg_0000.html) for the community edition.
 
    CANN software provides a script for setting process-level environment variables. Before you run application code with NPU acceleration in training or inference scenarios, you must call this script. Otherwise, the application code cannot run.
 
@@ -153,16 +150,16 @@ Follow these steps to obtain the corresponding source code, install the required
 
    The preceding commands use the default installation paths after installation for the root user as an example. Replace them with the actual path to `set_env.sh`.
 
-2. Install PyTorch and `TorchNPU`.
+2. Install PyTorch and `torch_npu`.
 
-   Refer to the "[Install PyTorch](https://www.hiascend.com/document/detail/zh/Pytorch/2600/configandinstg/instg/docs/en/installation_guide/installation_via_binary_package.md)" section in the TorchNPU Software Installation Guide to obtain matching versions of the PyTorch and `TorchNPU` packages.
+   Refer to the "[Installing PyTorch](https://www.hiascend.com/document/detail/en/Pytorch/2600/configandinstg/instg/docs/en/installation_guide/installation_via_binary_package.md)" section in the Ascend Extension for PyTorch Installation Guide to obtain matching versions of the PyTorch and `torch_npu` packages.
 
    You can use the following installation commands:
 
    ```shell
-   # Refer to https://gitcode.com/ascend/pytorch/releases for torch and TorchNPU build instructions
+   # Refer to https://gitcode.com/ascend/pytorch/releases for torch and torch_npu build instructions
    pip3 install torch-2.7.1-cp310-cp310-manylinux_2_28_aarch64.whl
-   pip3 install torch_npu-2.7.1rc1-cp310-cp310-manylinux_2_28_aarch64.whl
+   pip3 install torch_npu-2.7.1post4-cp310-cp310-manylinux_2_28_aarch64.whl
    ```
 
 3. Install the MindSpeed acceleration library.
@@ -170,7 +167,7 @@ Follow these steps to obtain the corresponding source code, install the required
    ```shell
    git clone https://gitcode.com/ascend/MindSpeed.git
    cd MindSpeed
-   git checkout master  # Switch to the master branch of MindSpeed
+   git checkout 26.0.0_core_r0.12.1  # Switch to the 26.0.0_core_r0.12.1 branch of MindSpeed
    pip3 install -r requirements.txt
    pip3 install -e .
    cd ..
@@ -185,7 +182,7 @@ Follow these steps to obtain the corresponding source code, install the required
    git checkout core_v0.12.1
    cp -r megatron ../MindSpeed-LLM/
    cd ../MindSpeed-LLM
-   git checkout master
+   git checkout 26.0.0
    mkdir logs
 
    pip3 install -r requirements.txt  # Install the remaining dependency packages

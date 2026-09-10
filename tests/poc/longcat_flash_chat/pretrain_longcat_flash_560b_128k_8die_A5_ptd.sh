@@ -143,8 +143,7 @@ GPT_ARGS="
     --recompute-method uniform \
     --recompute-num-layers 1 \
     --swap-optimizer \
-    --swap-attention \
-    --ckpt-format torch
+    --swap-attention
 "
 
 # FP8_ARGS="
@@ -153,7 +152,6 @@ GPT_ARGS="
 # "
 
 DATA_ARGS="
-    --handler-name GeneralPretrainHandler \
     --data-path $DATA_PATH \
     --split 100,0,0
 "

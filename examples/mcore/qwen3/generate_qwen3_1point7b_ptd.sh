@@ -4,8 +4,8 @@
 export CUDA_DEVICE_MAX_CONNECTIONS=1
 
 # please fill these path configurations
-TOKENIZER_PATH="your tokenizer path"
-CHECKPOINT="your model ckpt path"
+TOKENIZER_PATH="/share/dataset/x00840191/model_train/ckpt/phase4_cpt_ar_0803/models/global_step_4000/"
+CHECKPOINT="/share/dataset/x00840191/models/qwen3_1point7b_mcore_4000_ar_0803/"
 
 # Change for multinode config
 MASTER_ADDR=localhost
@@ -29,7 +29,6 @@ DISTRIBUTED_ARGS="
 "
 
 torchrun $DISTRIBUTED_ARGS inference.py \
-         --use-mcore-models \
          --tensor-model-parallel-size ${TP} \
          --pipeline-model-parallel-size ${PP} \
          --expert-model-parallel-size ${EP} \
@@ -58,6 +57,7 @@ torchrun $DISTRIBUTED_ARGS inference.py \
          --hidden-dropout 0 \
          --attention-dropout 0 \
          --max-new-tokens 256 \
+         --untie-embeddings-and-output-weights \
          --no-gradient-accumulation-fusion \
          --attention-softmax-in-fp32 \
          --exit-on-missing-checkpoint \
@@ -67,5 +67,4 @@ torchrun $DISTRIBUTED_ARGS inference.py \
          --seed 42 \
          --bf16 \
          --transformer-impl local \
-         --ckpt-format torch \
          | tee logs/generate_mcore_qwen3_1point7b.log

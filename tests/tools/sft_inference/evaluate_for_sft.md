@@ -334,7 +334,7 @@ torchrun $DISTRIBUTED_ARGS ./tests/tools/sft_inference/evaluate_for_sft.py \
 
 #### 示例输出
 
-```shell
+```log
 Processing batch 1/10, data range: 0-9/100
 Current batch accuracy: 0.8, index: 10
 Average accuracy: 0.8
@@ -380,9 +380,9 @@ total = 100
 2. **设置模型和分词器路径**：正确配置`CHECKPOINT`和`TOKENIZER_PATH`
 3. **运行脚本**：
 
-    ```bash
-    bash examples/mcore/qwen25/evaluate_qwen25_7b_sft_ptd.sh
-    ```
+   ```bash
+   bash examples/mcore/qwen25/evaluate_qwen25_7b_sft_ptd.sh
+   ```
 
 4. **查看评估结果**：评估结果将输出到指定的日志文件中，包含准确率和详细的错误分析
 

@@ -820,19 +820,20 @@ class Trainer:
             device=loss_sum.device,
         ).detach().to(torch.float32)
 
-        group_size = 1
+        # group_size = 1
 
-        if dist.is_initialized():
-            parallel_state = ParallelState()
-            group = parallel_state.get_group("dp_fsdp")
-            group_size = parallel_state.get_group_size("dp_fsdp")
+        # if dist.is_initialized():
+        #     parallel_state = ParallelState()
+        #     group = parallel_state.get_group("dp_fsdp")
+        #     group_size = parallel_state.get_group_size("dp_fsdp")
 
-            dist.all_reduce(
-                token_count,
-                op=dist.ReduceOp.SUM,
-                group=group,
-            )
+        #     dist.all_reduce(
+        #         token_count,
+        #         op=dist.ReduceOp.SUM,
+        #         group=group,
+        #     )
 
-        scale = token_count.reciprocal().mul(group_size)
+        # scale = token_count.reciprocal().mul(group_size)
 
-        return loss_sum * scale
+        # return loss_sum * scale
+        return loss_sum/token_count.clamp_min(1)

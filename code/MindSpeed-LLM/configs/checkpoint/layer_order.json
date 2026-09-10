@@ -1,0 +1,23 @@
+{
+    "layer_order": [
+        "word_embeddings.weight",
+        "word_embeddings.norm.weight",
+        "position_embeddings.weight",
+        "input_layernorm.weight",
+        "linear_proj.weight",
+        "linear_qkv.weight",
+        "linear_qb.weight",
+        "q_layernorm.weight",
+        "linear_kvb.weight",
+        "k_layernorm.weight",
+        "post_attn_norm.weight",
+        "pre_mlp_layernorm.weight",
+        "router.weight",
+        "shared_expert_gate.weight",
+        "linear_fc1.weight",
+        "linear_fc2.weight",
+        "post_mlp_layernorm.weight",
+        "final_layernorm.weight",
+        "output_layer.weight"
+    ]
+}

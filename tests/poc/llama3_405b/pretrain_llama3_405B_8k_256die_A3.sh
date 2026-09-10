@@ -91,7 +91,6 @@ GPT_ARGS="
     --num-query-groups 16 \
     --lr-warmup-fraction 0.01 \
     --bf16 \
-    --ckpt-format torch
 "
 
 TP_2D_ARGS="
@@ -101,7 +100,6 @@ TP_2D_ARGS="
 "
 
 DATA_ARGS="
-    --handler-name GeneralPretrainHandler \
     --data-path $DATA_PATH \
     --split 949,50,1 \
     --no-shared-storage

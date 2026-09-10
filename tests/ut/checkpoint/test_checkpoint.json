@@ -1,4 +1,45 @@
 {
+    "test_deepseek2_hf2mcore_tp1pp4ep8": [
+        {
+            "param": {
+                "model-type":"GPT",
+                "load-model-type":"hf",
+                "save-model-type":"mg",
+                "target-tensor-parallel-size": "1",
+                "target-pipeline-parallel-size": "4",
+                "target-expert-parallel-size": "8",
+                "load-dir":"/data/ci/models/deepseek-v2/hf/deepseek2_hf",
+                "save-dir":"/data/ci/cache/deepseek2_tp1pp4ep8",
+                "use-mcore-models": null,
+                "moe-grouped-gemm": null,
+                "model-type-hf": "deepseek2",
+                "params-dtype": "bf16",
+                "tokenizer-model":"/data/ci/deepseek2/hf/deepseek2_hf",
+                "spec":"mindspeed_llm.tasks.models.spec.deepseek_spec layer_spec"
+            }
+        }
+    ],
+
+    "test_deepseek2_mcore2hf_tp1pp4ep8": [
+        {
+            "param": {
+                "model-type":"GPT",
+                "load-model-type":"mg",
+                "save-model-type": "hf",
+                "target-tensor-parallel-size": "1",
+                "target-pipeline-parallel-size": "1",
+                "target-expert-parallel-size": "1",
+                "save-dir":"/data/ci/models/deepseek-v2/hf/deepseek2_hf",
+                "load-dir":"/data/ci/models/deepseek2/mg/deepseek2-l8-t1p4e8-gemm_new",
+                "use-mcore-models": null,
+                "moe-grouped-gemm": null,
+                "model-type-hf": "deepseek2",
+                "params-dtype": "bf16",
+                "spec":"mindspeed_llm.tasks.models.spec.deepseek_spec layer_spec"
+            }
+        }
+    ],
+
     "test_deepseek3_hf2mcore_tp2pp2vpp1ep2nooplayer": [
         {
             "param": {
@@ -12,6 +53,7 @@
                 "save-dir":"/data/ci/cache/deepseek3-mtp-L2-tp2pp2ep2vpp1-noop-vpp",
                 "moe-grouped-gemm": null,
                 "model-type-hf": "deepseek3",
+                "params-dtype": "bf16",
                 "num-layers": "2",
                 "mtp-num-layers": "1",
                 "first-k-dense-replace": "1",
@@ -32,3 +74,8 @@
         }
     ]
 }
+
+
+
+
+

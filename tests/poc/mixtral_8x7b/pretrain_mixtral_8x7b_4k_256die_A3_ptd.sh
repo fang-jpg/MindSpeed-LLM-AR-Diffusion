@@ -75,8 +75,7 @@ MODEL_ARGS="
     --overlap-param-gather \
     --make-vocab-size-divisible-by 1 \
     --sequence-parallel \
-    --use-distributed-optimizer \
-    --ckpt-format torch
+    --use-distributed-optimizer
 "
 
 TRAIN_ARGS="
@@ -95,7 +94,6 @@ TRAIN_ARGS="
 "
 
 DATA_ARGS="
-    --handler-name GeneralPretrainHandler \
     --no-shared-storage \
     --data-path $DATA_PATH  \
     --split 100,0,0
@@ -105,9 +103,7 @@ CKPT_ARGS="
     --load ${CKPT_LOAD_DIR} \
     --no-load-optim \
     --no-load-rng \
-    --save ${CKPT_SAVE_DIR} \
-    --enable-hf2mg-convert \
-    --model-type-hf mixtral
+    --save ${CKPT_SAVE_DIR}
 "
 
 OUTPUT_ARGS="

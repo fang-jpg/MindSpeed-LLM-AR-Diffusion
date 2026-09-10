@@ -13,20 +13,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# pylint: disable=R1725,W1514
-
 import os
 import abc
 import logging
 from typing import Optional, Union
 
 import torch
+from torch import distributed as dist
 from torch.nn.parallel.distributed import DistributedDataParallel as torchDDP
 
 from megatron.core.models.gpt.gpt_model import GPTModel
 from megatron.training import get_args, global_vars
-from megatron.core import ModelParallelConfig
-from mindspeed_llm.tasks.utils import version_utils
+from megatron.core import parallel_state, ModelParallelConfig
 
 
 class MegatronModuleForCausalLMABC(torch.nn.Module, abc.ABC):
@@ -58,7 +56,10 @@ class MegatronModuleForCausalLMABC(torch.nn.Module, abc.ABC):
 
     @classmethod
     def from_pretrained(
-        cls, model_provider, pretrained_model_name_or_path: Optional[Union[str, os.PathLike, None]] = None, **kwargs
+            cls,
+            model_provider,
+            pretrained_model_name_or_path: Optional[Union[str, os.PathLike, None]] = None,
+            **kwargs
     ):
         """
         This is an API for initializing model and loading weight.
@@ -155,66 +156,6 @@ class MegatronModuleForCausalLMABC(torch.nn.Module, abc.ABC):
         self.truncate = kwargs.pop("truncate", False)
 
 
-def load_tokenizer(model_path):
-    if version_utils.transformers_version() < (5, 0) or os.path.exists(os.path.join(model_path, "config.json")):
-        from megatron.training import get_tokenizer
-
-        return get_tokenizer().tokenizer
-    else:
-        return load_tokenizer_compatible(model_path)
-
-
-def load_tokenizer_compatible(model_path):
-    from transformers import PreTrainedTokenizerFast, AddedToken
-    from tokenizers import Tokenizer
-    import json
-
-    with open(f"{model_path}/tokenizer_config.json", "r", encoding="utf-8") as f:
-        cfg = json.load(f)
-
-    kwargs = {}
-    for key in ("bos_token", "eos_token", "unk_token", "pad_token"):
-        value = cfg.get(key)
-        if isinstance(value, dict):
-            value = value.get("content", "")
-        kwargs[key] = value
-
-    for key in (
-        "add_bos_token",
-        "add_eos_token",
-        "model_max_length",
-        "clean_up_tokenization_spaces",
-        "legacy",
-        "sp_model_kwargs",
-        "padding_side",
-        "model_input_names",
-    ):
-        if key in cfg:
-            kwargs[key] = cfg[key]
-
-    # added_tokens_decoder requires converting dict entries to AddedToken objects,
-    # matching the format that PreTrainedTokenizerBase.from_pretrained produces
-    # before passing to __init__.
-    if "added_tokens_decoder" in cfg:
-        processed = {}
-        for idx, token in cfg["added_tokens_decoder"].items():
-            if isinstance(token, dict):
-                token = AddedToken(**token)
-            processed[int(idx)] = token
-        kwargs["added_tokens_decoder"] = processed
-
-    # If the config defines a special token but doesn't explicitly state
-    # whether to prepend/append it, infer from the token's presence.
-    # NOTE: only infer add_bos_token. add_eos_token is NOT inferred because
-    # appending eos to the input prompt shifts the generation output.
-    if "add_bos_token" not in kwargs and "bos_token" in kwargs and kwargs["bos_token"] is not None:
-        kwargs["add_bos_token"] = True
-
-    tok = Tokenizer.from_file(f"{model_path}/tokenizer.json")
-    tokenizer = PreTrainedTokenizerFast(tokenizer_object=tok, **kwargs)
-    return tokenizer
-
-
 class MegatronModuleForCausalLM(MegatronModuleForCausalLMABC):
     """
     Megatron specific extensions of torch Module with support
@@ -223,10 +164,9 @@ class MegatronModuleForCausalLM(MegatronModuleForCausalLMABC):
 
     def __init__(self, *args, **kwargs):
         super(MegatronModuleForCausalLM, self).__init__()
-        from megatron.inference.text_generation.generation import (
-            generate_tokens_probs_and_return_on_first_stage,
-            beam_search_and_return_on_first_stage,
-        )
+        from megatron.training import get_tokenizer
+        from megatron.inference.text_generation.generation import generate_tokens_probs_and_return_on_first_stage, \
+            beam_search_and_return_on_first_stage
         from megatron.inference.text_generation.tokenization import tokenize_prompts
         from megatron.inference.text_generation.communication import broadcast_float_list
         from megatron.inference.text_generation.forward_step import ForwardStep
@@ -234,7 +174,7 @@ class MegatronModuleForCausalLM(MegatronModuleForCausalLMABC):
 
         args = get_args()
         args.max_tokens_to_oom = args.max_tokens_to_oom if hasattr(args, "max_tokens_to_oom") else 4096
-
+        
         # use megatron/p2p for inference p2p comm, so need to assign dtype for pp.
         config = ModelParallelConfig
         if args.bf16:
@@ -244,8 +184,7 @@ class MegatronModuleForCausalLM(MegatronModuleForCausalLMABC):
         else:
             config.pipeline_dtype = torch.float32
         try:
-            self.tokenizer = load_tokenizer(args.tokenizer_name_or_path)
-
+            self.tokenizer = get_tokenizer().tokenizer
         except AssertionError:
             self.tokenizer = None
 
@@ -262,9 +201,8 @@ class MegatronModuleForCausalLM(MegatronModuleForCausalLMABC):
         checked_ids = []
         for per_ids in ids:
             if per_ids == torch.Size([]) and torch.max(per_ids) >= len(tokenizer):
-                warning_info = (
-                    "The output ids exceeds the tokenizer length, the clamp operation is enforced, please check!!"
-                )
+                warning_info = "The output ids exceeds the tokenizer length, " \
+                               "the clamp operation is enforced, please check!!"
                 logging.warning(warning_info)
                 checked_ids.append(torch.clamp(per_ids, min=0, max=len(tokenizer)) - 1)
             else:
@@ -273,7 +211,9 @@ class MegatronModuleForCausalLM(MegatronModuleForCausalLMABC):
 
     @classmethod
     def from_pretrained(
-        cls, model_provider, pretrained_model_name_or_path: Optional[Union[str, os.PathLike, None]] = None, **kwargs
+            cls,
+            model_provider, pretrained_model_name_or_path: Optional[Union[str, os.PathLike, None]] = None,
+            **kwargs
     ) -> MegatronModuleForCausalLMABC:
         from megatron.training import get_model
         from megatron.training.checkpointing import load_checkpoint
@@ -319,14 +259,12 @@ class MegatronModuleForCausalLM(MegatronModuleForCausalLMABC):
         # =======================================
         # Tokenize the prompts
         # =======================================
-        context_tokens_tensor, context_length_tensor = self.tokenize_prompts(
-            tokenizer=self.tokenizer,
-            prompts=input_ids,
-            tokens_to_generate=self.max_new_tokens,
-            max_generate_length=self.max_length,
-            add_BOS=False,
-            broadcast=broadcast,
-        )
+        context_tokens_tensor, context_length_tensor = self.tokenize_prompts(tokenizer=self.tokenizer,
+                                                                             prompts=input_ids,
+                                                                             tokens_to_generate=self.max_new_tokens,
+                                                                             max_generate_length=self.max_length,
+                                                                             add_BOS=False,
+                                                                             broadcast=broadcast)
         if not args.use_mcore_models:
             args.seq_length = context_tokens_tensor.shape[1]
             args.max_position_embeddings = args.seq_length
@@ -345,7 +283,7 @@ class MegatronModuleForCausalLM(MegatronModuleForCausalLMABC):
                 top_p=self.top_p,
                 temperature=self.temperature,
                 length_penalty=self.length_penalty,
-                num_return_gen=self.num_return_sequences,
+                num_return_gen=self.num_return_sequences
             )
         else:
             token_stream = self.greedy_search_or_sampling(
@@ -356,7 +294,7 @@ class MegatronModuleForCausalLM(MegatronModuleForCausalLMABC):
                 top_k=self.top_k,
                 top_p=self.top_p,
                 temperature=self.temperature,
-                return_output_log_probs=self.return_output_log_probs,
+                return_output_log_probs=self.return_output_log_probs
             )
 
         # =======================================
@@ -412,7 +350,7 @@ class MegatronModuleForCausalLM(MegatronModuleForCausalLMABC):
             tokens_to_generate=1,
             max_generate_length=None,
             add_BOS=False,
-            broadcast=broadcast,
+            broadcast=broadcast
         )
 
         # =======================================
@@ -456,12 +394,8 @@ class MegatronModuleForCausalLM(MegatronModuleForCausalLMABC):
             raise ValueError("Length of prompt + tokens_to_generate longer than allowed")
 
         if max_sequence_length * batch_size > args.max_tokens_to_oom:
-            raise ValueError(
-                "Too many tokens.  "
-                + str(max_sequence_length * batch_size)
-                + " is greater than "
-                + str(args.max_tokens_to_oom)
-            )
+            raise ValueError("Too many tokens.  " + str(max_sequence_length * batch_size) + " is greater than " + str(
+                args.max_tokens_to_oom))
 
         forward_step = self.ForwardStep(model, batch_size, max_sequence_length)
 
@@ -493,7 +427,7 @@ class MegatronModuleForCausalLM(MegatronModuleForCausalLMABC):
 
     def _post_processing(self, output, context_lengths, log_probs):
         if not self.include_input:
-            output = [val[context_lengths[i] :] for i, val in enumerate(output)]
+            output = [val[context_lengths[i]:] for i, val in enumerate(output)]
 
         # When batch size > 1, you need truncate the tokens after eos_token_id
         output = self._truncate_in_multi_batch(output)
@@ -503,7 +437,8 @@ class MegatronModuleForCausalLM(MegatronModuleForCausalLMABC):
                 output_checked = self._ids_check(output, self.tokenizer)
                 output = self.tokenizer.batch_decode(output_checked, skip_special_tokens=True)
             except Exception as e:
-                error_info = "Meet errors when trying to decode the tokens. Please handle it by yourself."
+                error_info = "Meet errors when trying to decode the tokens. "\
+                             "Please handle it by yourself."
                 logging.error(error_info)
                 logging.error(e)
 
@@ -513,11 +448,8 @@ class MegatronModuleForCausalLM(MegatronModuleForCausalLMABC):
             res = output
         else:
             if self.num_beams == 1:
-                log_probs = (
-                    [val[context_lengths[i] - 1 :, :] for i, val in enumerate(log_probs)]
-                    if log_probs is not None
-                    else None
-                )
+                log_probs = [val[context_lengths[i] - 1:, :] for i, val in enumerate(log_probs)] \
+                    if log_probs is not None else None
 
             res = output, log_probs[0] if len(log_probs) == 1 else log_probs
 
@@ -527,14 +459,14 @@ class MegatronModuleForCausalLM(MegatronModuleForCausalLMABC):
         if len(output) > 1:
             truncated_output = []
             for idx, batch in enumerate(output):
-                output[idx] = output[idx][: self.max_new_tokens] if self.max_new_tokens else output[idx]
+                output[idx] = output[idx][:self.max_new_tokens] if self.max_new_tokens else output[idx]
                 trunc_index = torch.nonzero(batch == self.tokenizer.eos_token_id)
 
                 if min(trunc_index.shape):
                     if self.truncate:
-                        truncated_output.append(output[idx][: trunc_index.min() + 1])
+                        truncated_output.append(output[idx][:trunc_index.min() + 1])
                     else:
-                        output[idx][trunc_index.min() :] = self.tokenizer.eos_token_id
+                        output[idx][trunc_index.min():] = self.tokenizer.eos_token_id
                 else:
                     truncated_output.append(output[idx])
 

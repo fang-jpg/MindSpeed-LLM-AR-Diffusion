@@ -122,9 +122,9 @@ class BaseTrainer(ABC):
             else:
                 if use_te:
                     transformer_layer_spec = get_gpt_layer_with_transformer_engine_spec(args.num_experts,
-                                                                                        args.moe_grouped_gemm, args.qk_layernorm)
+                                                                                        args.moe_grouped_gemm)
                 else:
-                    transformer_layer_spec = get_gpt_layer_local_spec(args.num_experts, args.moe_grouped_gemm, args.qk_layernorm)
+                    transformer_layer_spec = get_gpt_layer_local_spec(args.num_experts, args.moe_grouped_gemm)
             mtp_block_spec = None
             if args.mtp_num_layers is not None:
                 mtp_block_spec = get_gpt_mtp_block_spec(config, transformer_layer_spec, use_transformer_engine=use_te)

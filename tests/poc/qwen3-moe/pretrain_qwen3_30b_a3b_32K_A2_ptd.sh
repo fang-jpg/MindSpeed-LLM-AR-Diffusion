@@ -124,12 +124,10 @@ GPT_ARGS="
     --num-query-groups 4 \
     --fix-router \
     --use-cp-send-recv-overlap \
-    --use-fused-ring-attention-update \
-    --ckpt-format torch
+    --use-fused-ring-attention-update
 "
 
 DATA_ARGS="
-    --handler-name GeneralPretrainHandler \
     --data-path $DATA_PATH \
     --split 100,0,0
 "
@@ -144,11 +142,6 @@ OUTPUT_ARGS="
     --log-throughput
 "
 
-CKPT_ARGS="
-    --enable-hf2mg-convert \
-    --model-type-hf qwen3-moe
-"
-
 torchrun $DISTRIBUTED_ARGS pretrain_gpt.py \
     $GPT_ARGS \
     $DATA_ARGS \
@@ -157,7 +150,6 @@ torchrun $DISTRIBUTED_ARGS pretrain_gpt.py \
     $OPTIMIZE_ARGS \
     $TRAIN_ARGS \
     $MODEL_PARALLEL_ARGS \
-    $CKPT_ARGS \
     --distributed-backend nccl \
     --load ${CKPT_LOAD_DIR} \
     --save ${CKPT_SAVE_DIR} \

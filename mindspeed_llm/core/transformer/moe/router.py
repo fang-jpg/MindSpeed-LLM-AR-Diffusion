@@ -14,6 +14,7 @@
 # limitations under the License.
 
 from functools import wraps
+from functools import partial
 
 import torch
 import torch.nn.functional as F
@@ -29,15 +30,16 @@ from megatron.core.transformer.moe.moe_utils import topk_softmax_with_capacity
 from mindspeed.core.tensor_parallel.random import CheckpointWithoutOutput
 
 from mindspeed_llm.tasks.models.common.pai_megatron import pai_megatron_aux_loss
-from mindspeed_llm.core.transformer.moe.moe_utils import topk_softmax_with_capacity_and_hash
 
 
 def group_limited_greedy_topKgating(self, logits: torch.Tensor):
     args = get_args()
     seq_length = logits.shape[0]
-
+    
     scores = F.softmax(logits, dim=1)
-    group_scores = scores.view(args.micro_batch_size * seq_length, self.n_group, -1).max(dim=-1).values  # [n, EP]
+    group_scores = (
+        scores.view(args.micro_batch_size * seq_length, self.n_group, -1).max(dim=-1).values
+    )  # [n, EP]
 
     group_idx = torch.topk(group_scores, k=self.topk_group, dim=-1, sorted=False)[1]  # [n, top_k_group]
 
@@ -45,13 +47,17 @@ def group_limited_greedy_topKgating(self, logits: torch.Tensor):
     group_mask.scatter_(1, group_idx, 1)  # [n, EP]
     score_mask = (
         group_mask.unsqueeze(-1)
-        .expand(args.micro_batch_size * seq_length, self.n_group, args.num_experts // self.n_group)
+        .expand(
+            args.micro_batch_size * seq_length, self.n_group, args.num_experts // self.n_group
+        )
         .reshape(args.micro_batch_size * seq_length, -1)
     )  # [n, e]
 
     tmp_scores = scores.masked_fill(~score_mask.bool(), 0.0)  # [n, e]
 
-    topk_weight, topk_idx = torch.topk(tmp_scores, k=args.moe_router_topk, dim=-1, sorted=False)
+    topk_weight, topk_idx = torch.topk(
+        tmp_scores, k=args.moe_router_topk, dim=-1, sorted=False
+    )
 
     ### norm gate to sum 1
     if args.moe_router_topk > 1 and args.norm_topk_prob:
@@ -70,6 +76,7 @@ def group_limited_greedy_topKgating(self, logits: torch.Tensor):
 
     scores_for_aux = scores  # [s*b, n_global_experts]
     topk_idx_for_aux_loss = topk_idx.view(args.micro_batch_size, -1)  # [b, s*top_k]
+    topk_group_idx_for_aux_loss = group_idx.view(args.micro_batch_size, -1)  # [b, s*topk_group]
     fi, Pi, l_aux = None, None, 0
 
     #########################################################
@@ -81,7 +88,9 @@ def group_limited_greedy_topKgating(self, logits: torch.Tensor):
         if args.seq_aux:
             scores_for_seq_aux = scores_for_aux.view(args.micro_batch_size, seq_length, -1)
             # [b, s, n_global_experts]
-            ce = torch.zeros(args.micro_batch_size, args.num_experts, device=logits.device)  # [b, n_global_experts]
+            ce = torch.zeros(
+                args.micro_batch_size, args.num_experts, device=logits.device
+            )  # [b, n_global_experts]
             ce.scatter_add_(
                 1,
                 topk_idx_for_aux_loss,
@@ -95,13 +104,13 @@ def group_limited_greedy_topKgating(self, logits: torch.Tensor):
                 torch.distributed.all_reduce(ce, group=sequence_partition_group)
 
             num_tokens = seq_length * num_sub_sequence
-            fi = ce.div(
-                num_sub_sequence * num_tokens * args.moe_router_topk / args.num_experts
-            )  # [b, n_global_experts]
+            fi = ce.div(num_sub_sequence * num_tokens * args.moe_router_topk / args.num_experts) # [b, n_global_experts]
             Pi = scores_for_seq_aux.mean(dim=1)  # [b, n_global_experts]
             l_expert_aux = (Pi * fi).sum(dim=1).mean() * self.config.moe_aux_loss_coeff
         else:
-            mask_ce = F.one_hot(topk_idx_for_aux_loss.view(-1), num_classes=args.num_experts)
+            mask_ce = F.one_hot(
+                topk_idx_for_aux_loss.view(-1), num_classes=args.num_experts
+            )
             ce = mask_ce.to(logits.dtype).mean(0)
             Pi = scores_for_aux.mean(0)
             fi = ce * args.num_experts
@@ -120,7 +129,9 @@ def group_limited_greedy_topKgating(self, logits: torch.Tensor):
             if fi is None:
                 scores_for_seq_aux = scores_for_aux.view(args.micro_batch_size, seq_length, -1)
 
-                ce = torch.zeros(args.micro_batch_size, args.num_experts, device=logits.device)  # [b, n_global_experts]
+                ce = torch.zeros(
+                    args.micro_batch_size, args.num_experts, device=logits.device
+                )  # [b, n_global_experts]
                 ce.scatter_add_(
                     1,
                     topk_idx_for_aux_loss,
@@ -135,7 +146,9 @@ def group_limited_greedy_topKgating(self, logits: torch.Tensor):
 
         else:
             if fi is None:
-                mask_ce = F.one_hot(topk_idx_for_aux_loss.view(-1), num_classes=args.num_experts)
+                mask_ce = F.one_hot(
+                    topk_idx_for_aux_loss.view(-1), num_classes=args.num_experts
+                )
                 ce = mask_ce.to(logits.dtype).mean(0)
                 Pi = scores_for_aux.mean(0)
                 fi = ce * args.num_experts
@@ -208,20 +221,20 @@ def group_limited_greedy_topKgating(self, logits: torch.Tensor):
 class custom_multiplier(torch.autograd.Function):
     @staticmethod
     def forward(
-        ctx,
-        scores: torch.Tensor,
-        multiplier: torch.Tensor,
-        selected_experts: torch.Tensor,
-        masked_gates: torch.Tensor,
-        mask_for_one: torch.Tensor,
+            ctx,
+            scores: torch.Tensor,
+            multiplier: torch.Tensor,
+            selected_experts: torch.Tensor,
+            masked_gates: torch.Tensor,
+            mask_for_one: torch.Tensor,
     ):
         ctx.save_for_backward(multiplier, selected_experts, masked_gates)
         return multiplier * mask_for_one
 
     @staticmethod
     def backward(
-        ctx,
-        grad_at_output: torch.Tensor,
+            ctx,
+            grad_at_output: torch.Tensor,
     ):
         multiplier, selected_experts, masked_gates = ctx.saved_tensors
 
@@ -258,14 +271,9 @@ def sparsemixer_top2(self, scores, jitter_eps=0.01):
     masked_gates = scores.masked_fill(mask_logits_threshold, float('-inf'))
     if self.training:
         # gumbel sampling, more robust than than the multinomial method
-        selected_experts = (
-            (
-                masked_gates
-                - torch.empty_like(masked_gates, memory_format=torch.legacy_contiguous_format).exponential_().log()
-            )
-            .max(dim=-1)[1]
-            .unsqueeze(-1)
-        )
+        selected_experts = (masked_gates - torch.empty_like(
+            masked_gates, memory_format=torch.legacy_contiguous_format
+        ).exponential_().log()).max(dim=-1)[1].unsqueeze(-1)
     else:
         selected_experts = max_ind
 
@@ -278,7 +286,7 @@ def sparsemixer_top2(self, scores, jitter_eps=0.01):
         max_scores, max_ind = masked_gates.max(dim=-1, keepdim=True)
         mask_for_one = torch.logical_or(
             selected_experts == max_ind,
-            torch.rand_like(max_scores) > 0.75,  # Heun's third-order method: f(x) - f(0) = .25 f'(x) + .75 f'(x/3.)
+            torch.rand_like(max_scores) > 0.75  # Heun's third-order method: f(x) - f(0) = .25 f'(x) + .75 f'(x/3.)
         ).int()
         # 1 -> 1.0 & 0 -> 1./3: lambda x: (x + 0.5) / 1.5
         mask_for_one = torch.add(0.3333, mask_for_one, alpha=0.6667).type_as(masked_gates)
@@ -309,14 +317,10 @@ def sparsemixer_top2(self, scores, jitter_eps=0.01):
     # apply mask
     masked_gates_top2 = masked_scores.masked_fill(mask_logits_threshold, float('-inf'))
     if self.training:
-        selected_experts_top2 = (
-            (
-                masked_gates_top2
-                - torch.empty_like(masked_gates_top2, memory_format=torch.legacy_contiguous_format).exponential_().log()
-            )
-            .max(dim=-1)[1]
-            .unsqueeze(-1)
-        )  # gumbel sampling, more robust than than the multinomial method
+        selected_experts_top2 = (masked_gates_top2 - torch.empty_like(
+            masked_gates_top2, memory_format=torch.legacy_contiguous_format
+        ).exponential_().log()
+        ).max(dim=-1)[1].unsqueeze(-1)  # gumbel sampling, more robust than than the multinomial method
     else:
         selected_experts_top2 = max_ind
     # compute scores for gradients
@@ -328,7 +332,7 @@ def sparsemixer_top2(self, scores, jitter_eps=0.01):
         max_scores, max_ind = masked_gates_top2.max(dim=-1, keepdim=True)
         mask_for_one_top2 = torch.logical_or(
             selected_experts_top2 == max_ind,
-            torch.rand_like(max_scores).uniform_() > 0.75,
+            torch.rand_like(max_scores).uniform_() > 0.75
             # Heun's third-order method: f(x) - f(0) = .25 f'(x) + .75 f'(x/3.)
         ).int()
         # 1 -> 1.0 & 0 -> 1./3: lambda x: (x + 0.5) / 1.5
@@ -356,24 +360,6 @@ def sparsemixer_top2(self, scores, jitter_eps=0.01):
     )
 
 
-def topk_router_build_hash_module(self):
-    mg_args = get_args()
-
-    self.hash = self.layer_number <= mg_args.n_hash_layers
-    if self.hash:
-        # DSv4-Pro provides a pre-trained tid2eid table in its inference checkpoint, but no
-        # public initialization recipe is available. This round-robin initialization is only
-        # a placeholder to make hash layers runnable from scratch and is not suitable for
-        # real-world training.
-        token_ids = torch.arange(mg_args.padded_vocab_size)
-        tid2eid = torch.stack(
-            [(token_ids + offset) % mg_args.num_experts for offset in range(mg_args.moe_router_topk)],
-            dim=1,
-        )
-        self.tid2eid = torch.nn.Parameter(tid2eid, requires_grad=False)
-        self.expert_bias = None
-
-
 def topk_router_init_wrapper(function):
     @wraps(function)
     def topk_router_init(self, *args, **kwargs):
@@ -396,47 +382,24 @@ def topk_router_init_wrapper(function):
                     torch.zeros(self.num_experts, dtype=torch.float32),
                     persistent=False,
                 )
-                self.register_buffer('expert_bias', torch.zeros(self.num_experts, dtype=torch.float32))
+                self.register_buffer(
+                    'expert_bias', torch.zeros(self.num_experts, dtype=torch.float32)
+                )
             else:
                 self.local_tokens_per_expert = None
                 self.expert_bias = None
 
-        self.n_group = (
-            mg_args.moe_router_num_groups
-            if mg_args.moe_router_num_groups is not None
-            else (mg_args.expert_model_parallel_size)
-        )
+        self.n_group = mg_args.moe_router_num_groups if mg_args.moe_router_num_groups is not None else (
+            mg_args.expert_model_parallel_size)
         self.topk_group = mg_args.moe_router_group_topk
         self.norm_topk_prob = mg_args.norm_topk_prob
-        setattr(self.__class__, 'build_hash_module', topk_router_build_hash_module)
 
     return topk_router_init
 
 
-def topk_router_forward_patch(  # pylint: disable=redefined-builtin
-    self, input: torch.Tensor, input_ids: torch.Tensor = None
-):
-    """
-    patch for TopKRouter forward
-
-    Args:
-        input (torch.Tensor): Input tensor.
-        input_ids (torch.Tensor): Input ids.
-    """
-    self._maintain_float32_expert_bias()
-
-    # Apply input jitter
-    input = self.apply_input_jitter(input)
-    logits = self.gating(input)
-
-    scores, routing_map = self.routing(logits, input_ids)
-
-    return scores, routing_map
-
-
 def apply_seq_aux_loss(self, activation, logits, topk_idx):
     """
-    Apply complementary sequence-wise auxiliary loss
+        Apply complementary sequence-wise auxiliary loss
     """
 
     args = get_args()
@@ -453,18 +416,14 @@ def apply_seq_aux_loss(self, activation, logits, topk_idx):
         if self.expert_bias is not None:
             scores = scores + self.expert_bias
         scores = scores / (scores.sum(dim=-1, keepdim=True) + 1e-20)
-    elif self.score_function == "sqrtsoftplus":
-        scores = F.softplus(logits).sqrt()
-        if self.expert_bias is not None:
-            scores = scores + self.expert_bias
-        scores = scores / (scores.sum(dim=-1, keepdim=True) + 1e-20)
     else:
         raise ValueError(f"Invalid score_function: {self.score_function}")
 
     scores_for_aux = scores  # [s*b, n_global_experts]
-    topk_idx_for_aux_loss = topk_idx.view(seq_length, args.micro_batch_size, -1)
-    scores_for_seq_aux = scores_for_aux.view(seq_length, args.micro_batch_size, -1)
-    ce = topk_idx_for_aux_loss.sum(dim=0, dtype=torch.float32)
+    topk_idx_for_aux_loss = topk_idx.view(args.micro_batch_size, -1)  # [b, s*top_k]
+    scores_for_seq_aux = scores_for_aux.view(args.micro_batch_size, seq_length, -1)
+    ce = torch.stack([torch.histc(x.to(torch.int32), bins=args.num_experts, min=0, max=args.num_experts) for x in
+                      topk_idx_for_aux_loss])
 
     num_sub_sequence = 1
     sequence_partition_group = parallel_state.get_context_parallel_group()
@@ -474,8 +433,8 @@ def apply_seq_aux_loss(self, activation, logits, topk_idx):
         torch.distributed.all_reduce(ce, group=sequence_partition_group)
 
     num_tokens = seq_length * num_sub_sequence
-    fi = ce.div(num_tokens * args.moe_router_topk / args.num_experts)  # [b, n_global_experts]
-    Pi = scores_for_seq_aux.mean(dim=0)  # [b, n_global_experts]
+    fi = ce.div(num_sub_sequence * num_tokens * args.moe_router_topk / args.num_experts)  # [b, n_global_experts]
+    Pi = scores_for_seq_aux.mean(dim=1)  # [b, n_global_experts]
     aux_loss = (Pi * fi).sum(dim=1).mean() * moe_aux_loss_coeff
 
     save_to_aux_losses_tracker(
@@ -489,7 +448,7 @@ def apply_seq_aux_loss(self, activation, logits, topk_idx):
     return activation
 
 
-def topk_router_gating_func(self, input: torch.Tensor):  # pylint: disable=redefined-builtin
+def topk_router_gating_func(self, input: torch.Tensor):
     _args = get_args()
 
     if _args.router_gating_in_fp32:
@@ -497,7 +456,6 @@ def topk_router_gating_func(self, input: torch.Tensor):  # pylint: disable=redef
             # if weight is not requires_grad like lora finetune, can not autograd for weight in checkpoint_manager
             logits = F.linear(input.type(torch.float32), self.weight.type(torch.float32))
         else:
-
             def to_fp32(_input, weight):
                 return _input.type(torch.float32), weight.type(torch.float32)
 
@@ -510,7 +468,6 @@ def topk_router_gating_func(self, input: torch.Tensor):  # pylint: disable=redef
     else:
         if self.config.moe_router_dtype == 'fp8':
             from mindspeed.te.pytorch.fp8.recipes import matmul_fp8
-
             logits = matmul_fp8(input, self.weight)
         else:
             if self.config.moe_router_dtype == 'fp32':
@@ -525,7 +482,7 @@ def topk_router_gating_func(self, input: torch.Tensor):  # pylint: disable=redef
     return logits
 
 
-def topk_router_routing(self, logits: torch.Tensor, input_ids: torch.Tensor = None):
+def topk_router_routing(self, logits: torch.Tensor):
     """Top-k routing function
 
     Args:
@@ -543,8 +500,10 @@ def topk_router_routing(self, logits: torch.Tensor, input_ids: torch.Tensor = No
     logits = self.apply_z_loss(logits)
 
     args = get_args()
-    dispatcher_type = self.config.moe_token_dispatcher_type
-    if self.config.tensor_model_parallel_size > 1 and dispatcher_type == "alltoall_seq":
+    if (
+        self.config.tensor_model_parallel_size > 1
+        and self.config.moe_token_dispatcher_type == "alltoall_seq"
+    ):
         # Gather the logits from the TP region
         logits = gather_from_sequence_parallel_region(logits)
 
@@ -564,7 +523,7 @@ def topk_router_routing(self, logits: torch.Tensor, input_ids: torch.Tensor = No
             logits_ = torch.softmax(logits, dim=-1, dtype=torch.float32)
         else:
             logits_ = torch.softmax(logits, dim=-1, dtype=torch.float32).type_as(logits)
-
+        
         if self.expert_bias is not None:
             logits_for_routing = logits_ + self.expert_bias
             _, indices = torch.topk(logits_for_routing, k=self.topk, dim=1)
@@ -584,48 +543,28 @@ def topk_router_routing(self, logits: torch.Tensor, input_ids: torch.Tensor = No
     elif self.routing_type == "sparsemixer_topk":
         scores, routing_map = sparsemixer_top2(self, logits)
     elif self.routing_type == "none":
-        if args.n_hash_layers >= 1:
-            scores, routing_map, _ = topk_softmax_with_capacity_and_hash(
-                logits,
-                self.topk,
-                capacity_factor=self.config.moe_expert_capacity_factor,
-                pad_to_capacity=self.config.moe_pad_expert_input_to_capacity,
-                drop_policy=self.config.moe_token_drop_policy,
-                use_pre_softmax=self.config.moe_router_pre_softmax,
-                num_groups=self.config.moe_router_num_groups,
-                group_topk=self.config.moe_router_group_topk,
-                scaling_factor=self.config.moe_router_topk_scaling_factor,
-                deterministic_mode=self.config.deterministic_mode,
-                score_function=self.score_function,
-                expert_bias=self.expert_bias,
-                token_hash=self.hash if hasattr(self, "hash") else None,
-                tid2eid=self.tid2eid if hasattr(self, "tid2eid") else None,
-                input_ids=input_ids,
-            )
-        else:
-            # A naive top-k routing without load balancing
-            scores, routing_map, _ = topk_softmax_with_capacity(
-                logits,
-                self.topk,
-                capacity_factor=self.config.moe_expert_capacity_factor,
-                pad_to_capacity=self.config.moe_pad_expert_input_to_capacity,
-                drop_policy=self.config.moe_token_drop_policy,
-                use_pre_softmax=self.config.moe_router_pre_softmax,
-                num_groups=self.config.moe_router_num_groups,
-                group_topk=self.config.moe_router_group_topk,
-                scaling_factor=self.config.moe_router_topk_scaling_factor,
-                deterministic_mode=self.config.deterministic_mode,
-                score_function=self.score_function,
-                expert_bias=self.expert_bias,
-            )
+        # A naive top-k routing without load balancing
+        scores, routing_map, _ = topk_softmax_with_capacity(
+            logits,
+            self.topk,
+            capacity_factor=self.config.moe_expert_capacity_factor,
+            pad_to_capacity=self.config.moe_pad_expert_input_to_capacity,
+            drop_policy=self.config.moe_token_drop_policy,
+            use_pre_softmax=self.config.moe_router_pre_softmax,
+            num_groups=self.config.moe_router_num_groups,
+            group_topk=self.config.moe_router_group_topk,
+            scaling_factor=self.config.moe_router_topk_scaling_factor,
+            deterministic_mode=self.config.deterministic_mode,
+            score_function=self.score_function,
+            expert_bias=self.expert_bias,
+        )
         args = get_args()
         if self.training and args.seq_aux:
-            scores = apply_seq_aux_loss(
-                self,
-                activation=scores,
-                logits=logits,
-                topk_idx=routing_map,
-            )
+            scores = apply_seq_aux_loss(self,
+                                        activation=scores,
+                                        logits=logits,
+                                        topk_idx=routing_map,
+                                        )
     else:
         raise ValueError(f"Unsupported MoE routing type: {self.routing_type}")
     if args.moe_tp_extend_ep:
@@ -638,14 +577,9 @@ def topk_router_routing(self, logits: torch.Tensor, input_ids: torch.Tensor = No
 
     # fix router if needed
     if args.fix_router:
-
         def fix_indices(index_tensor, logits_shape, router_topk):
-            expert_select = (
-                torch.arange(index_tensor.shape[0] * router_topk, device=index_tensor.device, dtype=torch.int64).view(
-                    index_tensor.shape[0], router_topk
-                )
-                % logits_shape[-1]
-            )
+            expert_select = torch.arange(index_tensor.shape[0] * router_topk, device=index_tensor.device,
+                                dtype=torch.int64).view(index_tensor.shape[0], router_topk) % logits_shape[-1]
             routing_map = torch.zeros(index_tensor.shape, device=index_tensor.device, dtype=torch.bool)
             routing_map.scatter_(1, expert_select, True)
             return routing_map
@@ -700,9 +634,7 @@ def global_aux_loss_load_balancing(self, logits: torch.Tensor):
     return probs, routing_map
 
 
-def global_aux_loss_topk_router_forward(  # pylint: disable=redefined-builtin
-    self, input: torch.Tensor
-):
+def global_aux_loss_topk_router_forward(self, input: torch.Tensor):
     """
     Forward pass of the router.
 
@@ -740,18 +672,16 @@ def global_load_balancing_loss_func(router_logits, attention_mask, config):
     Returns:
         The auxiliary loss.
     """
+
     if router_logits is None or not isinstance(router_logits, tuple):
         return 0
 
-    compute_device = router_logits[0].device
-    concatenated_gate_logits = torch.cat(
-        [
-            layer_gate.to(compute_device).transpose(0, 1).reshape(-1, layer_gate.shape[2])
-            for layer_gate in router_logits
-        ],
-        dim=0,
-    )
-
+    if isinstance(router_logits, tuple):
+        compute_device = router_logits[0].device
+        concatenated_gate_logits = torch.cat(
+            [layer_gate.to(compute_device).transpose(0, 1).reshape(-1, layer_gate.shape[2]) 
+            for layer_gate in router_logits], dim=0)
+    
     top_k = config.moe_router_topk
     num_experts = concatenated_gate_logits.shape[1]
 
@@ -800,27 +730,3 @@ def global_load_balancing_loss_func(router_logits, attention_mask, config):
     overall_loss = torch.sum(tokens_per_expert * router_prob_per_expert.unsqueeze(0))
 
     return overall_loss * num_experts
-
-
-# Remove this wrapper when Megatron supports sqrtsoftplus.
-def transformer_config_post_init_wrapper(fn):
-    @wraps(fn)
-    def wrapper(self):  #
-        allowed_score_function = {"softmax", "sigmoid", "sqrtsoftplus"}
-        bypass_flag = (
-            getattr(self, "moe_router_enable_expert_bias", False)
-            and getattr(self, "moe_router_score_function", None) in allowed_score_function
-            and getattr(self, "moe_router_score_function", None) != "sigmoid"
-        )
-        if not bypass_flag:
-            return fn(self)
-        old_score_fn = self.moe_router_score_function
-        try:
-            # bypass megatron's check
-            self.moe_router_score_function = "sigmoid"
-            return fn(self)
-        finally:
-            # restore user's config
-            self.moe_router_score_function = old_score_fn
-
-    return wrapper

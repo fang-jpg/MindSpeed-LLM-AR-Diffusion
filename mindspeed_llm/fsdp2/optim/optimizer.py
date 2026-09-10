@@ -1,9 +1,8 @@
 """
 Optimizer factory for unified construction of single optimizer and EP+FSDP2 multi-optimizer, support Adamw and Muon now.
 """
-
 import torch
-from torch import nn
+import torch.nn as nn
 from typing import Any, Dict, List, Iterable, Optional, Sequence, Tuple
 from torch.distributed._tensor import DTensor
 from torch.distributed.checkpoint.state_dict import (
@@ -15,158 +14,11 @@ from torch.distributed.checkpoint.stateful import Stateful
 from torch.optim import AdamW
 from torch.optim.optimizer import Optimizer
 from transformers.utils import is_torch_npu_available
-
 from mindspeed_llm.fsdp2.optim.muon import Muon
 from mindspeed_llm.fsdp2.utils.logging import get_logger
 
 
 logger = get_logger(__name__)
-
-
-def _as_local_tensor(tensor: torch.Tensor) -> torch.Tensor:
-    """Return local Tensor shard when tensor is a DTensor; otherwise return tensor itself."""
-    return tensor.to_local() if isinstance(tensor, DTensor) else tensor
-
-
-def functional_fused_adamw(
-    params: List[torch.Tensor],
-    grads: List[torch.Tensor],
-    exp_avgs: List[torch.Tensor],
-    exp_avg_sqs: List[torch.Tensor],
-    max_exp_avg_sqs: List[torch.Tensor],
-    step_tensor: torch.Tensor,
-    *,
-    amsgrad: bool,
-    beta1: float,
-    beta2: float,
-    lr: float,
-    weight_decay: float,
-    eps: float,
-    maximize: bool,
-) -> None:
-    r"""Functional fused AdamW implemented via torch._fused_adamw_.
-
-    This wrapper intentionally calls the fused kernel per parameter. It is more robust
-    for FSDP2/EP workloads where parameter groups may contain DTensor and native Tensor
-    objects with different shapes/dtypes.
-    """
-    if not hasattr(torch, "_fused_adamw_"):
-        raise RuntimeError("torch._fused_adamw_ is unavailable in this PyTorch/torch-npu build.")
-
-    for i, param in enumerate(params):
-        grad = grads[i]
-        exp_avg = exp_avgs[i]
-        exp_avg_sq = exp_avg_sqs[i]
-        max_exp_avg_sq = max_exp_avg_sqs[i] if amsgrad else None
-
-        torch._fused_adamw_(
-            [param],
-            [grad],
-            [exp_avg],
-            [exp_avg_sq],
-            [max_exp_avg_sq] if amsgrad else [],
-            [step_tensor],
-            amsgrad=amsgrad,
-            lr=lr,
-            beta1=beta1,
-            beta2=beta2,
-            weight_decay=weight_decay,
-            eps=eps,
-            maximize=maximize,
-        )
-
-
-class FunctionalFusedAdamW(Optimizer):
-    """AdamW optimizer that uses torch._fused_adamw_ on NPU.
-
-    It avoids torch_npu.optim.NpuFusedAdamW and updates DTensor parameters through
-    their local shards, which makes it suitable for the current FSDP2/EP optimizer
-    factory path.
-    """
-
-    def __init__(
-        self,
-        params,
-        lr: float = 1e-3,
-        betas: Tuple[float, float] = (0.9, 0.999),
-        eps: float = 1e-8,
-        weight_decay: float = 1e-2,
-        amsgrad: bool = False,
-        maximize: bool = False,
-    ):
-        if lr < 0.0:
-            raise ValueError(f"Invalid learning rate: {lr}")
-        if eps < 0.0:
-            raise ValueError(f"Invalid epsilon value: {eps}")
-        if not 0.0 <= betas[0] < 1.0:
-            raise ValueError(f"Invalid beta parameter at index 0: {betas[0]}")
-        if not 0.0 <= betas[1] < 1.0:
-            raise ValueError(f"Invalid beta parameter at index 1: {betas[1]}")
-        if weight_decay < 0.0:
-            raise ValueError(f"Invalid weight_decay value: {weight_decay}")
-
-        defaults = dict(
-            lr=lr,
-            betas=betas,
-            eps=eps,
-            weight_decay=weight_decay,
-            amsgrad=amsgrad,
-            maximize=maximize,
-        )
-        super().__init__(params, defaults)
-
-    @torch.no_grad()
-    def step(self, closure=None):
-        loss = None
-        if closure is not None:
-            with torch.enable_grad():
-                loss = closure()
-
-        for group in self.param_groups:
-            beta1, beta2 = group["betas"]
-            amsgrad = group.get("amsgrad", False)
-            maximize = group.get("maximize", False)
-
-            for param in group["params"]:
-                if param.grad is None:
-                    continue
-
-                param_local = _as_local_tensor(param)
-                grad_local = _as_local_tensor(param.grad)
-
-                if grad_local.is_sparse:
-                    raise RuntimeError("FunctionalFusedAdamW does not support sparse gradients.")
-
-                state = self.state[param]
-                if len(state) == 0:
-                    state["step"] = torch.zeros((), dtype=torch.float32, device=param_local.device)
-                    state["exp_avg"] = torch.zeros_like(param_local, memory_format=torch.preserve_format)
-                    state["exp_avg_sq"] = torch.zeros_like(param_local, memory_format=torch.preserve_format)
-                    if amsgrad:
-                        state["max_exp_avg_sq"] = torch.zeros_like(param_local, memory_format=torch.preserve_format)
-
-                if amsgrad and "max_exp_avg_sq" not in state:
-                    state["max_exp_avg_sq"] = torch.zeros_like(param_local, memory_format=torch.preserve_format)
-
-                state["step"].add_(1)
-
-                functional_fused_adamw(
-                    [param_local],
-                    [grad_local],
-                    [state["exp_avg"]],
-                    [state["exp_avg_sq"]],
-                    [state["max_exp_avg_sq"]] if amsgrad else [],
-                    state["step"],
-                    amsgrad=amsgrad,
-                    beta1=beta1,
-                    beta2=beta2,
-                    lr=group["lr"],
-                    weight_decay=group["weight_decay"],
-                    eps=group["eps"],
-                    maximize=maximize,
-                )
-
-        return loss
 
 
 class MultiOptimizer(Optimizer, Stateful):
@@ -188,7 +40,9 @@ class MultiOptimizer(Optimizer, Stateful):
         merged: Dict[str, Any] = {}
         for name in self.key_names:
             opt = self.optimizers_dict.get(name)
-            sd = get_optimizer_state_dict(self.model, opt, options=StateDictOptions(flatten_optimizer_state_dict=True))
+            sd = get_optimizer_state_dict(
+                self.model, opt, options=StateDictOptions(flatten_optimizer_state_dict=True)
+            )
             overlap = set(merged.keys()) & set(sd.keys())
             if overlap:
                 raise KeyError(f"Key clash detected for optimizer '{name}': {', '.join(sorted(overlap))}")
@@ -214,7 +68,8 @@ class OptimizerFactory:
 
     @staticmethod
     def _split_muon_and_adamw_params(
-        model: nn.Module, all_params: Optional[List[nn.Parameter]] = None
+            model: nn.Module,
+            all_params: Optional[List[nn.Parameter]] = None
     ) -> Tuple[List[nn.Parameter], List[nn.Parameter]]:
         """
         Split parameters into Muon parameters and AdamW parameters
@@ -226,7 +81,7 @@ class OptimizerFactory:
         """
         muon_params, adamw_params = [], []
         # Build a mapping from parameter names to parameters
-        name_to_param = dict(model.named_parameters())
+        name_to_param = {n: p for n, p in model.named_parameters()}
 
         # For EP+FSDP2, split the specified all_params
         if all_params is not None:
@@ -254,16 +109,17 @@ class OptimizerFactory:
 
     @staticmethod
     def create(
-        model: torch.nn.Module,
-        ep_size: int,
-        lr: float,
-        optimizer_type: str,
-        weight_decay: float,
-        betas: Tuple[float, float],
-        adam_epsilon: float,
-        param_groups: Optional[Sequence[Dict[str, Any]]] = None,
-        no_decay_modules: Optional[List[str]] = None,
-        no_decay_params: Optional[List[str]] = None,
+            model: torch.nn.Module,
+            ep_size: int,
+            lr: float,
+            optimizer_type: str,
+            weight_decay: float,
+            betas: Tuple[float, float],
+            adam_epsilon: float,
+            fused: bool = False,
+            param_groups: Optional[Sequence[Dict[str, Any]]] = None,
+            no_decay_modules: Optional[List[str]] = None,
+            no_decay_params: Optional[List[str]] = None,
     ) -> torch.optim.Optimizer:
         """
         Build optimizer instance
@@ -281,7 +137,6 @@ class OptimizerFactory:
             no_decay_modules: List of module names that do not require weight decay
             no_decay_params: List of parameter names that do not require weight decay
         """
-
         # Multi-optimizer (EP+FSDP2) Processing
         if ep_size > 1:
             logger.info_rank0("Building EP+FSDP2 optimizer (MultiOptimizer)")
@@ -291,6 +146,7 @@ class OptimizerFactory:
                 betas=betas,
                 eps=adam_epsilon,
                 weight_decay=weight_decay,
+                fused=fused,
                 optimizer_type=optimizer_type.lower(),
                 param_groups=param_groups,
                 no_decay_modules=no_decay_modules,
@@ -305,6 +161,7 @@ class OptimizerFactory:
             weight_decay=weight_decay,
             betas=betas,
             adam_epsilon=adam_epsilon,
+            fused=fused,
             param_groups=param_groups,
             no_decay_modules=no_decay_modules,
             no_decay_params=no_decay_params,
@@ -312,85 +169,54 @@ class OptimizerFactory:
         return single_optimizer
 
     @staticmethod
-    def _create_single_optimizer(
-        model,
-        lr,
-        optimizer_type,
-        weight_decay,
-        betas,
-        adam_epsilon,
-        param_groups,
-        no_decay_modules,
-        no_decay_params,
-    ):
+    def _create_single_optimizer(model, lr, optimizer_type, weight_decay, betas, adam_epsilon, fused, param_groups, no_decay_modules, no_decay_params):
         """
         Create single optimizer instance.
         """
         optimizer_type = optimizer_type.lower()
         # The foreach mode organizes all parameters into a list and performs the update logic via batch traversal.
         # The fused mode fuses the multi-step computations of parameter updates into a single kernel for one-time execution.
-        # They are mutually exclusive. On NPU, use FunctionalFusedAdamW when fused=True; otherwise disable foreach for safety.
-
+        # They are mutually exclusive.
+        foreach = not fused
         muon_params = None
         adamw_params = None
 
         if optimizer_type == "muon":
             # Split Muon and AdamW parameters
             muon_params, adamw_params = OptimizerFactory._split_muon_and_adamw_params(model)
-            logger.info_rank0(
-                f"Using Muon optimizer with {len(muon_params)} Muon params and {len(adamw_params)} AdamW params."
-            )
+            logger.info_rank0(f"Using Muon optimizer with {len(muon_params)} Muon params and {len(adamw_params)} AdamW params.")
             param_groups = []
 
         # Build parameter groups for single optimizer, automatically split parameters that need/don't need decay
         # when no custom parameter groups are provided
         else:
             if param_groups is None:
-                decay_param_names = OptimizerFactory._get_parameter_names(model, no_decay_modules, no_decay_params)
-
-                # Prepare 4 containers to physically isolate DTensor and native Tensor
-                decay_dtensors = []
-                decay_tensors = []
-                no_decay_dtensors = []
-                no_decay_tensors = []
-
-                no_decay_param_names = []
-
-                # Iterate and distribute
+                decay_param_names = OptimizerFactory._get_parameter_names(
+                    model, no_decay_modules, no_decay_params
+                )
+                # Build parameter group for parameters that need weight decay
+                param_groups = [
+                    {
+                        "params": [
+                            p for n, p in model.named_parameters()
+                            if n in decay_param_names and p.requires_grad
+                        ],
+                        "weight_decay": weight_decay,
+                    }
+                ]
+                # Collect parameters that do not need weight decay
+                no_decay_parameters, no_decay_param_names = [], []
                 for n, p in model.named_parameters():
-                    if not p.requires_grad:
-                        continue
-
-                    is_dtensor = isinstance(p, DTensor)
-
-                    if n in decay_param_names:
-                        if is_dtensor:
-                            decay_dtensors.append(p)
-                        else:
-                            decay_tensors.append(p)
-                    else:
+                    if n not in decay_param_names and p.requires_grad:
                         no_decay_param_names.append(n)
-                        if is_dtensor:
-                            no_decay_dtensors.append(p)
-                        else:
-                            no_decay_tensors.append(p)
-
-                # Build Parameter Groups (only add non-empty groups)
-                param_groups = []
-
-                if decay_dtensors:
-                    param_groups.append({"params": decay_dtensors, "weight_decay": weight_decay})
-                if decay_tensors:
-                    param_groups.append({"params": decay_tensors, "weight_decay": weight_decay})
-
-                if no_decay_dtensors:
-                    logger.debug_rank0(f"DTensor parameters without weight decay: {len(no_decay_dtensors)} tensors")
-                    param_groups.append({"params": no_decay_dtensors, "weight_decay": 0.0})
-                if no_decay_tensors:
-                    logger.debug_rank0(
-                        f"Native Tensor parameters without weight decay: {len(no_decay_tensors)} tensors"
-                    )
-                    param_groups.append({"params": no_decay_tensors, "weight_decay": 0.0})
+                        no_decay_parameters.append(p)
+                # Build parameter group for parameters that do not need weight decay
+                if no_decay_parameters:
+                    logger.debug_rank0(f"Parameters without weight decay: {no_decay_param_names}")
+                    param_groups.append({
+                        "params": no_decay_parameters,
+                        "weight_decay": 0.0
+                    })
 
         # Call unified method to instantiate single optimizer
         optimizer = OptimizerFactory._create_optimizer_instance(
@@ -400,50 +226,41 @@ class OptimizerFactory:
             betas=betas,
             eps=adam_epsilon,
             weight_decay=weight_decay,
+            fused=fused,
+            foreach=foreach,
             muon_params=muon_params,
-            adamw_params=adamw_params,
+            adamw_params=adamw_params
         )
 
-        logger.info_rank0(
-            f"Created single optimizer {optimizer_type} | lr={lr}, weight_decay={weight_decay} | Total Param Groups: {len(param_groups) if param_groups else 'N/A'}"
-        )
+        logger.info_rank0(f"Created single optimizer {optimizer_type} | lr={lr}, weight_decay={weight_decay}")
         return optimizer
+
 
     @staticmethod
     def _create_optimizer_instance(
-        optimizer_type: str,
-        param_groups: Sequence[Dict[str, Any]],
-        lr: float,
-        betas: Tuple[float, float],
-        eps: float,
-        weight_decay: float,
-        muon_params: Optional[List[nn.Parameter]] = None,
-        adamw_params: Optional[List[nn.Parameter]] = None,
+            optimizer_type: str,
+            param_groups: Sequence[Dict[str, Any]],
+            lr: float,
+            betas: Tuple[float, float],
+            eps: float,
+            weight_decay: float,
+            fused: bool = False,
+            foreach: bool = False,
+            muon_params: Optional[List[nn.Parameter]] = None,
+            adamw_params: Optional[List[nn.Parameter]] = None,
     ) -> Optimizer:
         """
         Unified optimizer instantiation entry point, add branches here for newly extended optimizers
         """
-        fused = False
-        if optimizer_type in ("fused_adamw",):
-            optimizer_type = "adamw"
-            fused = True
-
-        foreach = False if is_torch_npu_available() else (not fused)
-
         if optimizer_type == "adamw":
-            if fused and is_torch_npu_available():
-                logger.info_rank0("Using FunctionalFusedAdamW via torch._fused_adamw_.")
-                print()
-                return FunctionalFusedAdamW(
-                    param_groups,
-                    lr=lr,
-                    betas=betas,
-                    eps=eps,
-                    weight_decay=weight_decay,
-                )
-
             return AdamW(
-                param_groups, lr=lr, betas=betas, eps=eps, weight_decay=weight_decay, fused=fused, foreach=foreach
+                param_groups,
+                lr=lr,
+                betas=betas,
+                eps=eps,
+                weight_decay=weight_decay,
+                fused=fused,
+                foreach=foreach
             )
         elif optimizer_type == "muon":
             # Validate required parameters for Muon
@@ -458,9 +275,7 @@ class OptimizerFactory:
                 adamw_eps=eps,
             )
         else:
-            raise ValueError(
-                f"Unsupported optimizer type: {optimizer_type}, supported types: [adamw, fused_adamw, npu_fused_adamw, muon]"
-            )
+            raise ValueError(f"Unsupported optimizer type: {optimizer_type}, supported types: [adamw, muon]")
 
     @staticmethod
     def _get_parameter_names(model, forbidden_layer_types, forbidden_param_names):
@@ -471,14 +286,17 @@ class OptimizerFactory:
         for name, child in model.named_children():
             child_params = OptimizerFactory._get_parameter_names(child, forbidden_layer_types, forbidden_param_names)
             result += [
-                f"{name}.{n}"
-                for n in child_params
+                f"{name}.{n}" for n in child_params
                 if child.__class__.__name__ not in forbidden_layer_types
                 and not any(f in f"{name}.{n}".lower() for f in forbidden_param_names)
             ]
         # Traverse parameters directly owned by current module
-        result += [k for k in model._parameters.keys() if not any(f in k.lower() for f in forbidden_param_names)]
+        result += [
+            k for k in model._parameters.keys()
+            if not any(f in k.lower() for f in forbidden_param_names)
+        ]
         return result
+
 
     @staticmethod
     def _make_param_groups_for_subset(
@@ -503,6 +321,7 @@ class OptimizerFactory:
             groups.append({"params": undecayed, "weight_decay": 0.0})
         return groups
 
+
     @staticmethod
     def _build_ep_fsdp2_optimizer(
         model: nn.Module,
@@ -510,6 +329,7 @@ class OptimizerFactory:
         betas: Tuple[float, float],
         eps: float,
         weight_decay: float,
+        fused: bool,
         optimizer_type: str,
         param_groups: Optional[List[Dict[str, Any]]],
         no_decay_modules: Optional[List[str]],
@@ -587,8 +407,9 @@ class OptimizerFactory:
 
         # Internal function to build optimizer
         def _build_optimizer(groups: Sequence[Dict[str, Any]]) -> Optimizer:
-            # In NPU, torch.optim.AdamW(fused=True) is not used directly.
-            # Keep fused=True so _create_optimizer_instance routes AdamW to FunctionalFusedAdamW.
+            # Multiple optimizers do not support the foreach/fused modes in NPU.
+            foreach = False if is_torch_npu_available() else (not fused)
+            fused_ = False if is_torch_npu_available() else fused
             muon_params = None
             adamw_params = None
             param_groups = groups
@@ -597,9 +418,7 @@ class OptimizerFactory:
                 # Extract all parameters from weight decay groups, then split into Muon/AdamW parameters
                 all_params = [p for g in groups for p in g.get("params", [])]
                 muon_params, adamw_params = OptimizerFactory._split_muon_and_adamw_params(model, all_params)
-                logger.info_rank0(
-                    f"EP+FSDP2 Muon sub-optimizer: {len(muon_params)} Muon params, {len(adamw_params)} AdamW params."
-                )
+                logger.info_rank0(f"EP+FSDP2 Muon sub-optimizer: {len(muon_params)} Muon params, {len(adamw_params)} AdamW params.")
                 param_groups = []
 
             return OptimizerFactory._create_optimizer_instance(
@@ -609,8 +428,10 @@ class OptimizerFactory:
                 betas=betas,
                 eps=eps,
                 weight_decay=weight_decay,
+                fused=fused_,
+                foreach=foreach,
                 muon_params=muon_params,
-                adamw_params=adamw_params,
+                adamw_params=adamw_params
             )
 
         # Build EP/non-EP optimizer dictionary
@@ -627,7 +448,11 @@ class OptimizerFactory:
         }
 
         # Wrap as MultiOptimizer
-        multi_opt = MultiOptimizer(root_model=model, optimizers=optimizer_dict, key_names=list(optimizer_dict.keys()))
+        multi_opt = MultiOptimizer(
+            root_model=model,
+            optimizers=optimizer_dict,
+            key_names=list(optimizer_dict.keys())
+        )
 
         logger.info_rank0(f"Created EP+FSDP2 MultiOptimizer {optimizer_type} | lr={lr}, weight_decay={weight_decay}")
         return multi_opt

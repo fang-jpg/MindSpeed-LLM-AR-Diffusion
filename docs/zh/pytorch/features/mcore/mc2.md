@@ -25,7 +25,7 @@ MC2通过融合算子的方式将matmul计算和集合通信操作进行融合�
 
 具体参见[代码实现](https://gitcode.com/ascend/MindSpeed/blob/core_r0.8.0/mindspeed/core/tensor_parallel/ascend_turbo/mc2_linears_seq_parallel.py)。
 
-MC2算子接口参见[torch_npu.npu_mm_all_reduce_base接口说明](https://www.hiascend.com/document/detail/zh/Pytorch/60RC1/apiref/apilist/ptaoplist_000449.html)。
+MC2算子接口参见[torch_npu.npu_mm_all_reduce_base接口说明](https://www.hiascend.com/document/detail/zh/Pytorch/2600/apiref/torchnpuCustomsapi/docs/zh/custom_APIs/torch_npu/torch_npu-npu_mm_all_reduce_base.md)。
 
 ## 使用场景
 
@@ -41,6 +41,4 @@ MC2算子接口参见[torch_npu.npu_mm_all_reduce_base接口说明](https://www.
 
 ## 注意事项
 
-1. mcore场景下（开启`--use-mcore-models`），MoE模型，MLP部分不使能MC2。
-
-2. A5机型暂不支持该特性。
+mcore场景下（开启`--use-mcore-models`），MoE模型，MLP部分不使能MC2。

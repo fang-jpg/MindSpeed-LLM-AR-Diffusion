@@ -19,7 +19,6 @@ This feature supports the following capabilities:
 
 - Raw samples do not go to the cloud. Pipeline parallelism (PP) supports U-shaped model partitioning. The first and last layers of the model deploy on the edge, and the cloud does not need to read the samples.
 - Cross-domain collaborative training performance optimization. It optimizes pipeline scheduling and hides communication with computation to achieve efficient training in edge-cloud cross-domain connection scenarios.
-- Uneven edge-cloud GPU counts. It supports a P2P communication mode with asymmetric tensor parallelism (TP), which enables training when the number of GPUs on the edge differs from the number on the cloud.
 
 ### Design Principles
 
@@ -63,47 +62,6 @@ In summary, the edge pipeline scheduling rules are as follows. The cloud uses co
 
 Effect: This pipeline scheduling scheme ensures that the steady state does not introduce extra bubbles. When the edge-cloud communication latency is less than `tf`, which is the forward computation time of a single microbatch on the edge, the steady state has no extra bubbles. The warmup and cooldown phases have only a small number of extra bubbles.
 
-### Asymmetric TP
-
-Feature description: This feature supports the edge TP size being smaller than the cloud TP size when the edge does not have enough compute cards.
-
-Implementation logic for asymmetric TP: In the point-to-point (P2P) communication mode of symmetric TP, each device communicates with the adjacent device in the same PP group. For example, when `PP = 2` and `TP = 8`, the forward-pass communication pattern is `0->8`, `1->9`, `2->10`, and so on. Unlike symmetric TP, the P2P communication mode for asymmetric TP works as follows:
-
-- Step 1: The device with the smallest index in the current TP group transmits data to the device with the smallest index in the next TP group.
-- Step 2: After the device with the smallest index in the next TP group receives the data, it broadcasts to share the data with all devices in the TP group.
-
-Example: `PP = 2`, `TP = 8`, symmetric TP.
-
-![image](../../figures/ldt_sft/ldt_tp.png 'ldt_tp.png')
-
-Example: `PP = 2`, `TP = 4/TP = 8`, asymmetric TP.
-
-![image](../../figures/ldt_sft/ldt_vtp.png 'ldt_vtp.png')
-
-Effect: Before P2P communication, the existing Megatron logic completes All-Reduce (AR) communication within the TP group in advance. Therefore, communicating through a single device can still pass the complete data to the next PP stage. The P2P communication mode above ensures the correctness of cross-pipeline-stage communication under asymmetric TP.
-
-### Asymmetric DP
-
-Feature description: This feature supports the edge DP size being smaller than the cloud DP size when the edge does not have enough nodes.
-
-Implementation logic for asymmetric DP: In symmetric DP scenarios, devices in different DP domains process data from their respective DP domains through device multiplexing. Unlike symmetric DP, in asymmetric DP scenarios, the edge processes data from multiple DP domains through time-division multiplexing and communicates with the cloud separately for each domain.
-
-Example: PP=3, TP=8, DP=2, symmetric DP.
-
-![image](../../figures/ldt_sft/ldt_dp.png 'ldt_dp.png')
-
-Example: PP=3, TP=8, DP=1/DP=2, asymmetric DP.
-
-![image](../../figures/ldt_sft/ldt_vdp.png 'ldt_vdp.png')
-
-For communication group initialization, the existing Megatron rank-group generation logic is reused. First, rank groups are generated separately for the edge and cloud based on the symmetric DP scenario. Then, the edge rank groups are recomputed and merged. The cloud rank groups are offset by the number of edge devices.
-
-![image](../../figures/ldt_sft/ldt_vdp_gen_ranks.png 'ldt_vdp_gen_ranks.png')
-
-For gradient processing on the edge, the existing Megatron logic accumulates gradients by default when processing data from multiple DP domains through time-division multiplexing. This means the edge effectively performs an All-Reduce operation on the gradients as part of normal processing, so only the final averaged gradients need to be passed to the cloud.
-
-Effect: The edge processes data from multiple DP domains through time-division multiplexing and communicates with the cloud separately for each domain. Data processing and communication are unified in the order of ranks within a PP group, where different PP groups process data from different DP domains, ensuring the correctness of multi-DP-domain data processing and communication.
-
 ## How to Use
 
 For detailed instructions, see [Usage Guide](../../training/finetune/mcore/layerwise_disaggregated_training.md).
@@ -126,10 +84,7 @@ For detailed instructions, see [Usage Guide](../../training/finetune/mcore/layer
 
 - MoE models are not supported yet.
 
-## Other Constraints
+## Notes
 
 - low-rank adaptation (LoRA) is not supported yet.
 - Conventional virtual pipeline parallelism (VPP) is not supported. You must set `--num-virtual-stages-per-pipeline-rank` to `2` to enable joint deployment of the first and last layers.
-- In asymmetric TP scenarios, only `DP = 1` is supported.
-- In asymmetric DP scenarios, only edge `DP = 1` is supported.
-- In scenarios where both asymmetric TP and asymmetric DP are enabled, TP must be an even number, and the edge TP must be divisible by the cloud TP.

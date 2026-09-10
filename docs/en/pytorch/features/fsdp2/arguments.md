@@ -22,9 +22,9 @@ Contains parameters related to model and tokenizer loading and initialization.
     </tr>
     <tr>
       <td>model_id</td>
-      <td>Optional[Literal[&quot;gpt_oss&quot;, &quot;qwen3&quot;, &quot;qwen3_moe&quot;, &quot;qwen3_next&quot;, &quot;step35&quot;, &quot;mamba3&quot;, &quot;minimax_m27&quot;]]</td>
+      <td>Optional[Literal[&quot;gpt_oss&quot;, &quot;qwen3&quot;, &quot;qwen3_moe&quot;]]</td>
       <td>None</td>
-      <td>Model type identifier. If you do not configure it, the system runs the native Transformer model forward pass. If you configure it, the system runs the repository's custom model forward pass. To add a new model type, register it in the <code>ModelRegistry</code> class in <code>mindspeed_llm/fsdp2/models/model_registry.py</code>.</td>
+      <td>Model type identifier. If you do not configure it, the system runs the native Transformer model forward pass. If you configure it, the system runs the custom model forward pass of the repository. To add a new model type, register it in the <code>ModelRegistry</code> class in <code>mindspeed_llm/fsdp2/models/model_registry.py</code>.</td>
     </tr>
     <tr>
       <td>init_model_with_meta_device</td>
@@ -123,22 +123,22 @@ Contains parameters related to model and tokenizer loading and initialization.
       <td>The authentication token for Modelers Hub, suitable for downloading or uploading models from Modelers.</td>
     </tr>
     <tr>
-      <td>quant_recipe_name</td>
+      <td>quant_recipe</td>
       <td>Literal[&quot;mxfp8&quot;]</td>
       <td>None</td>
       <td>The quantization strategy.</td>
     </tr>
     <tr>
       <td>quant_format</td>
-      <td>str</td>
-      <td>&quot;E4M3&quot;</td>
-      <td>FP8 data format used for quantization. Supported values: <code>E4M3</code>, <code>E5M2</code>, <code>HIF8</code>.</td>
+      <td>Literal[&quot;E4M3&quot;, &quot;HYBRID&quot;, &quot;HIF8&quot;]</td>
+      <td>None</td>
+      <td>The quantized data format.</td>
     </tr>
     <tr>
       <td>quant_block_size</td>
       <td>int</td>
       <td>32</td>
-      <td>Block size for MXFP8 block-wise quantization.</td>
+      <td>The quantization block size.</td>
     </tr>
     <tr>
       <td>quant_apply_modules</td>
@@ -149,26 +149,26 @@ Contains parameters related to model and tokenizer loading and initialization.
     <tr>
       <td>quant_ignored_modules</td>
       <td>List[str]</td>
-      <td>['*lm_head', '*gate']</td>
+      <td>['lm_head']</td>
       <td>The list of submodules that do not use quantization.</td>
     </tr>
     <tr>
-      <td>quant_converters</td>
+      <td>converters</td>
       <td>List[str]</td>
       <td>["quantize.linear.mx"]</td>
       <td>The list of quantization converters to use.</td>
     </tr>
     <tr>
-      <td>enable_fsdp_low_precision_all_gather</td>
+      <td>gemm_gradient_accumulation_fusion</td>
       <td>bool</td>
-      <td>True</td>
-      <td>Whether to enable low-precision communication.</td>
+      <td>False</td>
+      <td>Whether to enable GEMM gradient accumulation fusion.</td>
     </tr>
     <tr>
-      <td>fsdp_low_precision_all_gather_mode</td>
-      <td>Literal["on-demand", "all"]</td>
-      <td>on-demand</td>
-      <td>FSDP low-precision all-gather, which aggregates forward or backward weights on demand.</td>
+      <td>quant_gmm</td>
+      <td>bool</td>
+      <td>False</td>
+      <td>Whether to enable quantized grouped GEMM.</td>
     </tr>
   </tbody>
 </table>
@@ -373,18 +373,6 @@ Contains parameters related to dataset loading, preprocessing, and data formats.
       <td>single</td>
       <td>The data loader type. <code>single</code> means sequential reading.</td>
     </tr>
-    <tr>
-      <td>reset_attention_mask</td>
-      <td>Optional[bool]</td>
-      <td>False</td>
-      <td>For pretraining pack scenarios, when enabled, the system generates <code>actual_seq_len</code> based on the eod position and passes it to the model for training. Enabling <code>reset_attention_mask</code> requires enabling <code>append_eod</code>.</td>
-    </tr>
-    <tr>
-      <td>append_eod</td>
-      <td>Optional[bool]</td>
-      <td>False</td>
-      <td>For pretraining data processing, append the EOD marker to the end of the document.</td>
-    </tr>
   </tbody>
 </table>
 
@@ -440,9 +428,9 @@ Contains parameters related to distributed parallel strategies and memory optimi
     </tr>
     <tr>
       <td>cp_type</td>
-      <td>Literal[&quot;ulysses&quot;,&quot;ring&quot;]</td>
+      <td>Literal[&quot;ulysses&quot;]</td>
       <td>ulysses</td>
-      <td>The algorithm type for Context Parallel. It currently supports only the ulysses and ring algorithms.</td>
+      <td>The algorithm type for Context Parallel. It currently supports only the ulysses algorithm.</td>
     </tr>
     <tr>
       <td>fsdp_modules</td>
@@ -467,12 +455,6 @@ Contains parameters related to distributed parallel strategies and memory optimi
       <td>Optional[str]</td>
       <td>None</td>
       <td>A custom shard placement function for the FSDP main module. Use it to customize parameter shard placement logic.</td>
-    </tr>
-    <tr>
-      <td>efsdp_shard_placement_fn</td>
-      <td>Optional[str]</td>
-      <td>shard_by_dim_1</td>
-      <td>The shard placement logic for FSDP modules inside the expert parallel group.</td>
     </tr>
     <tr>
       <td>tp_colwise</td>
@@ -915,12 +897,6 @@ Contains parameters related to fused operator enablement, memory optimization fe
       <td>Whether to enable the Triton fused operator to accelerate Gated DeltaNet network computation.</td>
     </tr>
     <tr>
-      <td>use_flash_gdn</td>
-      <td>bool</td>
-      <td>False</td>
-      <td>Whether to enable the AscendC fused operator to accelerate Gated DeltaNet network computation. At most one of this parameter and <code>use_triton_gdn</code> can be enabled.</td>
-    </tr>
-    <tr>
     <td>chunk_loss_size</td>
     <td>int</td>
     <td>None</td>
@@ -931,19 +907,7 @@ Contains parameters related to fused operator enablement, memory optimization fe
     <td>int</td>
     <td>64</td>
     <td>The number of matrix chunks used during Gated DeltaNet network computation.</td>
-    </tr>
-    <tr>
-    <td>use_triton_rmsnormgated</td>
-    <td>bool</td>
-    <td>False</td>
-    <td>Whether to enable the Triton fused operator to accelerate RMSNorm_gated computation.</td>
-    </tr>
-    <tr>
-    <td>fix_router</td>
-    <td>bool</td>
-    <td>False</td>
-    <td>Fix expert assignment to balance load. Use this for performance tuning only.</td>
-    </tr>
+  </tr>
   </tbody>
 </table>
 

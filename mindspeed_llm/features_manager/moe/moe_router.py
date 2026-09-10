@@ -8,7 +8,6 @@ class MoERouter(MindSpeedFeature):
 
     def register_args(self, parser):
         group = parser.add_argument_group(title=self.feature_name)
-        self.add_parser_argument_choices_value(parser, "--moe-router-score-function", 'sqrtsoftplus')
         self.add_parser_argument_choices_value(parser, "--moe-router-load-balancing-type", 'group_limited_greedy')
         self.add_parser_argument_choices_value(parser, "--moe-router-load-balancing-type", 'softmax_topk')
         self.add_parser_argument_choices_value(parser, "--moe-router-load-balancing-type", 'pai_megatron_aux_loss')
@@ -31,7 +30,6 @@ class MoERouter(MindSpeedFeature):
                             help="topk softmax in fp32.")
         group.add_argument('--num-zero-experts', type=int, default=None,
                        help='Number of Experts in MoE (None means no MoE)')
-        group.add_argument('--n-hash-layers', type=int, default=0, help='expert hash layer num')
 
     def pre_validate_args(self, args):
         self.origin_spec = None
@@ -41,7 +39,6 @@ class MoERouter(MindSpeedFeature):
     def validate_args(self, args):
         self._validate_moe_args(args)
         self._validate_group_limited_greedy(args)
-        self._validate_aux_loss_free(args)
 
     def post_validate_args(self, args):
         if self.origin_spec:
@@ -76,33 +73,15 @@ class MoERouter(MindSpeedFeature):
                     'The topk group ({}) should be less than n-group(EP)({}).'.format(args.moe_router_group_topk,
                                                                                       args.expert_model_parallel_size))
 
-    def _validate_aux_loss_free(self, args):
-        SUPPORTED_SCORE_FUNCTIONS = {"sigmoid", "sqrtsoftplus", "softmax"}
-        if args.moe_router_enable_expert_bias and args.moe_router_score_function not in SUPPORTED_SCORE_FUNCTIONS:
-            raise ValueError(
-                f"Expert bias for aux-loss-free routing only supports {SUPPORTED_SCORE_FUNCTIONS}. "
-                f"Got: '{args.moe_router_score_function}'. "
-                f"Please set --moe-router-score-function to one of: sigmoid, sqrtsoftplus, softmax."
-            )
-
-
     def register_patches(self, patch_manager, args):
-        from mindspeed_llm.core.transformer.moe.router import (topk_router_routing, topk_router_init_wrapper, 
-                                                                topk_router_gating_func, topk_router_forward_patch, transformer_config_post_init_wrapper)
+        from mindspeed_llm.core.transformer.moe.router import (topk_router_routing, topk_router_init_wrapper, topk_router_gating_func)
         from mindspeed_llm.core.transformer.moe.moe_utils import z_loss_func, topk_softmax_with_capacity
         from mindspeed_llm.core.transformer.moe.moe_layer import moe_layer_forward
-        from megatron.core.transformer.transformer_config import TransformerConfig
-        from mindspeed_llm.core.distributed.finalize_model_grads import _update_router_expert_bias_for_patch
-        from mindspeed_llm.core.transformer.transformer_block import  _checkpointed_forward_patch_input_ids
 
-        patch_manager.register_patch('megatron.core.transformer.transformer_config.TransformerConfig.__post_init__', 
-                                      transformer_config_post_init_wrapper)
         patch_manager.register_patch('megatron.core.transformer.moe.router.TopKRouter.__init__', 
                                       topk_router_init_wrapper)
         patch_manager.register_patch('megatron.core.transformer.moe.router.TopKRouter.routing', 
                                       topk_router_routing)
-        patch_manager.register_patch('megatron.core.transformer.moe.router.TopKRouter.forward',
-                                     topk_router_forward_patch)
         patch_manager.register_patch('megatron.core.transformer.moe.router.TopKRouter.gating', 
                                       topk_router_gating_func)
         patch_manager.register_patch('megatron.core.transformer.moe.router.z_loss_func', 
@@ -113,18 +92,11 @@ class MoERouter(MindSpeedFeature):
             patch_manager.register_patch('megatron.core.transformer.moe.moe_layer.MoELayer.__init__', zero_experts_moe_layer_init_wrapper)
             patch_manager.register_patch('megatron.core.transformer.moe.moe_layer.MoELayer.forward', zero_experts_moe_forward)
 
-        elif not (args.moe_allgather_overlap_comm or args.moe_alltoall_overlap_comm):
+        elif not (args.moe_alltoall_mc2 or args.moe_allgather_overlap_comm or args.moe_alltoall_overlap_comm):
             # add moe layer forward patch for deepseekv2
             patch_manager.register_patch('megatron.core.transformer.moe.moe_layer.MoELayer.forward',
                                           moe_layer_forward)
-        # adapter hash, expert_bias is None
-        patch_manager.register_patch('megatron.core.distributed.finalize_model_grads._update_router_expert_bias',
-                                     _update_router_expert_bias_for_patch)
         # add topk softmax in fp32 in topk_softmax_with_capacity
         if args.topk_softmax_in_fp32:
             patch_manager.register_patch('megatron.core.transformer.moe.moe_utils.topk_softmax_with_capacity',
                                           topk_softmax_with_capacity)
-
-        if args.n_hash_layers >= 1:
-            patch_manager.register_patch('megatron.core.transformer.transformer_block.TransformerBlock._checkpointed_forward',
-                                _checkpointed_forward_patch_input_ids)

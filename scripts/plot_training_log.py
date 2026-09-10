@@ -290,25 +290,42 @@ def _count(records: list[TrainingRecord], field: str) -> int:
 def build_argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("log", type=Path, help="MindSpeed-LLM text log")
+
     parser.add_argument(
         "-o",
         "--output",
         type=Path,
-        help="PNG output path (default: <log_stem>_curves.png beside the log)",
+        help="PNG output path",
     )
+
     parser.add_argument(
         "--csv",
         type=Path,
-        help="Parsed CSV path (default: <output_stem>.csv; use --no-csv to disable)",
+        help="Parsed CSV path",
     )
-    parser.add_argument("--no-csv", action="store_true", help="Do not write parsed CSV data")
+
+    parser.add_argument(
+        "--no-csv",
+        action="store_true",
+        help="Do not write parsed CSV data",
+    )
+
     parser.add_argument(
         "--smooth",
         type=int,
         default=20,
-        help="Rolling-mean window; 1 disables smoothing (default: 20)",
+        help="Rolling-mean window; 1 disables smoothing",
     )
-    parser.add_argument("--title", help="Figure title (default: log file name)")
+
+    parser.add_argument(
+        "--max-step",
+        type=int,
+        default=None,
+        help="Only plot iterations <= this value",
+    )
+
+    parser.add_argument("--title")
+
     return parser
 
 
@@ -322,6 +339,12 @@ def main() -> int:
     output_path = args.output or args.log.with_name(f"{args.log.stem}_curves.png")
     csv_path = args.csv or output_path.with_suffix(".csv")
     result = parse_log(args.log)
+    if args.max_step is not None:
+        result.records = [
+            record
+            for record in result.records
+            if record.iteration <= args.max_step
+    ]
     if not result.records:
         raise SystemExit(
             "No MindSpeed-LLM iteration metric lines were found. Expected fields such as "

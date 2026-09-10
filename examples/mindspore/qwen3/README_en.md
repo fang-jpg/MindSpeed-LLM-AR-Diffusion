@@ -28,7 +28,7 @@ INFO:root:Done!
 
 # 3 Data Preprocessing
 
-The MindSpore backend currently fully supports data preprocessing for multiple MindSpeed LLM task scenarios. For the data preprocessing guide, see [Data Preprocessing](../../../docs/en/pytorch/tools/data_process_pretrain.md).
+The MindSpore backend currently fully supports data preprocessing for multiple MindSpeed LLM task scenarios. For the data preprocessing guide, see [Data Preprocessing](https://gitcode.com/ascend/MindSpeed-LLM/blob/master/docs/en/pytorch/tools/data_process_pretrain.md).
 
 ## 3.1 Processing Pretraining Data
 

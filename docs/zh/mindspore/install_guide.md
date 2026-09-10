@@ -1,4 +1,4 @@
-# MindSpeed LLM软件安装
+# MindSpeed LLM安装指导
 
 本文主要向用户介绍如何快速基于MindSpore框架完成MindSpeed LLM（大语言模型分布式训练套件）的安装。
 
@@ -20,7 +20,7 @@
 > 本节表格中“√”代表支持，“x”代表不支持。
 
 - 各硬件产品对应物理机部署场景支持的操作系统请参考[兼容性查询助手](https://www.hiascend.com/hardware/compatibility)。
-- 各硬件产品对应虚拟机及容器部署场景支持的操作系统请参考《CANN 软件安装》的“[操作系统兼容性说明](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/latest/softwareinst/instg/instg_0101.html?OS=openEuler&InstallType=netyum)”章节。
+- 各硬件产品对应虚拟机及容器部署场景支持的操作系统请参考《CANN 软件安装》的“[操作系统兼容性说明](https://www.hiascend.com/document/detail/zh/canncommercial/900/softwareinst/instg/instg_0101.html?OS=openEuler&InstallType=netyum)”章节（商用版）或“[操作系统兼容性说明](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/900/softwareinst/instg/instg_0101.html?OS=openEuler&InstallType=netyum)”章节（社区版）。
 
 ## 安装前准备
 
@@ -28,24 +28,27 @@
 
 ### 安装驱动固件
 
-请单击[固件与驱动](https://www.hiascend.com/hardware/firmware-drivers)，并根据引导完成固件与驱动的安装。
+下载[固件与驱动](https://www.hiascend.com/hardware/firmware-drivers/community)，请根据系统和硬件产品型号选择对应版本的社区版本或商用版本的固件与驱动。
+参考如下命令安装：
+
+```shell
+chmod +x Ascend-hdk-<chip_type>-npu-driver_<version>_linux-<arch>.run
+chmod +x Ascend-hdk-<chip_type>-npu-firmware_<version>.run
+./Ascend-hdk-<chip_type>-npu-driver_<version>_linux-<arch>.run --full --force
+./Ascend-hdk-<chip_type>-npu-firmware_<version>.run --full
+```
 
 ### 安装CANN
 
-安装配套版本的NPU驱动固件、CANN软件（Toolkit、ops和NNAL）并配置CANN环境变量，具体请参考《[CANN 软件安装](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/latest/softwareinst/instg/instg_0000.html)》。
-
-CANN软件提供进程级环境变量设置脚本，训练或推理场景下使用NPU执行业务代码前需要调用该脚本，否则业务代码将无法执行。
+请参考《[CANN 快速安装](https://www.hiascend.com/cann/download)》安装CANN软件（包含Toolkit、ops和NNAL包），并配置环境变量。
 
 ```shell
-source /usr/local/Ascend/cann/set_env.sh
-source /usr/local/Ascend/nnal/atb/set_env.sh --cxx_abi=0
+source /usr/local/Ascend/cann/set_env.sh                 # 修改为实际安装的Toolkit包路径
+source /usr/local/Ascend/nnal/atb/set_env.sh --cxx_abi=0 # 修改为实际安装的nnal包路径
 ```
 
-以上命令以root用户安装后的默认路径为例，请用户根据set_env.sh的实际路径进行替换。
-
-> [!NOTICE]
-> 
-> 安装运行程序建议使用非root用户，且建议对安装程序的目录文件做好权限管控：文件夹权限设置为750，文件权限设置为640。可以通过设置umask控制安装后文件的权限，如设置umask为0027。
+> [!NOTICE]  
+> 建议使用非root用户安装运行torch\_npu，且建议对安装程序的目录文件做好权限管控：文件夹权限设置为750，文件权限设置为640。可以通过设置umask控制安装后文件的权限，如设置umask为0027。
 > 更多安全相关内容请参见《[安全声明](../SECURITYNOTE.md)》中各组件关于“文件权限控制”的说明。
 
 ### 安装MindSpore框架 
@@ -59,11 +62,9 @@ source /usr/local/Ascend/nnal/atb/set_env.sh --cxx_abi=0
 1. 使能环境变量。
 
     ```shell
-    source /usr/local/Ascend/cann/set_env.sh
-    source /usr/local/Ascend/nnal/atb/set_env.sh --cxx_abi=0
+    source /usr/local/Ascend/cann/set_env.sh                  # 修改为实际安装的Toolkit包路径
+    source /usr/local/Ascend/nnal/atb/set_env.sh --cxx_abi=0  # 修改为实际安装的nnal包路径
     ```
-
-    以上命令以root用户安装后的默认路径为例，请用户根据set_env.sh的实际路径进行替换。
 
 2. 安装MindSpeed-Core-MS转换工具。
    
@@ -75,7 +76,7 @@ source /usr/local/Ascend/nnal/atb/set_env.sh --cxx_abi=0
    
     ```shell
     cd MindSpeed-Core-MS
-    pip3 install -r requirements.txt  # 安装第三方依赖
-    source auto_convert.sh llm        # 拉取训练所需组件库
-    source tests/scripts/set_path.sh  # 设置环境变量
+    pip3 install -r requirements.txt # 安装第三方依赖
+    source auto_convert.sh llm       # 拉取训练所需组件库
+    source tests/scripts/set_path.sh # 设置环境变量
     ```

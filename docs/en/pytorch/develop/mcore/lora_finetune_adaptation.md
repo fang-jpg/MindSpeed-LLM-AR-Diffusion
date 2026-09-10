@@ -11,12 +11,12 @@ Before you follow the steps below, complete the environment setup by referring t
 The LoRA fine-tuning script can use standard base Megatron weights for fine-tuning tasks. Using the Qwen3-8B model with a TP=1 and PP=2 split as an example, see the [Qwen3 Weight Conversion Script](../../../../../examples/mcore/qwen3/ckpt_convert_qwen3_hf2mcore.sh) for detailed configuration. You need to modify the related path parameters and model partition settings:
 
 ```shell
-source /usr/local/Ascend/cann/set_env.sh # Replace this with the actual Toolkit installation path.
+source /usr/local/Ascend/cann/set_env.sh # Replace this with the actual Toolkit installation path
 ......
---target-tensor-parallel-size 1          # TP partition size.
---target-pipeline-parallel-size 2        # PP partition size.
---load-dir ./model_from_hf/qwen3_hf/     # Hugging Face weight path.
---save-dir ./model_weights/qwen3_mcore/   # Megatron weight save path.
+--target-tensor-parallel-size 1          # TP partition size
+--target-pipeline-parallel-size 2        # PP partition size
+--load-dir ./model_from_hf/qwen3_hf/     # Hugging Face weight path
+--save-dir ./model_weights/qwen3_mcore/   # Megatron weight save path
 ```
 
 After you confirm that the paths are correct, run the weight conversion script:
@@ -30,11 +30,11 @@ bash examples/mcore/qwen3/ckpt_convert_qwen3_hf2mcore.sh
 Use the Alpaca dataset as an example for data preprocessing. For detailed configuration, see the [Qwen3 Data Preprocessing Script](../../../../../examples/mcore/qwen3/data_convert_qwen3_instruction.sh). You need to modify the paths in the script:
 
 ```shell
-source /usr/local/Ascend/cann/set_env.sh # Replace this with the actual Toolkit installation path.
+source /usr/local/Ascend/cann/set_env.sh # Replace this with the actual Toolkit installation path
 ......
---input ./dataset/train-00000-of-00001-a09b74b3ef9c3b56.parquet # Raw dataset path.
---tokenizer-name-or-path ./model_from_hf/qwen3_hf # Hugging Face tokenizer path.
---output-prefix ./finetune_dataset/alpaca  # Save path.
+--input ./dataset/train-00000-of-00001-a09b74b3ef9c3b56.parquet # Raw dataset path
+--tokenizer-name-or-path ./model_from_hf/qwen3_hf # Hugging Face tokenizer path
+--output-prefix ./finetune_dataset/alpaca  # Save path
 ......
 ```
 
@@ -45,7 +45,7 @@ Parameters for data preprocessing:
 - `workers`: The number of parallel workers used to process the dataset.
 - `log-interval`: The number of steps between progress updates.
 - `enable-thinking`: Enables or disables the fast-thinking and slow-thinking template. You can set it to `[true, false, none]`, and the default value is `none`. When you enable it, the dataset model responses include `<think>` and `</think>`, and these tokens participate in loss calculation. Therefore, all data is treated as slow-thinking data. When you disable it, an empty CoT marker is added to the user input in the dataset, and it does not participate in loss calculation. Therefore, all data is treated as fast-thinking data. Setting it to `none` works well when the original dataset contains a mix of fast-thinking and slow-thinking data. **Currently, this option supports only Qwen3 series models.**
-- `prompt-type`: Specifies the model template. It helps the base model gain stronger conversational ability after fine-tuning. You can find the available `prompt-type` options in the [templates.json](../../../../../configs/finetune/templates.json) file.
+- `prompt-type`: Specifies the model template. It helps the base model gain stronger conversational ability after fine-tuning. You can find the available `prompt-type` options in the [`templates`](../../../../../configs/finetune/templates.json) file.
 
 After you finish configuring the parameters, run the data preprocessing script:
 
@@ -60,12 +60,12 @@ The repository provides a base fine-tuning script, the [Qwen3-8B Fine-Tuning Scr
 Parallel configuration parameters such as TP and PP must match the settings used during weight conversion. You need to modify the related path parameters and model partition settings:
 
 ```shell
-CKPT_LOAD_DIR="your model ckpt path"      # Weight load path. Enter the weight path saved during conversion.
-CKPT_SAVE_DIR="your model save ckpt path" # Weight save path after LoRA fine-tuning finishes.
-DATA_PATH="your data path"                # Dataset path. Enter the path saved during data preprocessing, and note that you need to add the suffix.
-TOKENIZER_PATH="your tokenizer path"      # Vocabulary path. Enter the vocabulary path from the downloaded open-source weights.
-TP=1                                      # The value of target-tensor-parallel-size used during weight conversion.
-PP=2                                      # The value of target-pipeline-parallel-size used during weight conversion.
+CKPT_LOAD_DIR="your model ckpt path"      # Weight load path. Enter the weight path saved during conversion
+CKPT_SAVE_DIR="your model save ckpt path" # Weight save path after LoRA fine-tuning finishes
+DATA_PATH="your data path"                # Dataset path. Enter the path saved during data preprocessing, and note that you need to add the suffix
+TOKENIZER_PATH="your tokenizer path"      # Vocabulary path. Enter the vocabulary path from the downloaded open-source weights
+TP=1                                      # The value of target-tensor-parallel-size used during weight conversion
+PP=2                                      # The value of target-pipeline-parallel-size used during weight conversion
 ```
 
 To perform LoRA fine-tuning, add the LoRA parameters to `TUNE_ARGS` on top of the full-parameter fine-tuning script:
@@ -76,14 +76,14 @@ To perform LoRA fine-tuning, add the LoRA parameters to `TUNE_ARGS` on top of th
 --lora-fusion \
 --lora-target-modules linear_qkv linear_proj linear_fc1 linear_fc2 \
 ......
-| tee logs/tune_qwen3_8b_4K_lora_ptd.log # Corresponding log file name.
+| tee logs/tune_qwen3_8b_4K_lora_ptd.log # Corresponding log file name
 ```
 
 Parameters for the fine-tuning script:
 
 - `lora-r`: The LoRA rank, which indicates the dimension of the low-rank matrices. A lower rank uses fewer parameters during training, which reduces compute and memory consumption. However, an excessively low rank may limit model expressiveness.
 - `lora-alpha`: Controls the influence ratio of LoRA weights on the original weights. Higher values produce a stronger effect. In general, keep `α/r` at 2.
-- `lora-fusion`: Whether to enable the [CCLoRA](../../features/mcore/cc_lora.md) algorithm. This algorithm improves performance by overlapping communication with computation. The current GLM-4.5 model does not support this parameter.
+- `lora-fusion`: Whether to enable the [CCLoRA](../../features/mcore/cc_lora.md) algorithm. This algorithm improves performance by overlapping communication with computation.
 - `lora-target-modules`: Selects the modules that need LoRA. The currently available modules are `linear_qkv`, `linear_proj`, `linear_fc1`, and `linear_fc2`.
 
 After you finish the parameter configuration above, run the LoRA fine-tuning script:
@@ -99,9 +99,9 @@ After LoRA fine-tuning completes, you need to further verify whether the model p
 Modify the path parameters and add the LoRA parameters on top of the inference script:
 
 ```shell
-TOKENIZER_PATH="your tokenizer directory path"   # Vocabulary path. Enter the vocabulary path from the downloaded open-source weights.
-CHECKPOINT="your model directory path"           # Weight load path. Enter the weight path saved during conversion.
-CHECKPOINT_LORA="your lora model directory path" # Weight save path after LoRA fine-tuning finishes.
+TOKENIZER_PATH="your tokenizer directory path"   # Vocabulary path. Enter the vocabulary path from the downloaded open-source weights
+CHECKPOINT="your model directory path"           # Weight load path. Enter the weight path saved during conversion
+CHECKPOINT_LORA="your lora model directory path" # Weight save path after LoRA fine-tuning finishes
 ......
 --lora-load ${CHECKPOINT_LORA}  \
 --lora-r 16 \
@@ -110,7 +110,7 @@ CHECKPOINT_LORA="your lora model directory path" # Weight save path after LoRA f
 --lora-target-modules linear_qkv linear_proj linear_fc1 linear_fc2 \
 --prompt-type qwen3 \
 ......
-| tee logs/generate_qwen3_8b_lora_ptd.log # Corresponding log file name.
+| tee logs/generate_qwen3_8b_lora_ptd.log # Corresponding log file name
 ```
 
 Parameters:
@@ -132,10 +132,10 @@ MindSpeed LLM supports accuracy evaluation of large models on public benchmark d
 Modify the path parameters and add the LoRA parameters on top of the weight evaluation script:
 
 ```shell
-TOKENIZER_PATH="your tokenizer directory path"   # Vocabulary path. Enter the vocabulary path from the downloaded open-source weights.
-CHECKPOINT="your model directory path"           # Weight load path. Enter the weight path saved during conversion.
-CHECKPOINT_LORA="your lora model directory path" # Weight save path after LoRA fine-tuning finishes.
-DATA_PATH="your data path"                       # Downloaded benchmark dataset path, typically MMLU.
+TOKENIZER_PATH="your tokenizer directory path"   # Vocabulary path. Enter the vocabulary path from the downloaded open-source weights
+CHECKPOINT="your model directory path"           # Weight load path. Enter the weight path saved during conversion
+CHECKPOINT_LORA="your lora model directory path" # Weight save path after LoRA fine-tuning finishes
+DATA_PATH="your data path"                       # Downloaded benchmark dataset path, typically MMLU
 ......
 --lora-load ${CHECKPOINT_LORA} \
 --lora-r 16 \
@@ -143,7 +143,7 @@ DATA_PATH="your data path"                       # Downloaded benchmark dataset 
 --lora-fusion \
 --lora-target-modules linear_qkv linear_proj linear_fc1 linear_fc2 \
 ......
-| tee logs/evaluate_qwen3_8b_lora_ptd.log # Corresponding log file name.
+| tee logs/evaluate_qwen3_8b_lora_ptd.log # Corresponding log file name
 ```
 
 Parallel configuration parameters such as TP and PP must match the settings used during weight conversion. After you finish configuring the parameters, run the LoRA fine-tuning weight evaluation script:
@@ -168,15 +168,19 @@ The repository supports merging LoRA fine-tuning weights with base model weights
 Using Qwen3-8B as an example, if you want to merge the LoRA weights and then convert them to the Hugging Face format, you can name the corresponding weight conversion script `ckpt_convert_qwen3_mcore2hf_lora.sh`.
 
 ```shell
-source /usr/local/Ascend/cann/set_env.sh # Replace this with the actual Toolkit installation path.
+source /usr/local/Ascend/cann/set_env.sh # Replace this with the actual Toolkit installation path
 
-python convert_ckpt_v2.py \
+python convert_ckpt.py \
+    --use-mcore-models \
+    --model-type GPT \
     --load-model-type mg \
     --save-model-type hf \
-    --load-dir ./model_weights/qwen3_mcore/ \    # Megatron weight save path.
-    --lora-load ./ckpt/qwen3_lora \              # Weight save path after LoRA fine-tuning finishes.
-    --save-dir ./model_weights/qwen3_mcore2hf/ \ # Converted Hugging Face weight path.
-    --hf-cfg-dir ./model_from_hf/qwen3_hf/ \     # Original Hugging Face weight path. Copy the config file into the Hugging Face weight directory generated by the weight conversion process.
+    --target-tensor-parallel-size 1 \          # Set this to 1 when you split the Hugging Face weights
+    --target-pipeline-parallel-size 1 \        # Set this to 1 when you split the Hugging Face weights
+    --spec mindspeed_llm.tasks.models.spec.qwen3_spec layer_spec \
+    --load-dir ./model_weights/qwen3_mcore/ \  # Megatron weight path
+    --lora-load ./ckpt/qwen3_lora \            # Weight path after LoRA fine-tuning finishes
+    --save-dir ./model_from_hf/qwen3_hf/ \     # Converted Hugging Face weight path. If you specify the original Hugging Face model path, the new weights are stored in ./model_from_hf/qwen3_hf/mg2hg/
     --lora-r 16 \
     --lora-alpha 32 \
     --lora-target-modules linear_qkv linear_proj linear_fc1 linear_fc2 \
@@ -192,5 +196,25 @@ bash examples/mcore/qwen3/ckpt_convert_qwen3_mcore2hf_lora.sh
 Note:
 
 - The LoRA parameter values should match the values used during fine-tuning to ensure that the converted model has the same performance and compatibility.
-- Current LoRA fine-tuning does not support the `--mtp-num-layers` parameter.
-- After the `peft` library merges the LoRA weights, the weight data type becomes the `float16` type. However, some models, such as the Qwen series, use the `bfloat16` type by default. Converting the merged weights back to the Hugging Face format may cause precision loss. You can temporarily set the data type in the original Hugging Face model's `config.json` file to the `float16` type to work around this issue.
+- The current version 2 weight conversion does not support LoRA parameters, and version 1 and version 2 cannot be mixed. If you want to use the merge and conversion workflow for LoRA weights and base weights, the model weight conversion in step 1 must also use version 1.
+- After the `peft` library merges the LoRA weights, the weight data type becomes the `float16` type. However, some models, such as the Qwen series, use the `bfloat16` type by default. Converting the merged weights back to the Hugging Face format may cause precision loss. You can temporarily set the data type in the `config.json` file of the original Hugging Face model to the `float16` type to work around this issue.
+
+Example of the version 1 weight conversion script for Qwen3-8B:
+
+```shell
+source /usr/local/Ascend/cann/set_env.sh # Replace this with the actual Toolkit installation path
+
+python convert_ckpt.py \
+    --use-mcore-models \
+    --model-type GPT \
+    --load-model-type hf \
+    --save-model-type mg \
+    --target-tensor-parallel-size 1 \                       # HF weight split size
+    --target-pipeline-parallel-size 2 \                     # HF weight split size
+    --spec mindspeed_llm.tasks.models.spec.qwen3_spec layer_spec \
+    --load-dir ./model_from_hf/qwen3_hf/ \                  # Hugging Face weight path
+    --save-dir ./model_weights/qwen3_mcore/ \               # Megatron weight save path
+    --tokenizer-model ./model_from_hf/qwen3_hf/tokenizer.json \  # Hugging Face tokenizer model file path
+    --model-type-hf qwen3 \
+    --params-dtype bf16
+```

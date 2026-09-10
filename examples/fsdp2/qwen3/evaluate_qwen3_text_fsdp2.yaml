@@ -1,0 +1,31 @@
+model:
+  model_id: qwen3
+  model_name_or_path: /home/c00633840/models/Qwen3-1.7B-Base/
+  tokenizer_name_or_path: /home/c00633840/models/Qwen3-1.7B-Base/
+  trust_remote_code: false
+  train_from_scratch: false
+
+parallel:
+  fsdp_size: 1
+  tp_size: 1
+  cp_size: 1
+  recompute: false
+  fsdp_modules:
+    - model.layers.{*}
+    - model.embed_tokens
+    - lm_head
+
+inference:
+  max_new_tokens: 128
+  do_sample: false
+
+evaluation:
+  task: mmlu
+  input_text: hello
+  output_dir: ./output/qwen3_text
+  seed: 42
+  max_input_length: 4096
+
+optimization:
+  use_fused_rmsnorm: false
+  use_fused_rotary_pos_emb: false

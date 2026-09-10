@@ -1,27 +1,31 @@
 # Copyright (c) 2025, Huawei Technologies Co., Ltd. All rights reserved.
-from dataclasses import dataclass
-from typing import List, Callable, Literal, Union, Optional
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Callable, Literal, Union, Optional
 
 import torch
 
-# Reuse configs from FSDPTurbo to stay in sync with its evolution.
-# EPPlanConfig and CPPlanConfig are kept LLM-specific due to field divergence.
-from fsdp_turbo.fsdp_turbo_config import (
-    FSDPPlanConfig as _BaseFSDPPlanConfig,
-    TPPlanConfig as _BaseTPPlanConfig,
-    ChunkBatchPlanConfig as _BaseChunkBatchPlanConfig,
-    QuantizeConfig as _BaseQuantizeConfig,
-)
+
+@dataclass
+class FSDPPlanConfig:
+    ignored_modules: List[str] = None
+    apply_modules: Dict[str, Any] = None
+
+    # mp_policy settings
+    param_dtype: Optional[torch.dtype] = None
+    reduce_dtype: Optional[torch.dtype] = None
+    output_dtype: Optional[torch.dtype] = None
+    cast_forward_inputs: bool = True
+
+    # prefetch settings
+    num_to_forward_prefetch: Optional[int] = 0
+    num_to_backward_prefetch: Optional[int] = 0
 
 
 @dataclass
-class FSDPPlanConfig(_BaseFSDPPlanConfig):
-    pass
-
-
-@dataclass
-class TPPlanConfig(_BaseTPPlanConfig):
-    pass
+class TPPlanConfig:
+    colwise_parallel: List[str] = None
+    rowwise_parallel: List[str] = None
+    sequence_parallel: List[str] = None
 
 
 @dataclass
@@ -35,37 +39,20 @@ class EPPlanConfig:
     apply_modules: List[str] = None
     dispatcher: Union[Literal["eager", "fused", "mc2"], Callable] = None
     apply_efsdp_modules: List[str] = None
-    gradient_divide_factor: Optional[float] = None
-    fixed_router: bool = False
+    _gradient_divide_factor: float = None
 
 
 @dataclass
-class QuantizeConfig(_BaseQuantizeConfig):
-    """Inherits the full field set from FSDPTurbo's QuantizeConfig to stay in
-    sync with its evolution (quant_format, block_size, quant_recipe, converters,
-    quant_apply_modules, quant_ignored_modules, fsdp_world_size, ...).
-
-    Adds the LLM-specific ``recipe``/``get_key_dtype`` helpers used by the MoE
-    dispatcher to resolve per-tensor FP8 dtypes via MindSpeed's QuantRecipe.
-    """
-
-    @property
-    def recipe(self):
-        if hasattr(self, '_recipe'):
-            return self._recipe  # pylint:disable=E0203
-
-        from mindspeed.fsdp.quantization.config import QuantRecipe
-
-        self._recipe = QuantRecipe.from_recipe_name(self.quant_recipe)
-        return self._recipe
-
-    def get_key_dtype(self, key: str) -> torch.dtype:
-        return self.recipe().get_key_dtype(key)
-
-
-@dataclass
-class ChunkBatchPlanConfig(_BaseChunkBatchPlanConfig):
-    pass
+class QuantizeConfig:
+    quant_format: Optional[str] = None
+    quant_recipe: Optional[str] = None
+    block_size: int = 32
+    quant_apply_modules: List[str] = None
+    quant_ignored_modules: List[str] = None
+    converters: List[str] = None
+    quant_gmm: bool = False
+    gemm_gradient_accumulation_fusion: bool = False
+    extra_args: Dict[str, Any] = field(default_factory=dict)  # for future extensibility
 
 
 @dataclass
@@ -92,9 +79,6 @@ class ParallelEngineConfig:
 
     quantization_plan: Optional[QuantizeConfig] = None
 
-    enable_chunk_batch: bool = False
-    chunkbatch_plan: ChunkBatchPlanConfig = None
-
     def __post_init__(self):
         self.validate_tp_config()
         self.validate_ep_config()
@@ -102,10 +86,9 @@ class ParallelEngineConfig:
         self.validate_recompute_config()
         self.validate_quantization_config()
         self.validate_fsdp_config()
-        self.validate_chunkbatch_config()
 
     def validate_fsdp_config(self):
-        '''fully shard plan
+        ''' fully shard plan
         config = ParallelEngineConfig(
             fsdp_plan=FSDPPlanConfig(
                 'ignored_modules':['*mlp.experts*'],
@@ -125,7 +108,7 @@ class ParallelEngineConfig:
             self.fsdp_plan.ignored_modules = list(set(self.fsdp_plan.ignored_modules))  # remove duplicates
 
     def validate_tp_config(self):
-        '''tensor parallelize plan
+        ''' tensor parallelize plan
 
         config = ParallelEngineConfig(
             tp_plan=TPPlanConfig(
@@ -137,12 +120,10 @@ class ParallelEngineConfig:
         self.tp_plan = TPPlanConfig() if self.tp_plan is None else self.tp_plan
         self.tp_plan.colwise_parallel = [] if self.tp_plan.colwise_parallel is None else self.tp_plan.colwise_parallel
         self.tp_plan.rowwise_parallel = [] if self.tp_plan.rowwise_parallel is None else self.tp_plan.rowwise_parallel
-        self.tp_plan.sequence_parallel = (
-            [] if self.tp_plan.sequence_parallel is None else self.tp_plan.sequence_parallel
-        )
+        self.tp_plan.sequence_parallel = [] if self.tp_plan.sequence_parallel is None else self.tp_plan.sequence_parallel
 
     def validate_ep_config(self):
-        '''expert parallelize plan
+        ''' expert parallelize plan
 
         config = ParallelEngineConfig(
             ep_plan=EPPlanConfig(
@@ -152,9 +133,7 @@ class ParallelEngineConfig:
         )
         '''
         self.ep_plan = EPPlanConfig(apply_modules=[], dispatcher='eager') if self.ep_plan is None else self.ep_plan
-        if self.ep_plan.gradient_divide_factor is None:
-            world_size = torch.distributed.get_world_size() if torch.distributed.is_initialized() else 1
-            self.ep_plan.gradient_divide_factor = world_size
+        self.ep_plan._gradient_divide_factor = self.expert_parallel_size * self.expert_fully_shard_parallel_size * self.expert_data_parallel_size
         if self.ep_plan.apply_efsdp_modules is None:
             self.ep_plan.apply_efsdp_modules = []
             for ep_module in self.ep_plan.apply_modules:
@@ -165,14 +144,9 @@ class ParallelEngineConfig:
         self.recompute_plan = [] if self.recompute_plan is None else self.recompute_plan
 
     def validate_cp_config(self):
-        if self.context_parallel_type not in ["ulysses", "ring", "kvallgather"]:
-            raise Exception("context parallel type must be in `ulysses`, `ring`, or `kvallgather`.")
+        if self.context_parallel_type not in ["ulysses"]:
+            raise Exception("context parallel type must be `ulysses`.")
 
     def validate_quantization_config(self):
         self.quantization_plan = QuantizeConfig() if self.quantization_plan is None else self.quantization_plan
-        # fsdp_world_size is auto-derived from the FSDP parallel size, mirroring
-        # FSDPTurbo's FSDPTurboConfig.validate_quantization_config behavior.
-        self.quantization_plan.fsdp_world_size = self.fully_shard_parallel_size
 
-    def validate_chunkbatch_config(self):
-        self.chunkbatch_plan = ChunkBatchPlanConfig() if self.chunkbatch_plan is None else self.chunkbatch_plan

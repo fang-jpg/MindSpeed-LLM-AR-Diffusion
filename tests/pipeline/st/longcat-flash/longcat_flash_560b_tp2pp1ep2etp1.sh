@@ -139,8 +139,7 @@ GPT_ARGS="
     --attention-softmax-in-fp32 \
     --no-gradient-accumulation-fusion \
     --transformer-impl transformer_engine \
-    --no-bias-dropout-fusion \
-    --ckpt-format torch
+    --no-bias-dropout-fusion
 "
 
 DATA_ARGS="

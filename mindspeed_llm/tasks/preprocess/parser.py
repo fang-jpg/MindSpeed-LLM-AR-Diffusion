@@ -30,7 +30,7 @@ class InstructionDatasetAttr:
     subset: Optional[str] = None
     folder: Optional[str] = None
     ranking: bool = False
-    formatting: Literal["alpaca", "sharegpt", "openai"] = "alpaca"
+    formatting: Literal["alpaca", "sharegpt"] = "alpaca"
     """ columns """
     system: Optional[str] = None
     images: Optional[str] = None

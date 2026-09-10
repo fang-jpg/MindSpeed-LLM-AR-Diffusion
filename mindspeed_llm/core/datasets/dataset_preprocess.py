@@ -2,9 +2,9 @@ import os
 import sys
 import time
 import json
+import subprocess
 import torch
 import glob
-import os, sys, time, subprocess
 from megatron.training.utils import print_rank_0
 from mindspeed_llm.tasks.preprocess.data_handler import _get_data_format
 
@@ -105,10 +105,6 @@ def convert_datasets(args, shared: bool):
                     cmd += ["--prompt-type", args.prompt_type]
                 if getattr(args, "seq_length", None):
                     cmd += ["--seq-length", str(args.seq_length)]
-                if getattr(args, "reasoning_effort", None):
-                    cmd += ["--reasoning-effort", str(args.reasoning_effort)]
-                if getattr(args, "drop_thinking", None) is not None:
-                    cmd += ["--drop-thinking", str(args.drop_thinking)]
 
             subprocess.run(cmd, check=True)
 

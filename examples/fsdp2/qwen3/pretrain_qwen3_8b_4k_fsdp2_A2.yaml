@@ -1,8 +1,19 @@
 model:
+  model_name_or_path: /share/dataset/x00840191/models/qwen31.7/
   trust_remote_code: False
   train_from_scratch: False
+  model_id: qwen3
 
 data:
+  dataset:
+      file_name:
+        - /share/dataset/x00840191/comm_math_code/RedStone_QA_oq_part_text_document
+        - /share/dataset/x00840191/comm_math_code/swallow_code_ablation_exp11_scor_text_document
+        - /share/dataset/x00840191/comm_math_code/megamath_qa_llama_3.3_text_document
+        - /share/dataset/x00840191/comm_math_code/megamath_qa_text_document
+        - /share/dataset/x00840191/comm_math_code/MetaMathQA_text_document
+        - /share/dataset/x00840191/comm_math_code/RedStone_QA_mcq_text_document
+        - /share/dataset/x00840191/comm_math_code/swallow_math_text_document
   template: qwen3
   cutoff_len: 4096
   max_samples: 100000
@@ -11,12 +22,16 @@ data:
   data_manager_type: mg
 
 parallel:
+  fsdp_size: 8
   fsdp_modules:
     - model.layers.{*}
     - model.embed_tokens
     - lm_head
+  tp_size: 1
+  ep_size: 1
   ep_modules:
     - model.layers.{*}.mlp.experts
+  ep_fsdp_size: 1
   ep_fsdp_modules:
     - model.layers.{*}.mlp.experts
   ep_dispatcher: eager
@@ -26,11 +41,14 @@ parallel:
 
 training:
   stage: pt
+  per_device_train_batch_size: 4
+  gradient_accumulation_steps: 4
   dataloader_num_workers : 4
   seed: 42
   dataloader_drop_last: True
+  output_dir: /share/dataset/x00840191/model_train/ckpt/qwen_1.7b_inst_cpt
   optimizer: adamw
-  lr: 1e-05
+  lr: 5e-05
   weight_decay: 0.01
   adam_beta1: 0.9
   adam_beta2: 0.95
@@ -38,8 +56,8 @@ training:
   max_grad_norm: 1.0
   lr_scheduler_type: cosine
   warmup_ratio: 0.0
-  min_lr: 1e-06
+  min_lr: 5e-06
   num_train_epochs: 3.0
-  max_steps: 2000
+  max_steps: -1
   save_steps: 500
   logging_steps: 1

@@ -118,7 +118,7 @@ def moe_layer_init_wrapper(init_func):
     return moe_layer_init
 
 
-def moe_layer_forward(self, hidden_states: torch.Tensor, input_ids: torch.Tensor = None):
+def moe_layer_forward(self, hidden_states: torch.Tensor):
     if (
             self.training
             and self.config.tensor_model_parallel_size > 1
@@ -130,12 +130,12 @@ def moe_layer_forward(self, hidden_states: torch.Tensor, input_ids: torch.Tensor
         )
 
     # process MoE
-    def custom_forward(hidden_states, input_ids: torch.Tensor = None):
+    def custom_forward(hidden_states):
         args = get_args()
         if args.use_global_aux_loss:
-            probs, routing_map, _ = self.router(hidden_states, input_ids)
+            probs, routing_map, _ = self.router(hidden_states)
         else:
-            probs, routing_map = self.router(hidden_states, input_ids)
+            probs, routing_map = self.router(hidden_states)
             
         (dispatched_input, tokens_per_expert, permuted_probs) = (
             self.token_dispatcher.token_permutation(hidden_states, probs, routing_map)
@@ -186,7 +186,7 @@ def moe_layer_forward(self, hidden_states: torch.Tensor, input_ids: torch.Tensor
     if self.moe_layer_recompute:
         output, mlp_bias = tensor_parallel.checkpoint(custom_forward, False, hidden_states)
     else:
-        output, mlp_bias = custom_forward(hidden_states, input_ids)
+        output, mlp_bias = custom_forward(hidden_states)
 
     return output, mlp_bias
 

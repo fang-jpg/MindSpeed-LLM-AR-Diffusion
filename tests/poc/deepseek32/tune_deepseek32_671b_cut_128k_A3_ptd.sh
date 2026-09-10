@@ -53,6 +53,7 @@ MOE_ARGS="
     --moe-grouped-gemm \
     --moe-permutation-async-comm \
     --moe-token-dispatcher-type alltoall \
+    --moe-permute-fusion \
     --moe-shared-expert-intermediate-size 2048 \
     --num-experts 256 \
     --moe-router-topk 8 \
@@ -160,11 +161,9 @@ GPT_ARGS="
     --no-load-rng \
     --bf16 \
     --distributed-timeout-minutes 120 \
-    --ckpt-format torch
 "
 
 DATA_ARGS="
-    --handler-name AlpacaStyleInstructionHandler \
     --data-path $DATA_PATH \
     --split 100,0,0
 "
@@ -182,7 +181,6 @@ FINETUNE_ARGS="
     --finetune \
     --stage sft \
     --is-instruction-dataset \
-    --prompt-type deepseek3 \
 "
 
 python -m torch.distributed.launch $DISTRIBUTED_ARGS posttrain_gpt.py \

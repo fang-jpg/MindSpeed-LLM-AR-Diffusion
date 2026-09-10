@@ -1,5 +1,6 @@
 from functools import wraps
 
+import torch
 from einops import rearrange
 
 from megatron.core.transformer import TransformerConfig
@@ -11,25 +12,21 @@ from megatron.training import get_args
 from megatron.core.transformer.spec_utils import build_module
 
 from mindspeed.core.parallel_state import get_tensor_model_parallel_world_size_for_nd1_dim1
-from mindspeed.core.tensor_parallel.tp_2d.group_api_2d import (
-    TPXCollectiveComm,
-    TPXOverlapCollectiveComm,
-    TPYCollectiveComm,
-    TPYOverlapCollectiveComm,
-)
+from mindspeed.core.tensor_parallel.tp_2d.group_api_2d import TPXCollectiveComm, TPXOverlapCollectiveComm, \
+    TPYCollectiveComm, TPYOverlapCollectiveComm
 from mindspeed.core.tensor_parallel.tp_2d.parallel_linear_2d import ParallelLinear2D
-from mindspeed.core.fusions.fused_rope import apply_rotary_pos_emb
+from mindspeed.core.fusions.fused_rope import apply_rotary_pos_emb_bshd, apply_rotary_pos_emb
+
 
 
 def self_attention_init_tp2d_wrapper(fn):
     @wraps(fn)
-    def wrapper(
-        self,
-        config: TransformerConfig,
-        submodules: SelfAttentionSubmodules,
-        layer_number: int,
-        attn_mask_type=AttnMaskType.padding,
-    ):
+    def wrapper(self,
+                config: TransformerConfig,
+                submodules: SelfAttentionSubmodules,
+                layer_number: int,
+                attn_mask_type=AttnMaskType.padding, ):
+
         args = get_args()
         fn(self, config, submodules, layer_number, attn_mask_type)
         if args.tp_2d:
@@ -51,7 +48,8 @@ def self_attention_init_tp2d_wrapper(fn):
                 enable_overlap_matmul_with_rs=False,
                 partition_dim=0,
                 enable_backward_overlap_ag_with_matmul=False,
-                _initialize_affine_weight_gpu=_initialize_affine_weight_gpu,
+                _initialize_affine_weight_gpu=_initialize_affine_weight_gpu
+                
             )
             self.linear_proj = ParallelLinear2D(
                 self.query_projection_size,
@@ -68,44 +66,44 @@ def self_attention_init_tp2d_wrapper(fn):
                 enable_overlap_matmul_with_rs=False,
                 partition_dim=1,
                 enable_backward_overlap_ag_with_matmul=args.enable_backward_overlap_ag_with_matmul,
-                _initialize_affine_weight_gpu=_initialize_affine_weight_gpu,
+                _initialize_affine_weight_gpu=_initialize_affine_weight_gpu
             )
 
     return wrapper
 
 
-# temporary code
+#temporary code
 def self_attention_init(
-    self,
-    config: TransformerConfig,
-    submodules: SelfAttentionSubmodules,
-    layer_number: int,
-    attn_mask_type=AttnMaskType.padding,
-    cp_comm_type: str = None,
-):
+        self,
+        config: TransformerConfig,
+        submodules: SelfAttentionSubmodules,
+        layer_number: int,
+        attn_mask_type=AttnMaskType.padding,
+        cp_comm_type: str = None):
+
     args = get_args()
     super(SelfAttention, self).__init__(
-        config=config,
-        submodules=submodules,
-        layer_number=layer_number,
-        attn_mask_type=attn_mask_type,
-        attention_type="self",
-        cp_comm_type=cp_comm_type,
+    config=config,
+    submodules=submodules,
+    layer_number=layer_number,
+    attn_mask_type=attn_mask_type,
+    attention_type="self",
+    cp_comm_type=cp_comm_type,
     )
 
     if not args.no_enable_linear_qkv:
         self.linear_qkv = build_module(
-            submodules.linear_qkv,
-            self.config.hidden_size,
-            self.query_projection_size + 2 * self.kv_projection_size,
-            config=self.config,
-            init_method=self.config.init_method,
-            gather_output=False,
-            bias=self.config.add_bias_linear or self.config.add_qkv_bias,
-            skip_bias_add=False,
-            is_expert=False,
-            tp_comm_buffer_name='qkv',
-        )
+                    submodules.linear_qkv,
+                    self.config.hidden_size,
+                    self.query_projection_size + 2 * self.kv_projection_size,
+                    config=self.config,
+                    init_method=self.config.init_method,
+                    gather_output=False,
+                    bias=self.config.add_bias_linear or self.config.add_qkv_bias,
+                    skip_bias_add=False,
+                    is_expert=False,
+                    tp_comm_buffer_name='qkv',
+                )
     else:
         self.linear_qkv = None
 
@@ -131,19 +129,19 @@ def self_attention_init(
 
 
 def attention_forward(
-    self,
-    hidden_states,
-    attention_mask,
-    key_value_states=None,
-    inference_context=None,
-    rotary_pos_emb=None,
-    rotary_pos_cos=None,
-    rotary_pos_sin=None,
-    attention_bias=None,
-    packed_seq_params=None,
-    sequence_len_offset=None,
-    *,
-    inference_params=None,
+        self,
+        hidden_states,
+        attention_mask,
+        key_value_states=None,
+        inference_context=None,
+        rotary_pos_emb=None,
+        rotary_pos_cos=None,
+        rotary_pos_sin=None,
+        attention_bias=None,
+        packed_seq_params=None,
+        sequence_len_offset=None,
+        *,
+        inference_params=None,
 ):
     # For self attention we just duplicate the rotary_pos_emb if it isn't already
     if rotary_pos_emb is not None and not isinstance(rotary_pos_emb, tuple):
@@ -176,18 +174,12 @@ def attention_forward(
         else:
             cu_seqlens_q = cu_seqlens_kv = None
         query = apply_rotary_pos_emb(
-            query,
-            q_pos_emb,
-            config=self.config,
-            cu_seqlens=cu_seqlens_q,
+            query, q_pos_emb, config=self.config, cu_seqlens=cu_seqlens_q,
         )
         key = apply_rotary_pos_emb(
-            key,
-            k_pos_emb,
-            config=self.config,
-            cu_seqlens=cu_seqlens_kv,
+            key, k_pos_emb, config=self.config, cu_seqlens=cu_seqlens_kv,
         )
-    is_ulysses_algo = getattr(self.config, 'context_parallel_algo', None) == 'ulysses_cp_algo'
+    is_ulysses_algo = (getattr(self.config, 'context_parallel_algo', None) == 'ulysses_cp_algo')
 
     if packed_seq_params is not None and not is_ulysses_algo and args.context_parallel_size > 1:
         query, key, value = [rearrange(x, 's b h d -> (b s) h d') for x in [query, key, value]]

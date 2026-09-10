@@ -12,6 +12,7 @@
                 "save-dir":"/data/ci/cache/deepseek3-mtp-L2-tp2ep8etp1",
                 "moe-grouped-gemm": null,
                 "model-type-hf": "deepseek3",
+                "params-dtype": "bf16",
                 "num-layers": "2"
             }
         },
@@ -41,6 +42,7 @@
                 "save-dir":"/data/ci/cache/deepseek3-hf-L2-mtp-bk",
                 "moe-grouped-gemm": null,
                 "model-type-hf": "deepseek3",
+                "params-dtype": "bf16",
                 "num-layers": "2"
             }
         },
@@ -62,10 +64,11 @@
                 "model-type-hf": "mamba2",
                 "hidden-size": "2560",
                 "mamba-state-dim": "128",
-                "mamba-head-dim": "64",
+                "mamba2-head-dim": "64",
                 "mamba-num-groups": "1",
                 "load-dir":"/data/ci/models/mamba2/hf/mamba2-2.7b-hf",
-                "save-dir":"/data/ci/cache/mamba2_tp1pp2"
+                "save-dir":"/data/ci/cache/mamba2_tp1pp2",
+                "tokenizer-model":"/data/ci/models/mamba2/hf/mamba2-2.7b-hf"
             }
         },
         {
@@ -86,7 +89,7 @@
                 "save-dir":"/data/ci/cache/mamba2_2.7b_hf",
                 "hidden-size": "2560",
                 "mamba-state-dim": "128",
-                "mamba-head-dim": "64",
+                "mamba2-head-dim": "64",
                 "mamba-num-groups": "1",
                 "input-tp-rank": "1",
                 "input-pp-rank": "2",
@@ -96,11 +99,11 @@
         },
         {
             "Base_MD5" : [
-                "f06d5a2a74358f7856f82614d06f2c89"
+                "36818903d171c4eeca0c4e2c93fbd110"
             ]
         }
     ],
-
+    
     "test_longcat_flash_560b_hf2mcore_tp2pp2ep2etp1": [
         {
             "param": {
@@ -151,6 +154,7 @@
                 "save-model-type": "mg",
                 "target-tensor-parallel-size": "2",
                 "target-pipeline-parallel-size": "2",
+                "add-qkv-bias": null,
                 "load-dir": "/data/ci/models/Seed-OSS-36B-Instruct/hf/Seed-OSS-36B-Instruct",
                 "save-dir": "/data/ci/cache/Seed-OSS-36B-tp2pp2",
                 "model-type-hf": "seed-oss"
@@ -171,6 +175,7 @@
                 "load-model-type":"mg",
                 "save-model-type":"hf",
                 "model-type-hf": "seed-oss",
+                "add-qkv-bias": null,
                 "load-dir":"/data/ci/cache/Seed-OSS-36B-tp2pp2",
                 "save-dir":"/data/ci/cache/Seed-OSS-36B-tp2pp2-mg2hf",
                 "hf-cfg-dir": "/data/ci/models/Seed-OSS-36B-Instruct/hf/Seed-OSS-36B-Instruct"

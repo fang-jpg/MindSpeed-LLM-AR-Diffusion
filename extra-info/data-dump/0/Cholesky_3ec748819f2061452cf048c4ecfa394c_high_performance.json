@@ -1,0 +1,91 @@
+{
+    "binFileName": "Cholesky_3ec748819f2061452cf048c4ecfa394c_high_performance",
+    "binFileSuffix": ".o",
+    "blockDim": -1,
+    "coreType": "VectorCore",
+    "core_type": "AIV",
+    "intercoreSync": 0,
+    "kernelName": "Cholesky_3ec748819f2061452cf048c4ecfa394c_high_performance",
+    "magic": "RT_DEV_BINARY_MAGIC_ELF_AIVEC",
+    "memoryStamping": [],
+    "opParaSize": 16,
+    "parameters": [
+        null,
+        {
+            "dtype": "float32",
+            "init_value": 0
+        },
+        null
+    ],
+    "sha256": "e262f6ddcdd207d322def315829655d85fa4f935121537d44a9824d4bdd8a0a7",
+    "workspace": {
+        "num": 1,
+        "size": [
+            -1
+        ],
+        "type": [
+            0
+        ]
+    },
+    "kernelList": [
+        {
+            "kernelName": "Cholesky_3ec748819f2061452cf048c4ecfa394c_high_performance_1"
+        },
+        {
+            "kernelName": "Cholesky_3ec748819f2061452cf048c4ecfa394c_high_performance_2"
+        }
+    ],
+    "optionalInputMode": "gen_placeholder",
+    "optionalOutputMode": "gen_placeholder",
+    "supportSuperKernel": 1,
+    "debugOptions": "assert",
+    "debugBufSize": 76800,
+    "compileInfo": {},
+    "supportInfo": {
+        "implMode": "high_performance",
+        "int64Mode": false,
+        "simplifiedKeyMode": 0,
+        "simplifiedKey": [
+            "Cholesky/d=0,p=1/0,2/0,2",
+            "Cholesky/d=0,p=0/0,2/0,2",
+            "Cholesky/d=1,p=1/0,2/0,2",
+            "Cholesky/d=1,p=0/0,2/0,2"
+        ],
+        "optionalInputMode": "gen_placeholder",
+        "optionalOutputMode": "gen_placeholder",
+        "staticKey": "2363abb800fd9dae76925814415db8f0ba56a9f003ac10dc2475787c71324924,12590f6d2f239baeddad1a71b3343e18a401a800744f9b99ef54195636ed7479",
+        "inputs": [
+            {
+                "name": "self",
+                "index": 0,
+                "dtype": "float32",
+                "format": "ND",
+                "paramType": "required",
+                "shape": [
+                    -2
+                ]
+            }
+        ],
+        "outputs": [
+            {
+                "name": "out",
+                "index": 0,
+                "dtype": "float32",
+                "format": "ND",
+                "paramType": "required",
+                "shape": [
+                    -2
+                ]
+            }
+        ],
+        "attrs": [
+            {
+                "name": "upper",
+                "dtype": "bool",
+                "value": false
+            }
+        ],
+        "opMode": "dynamic",
+        "deterministic": "ignore"
+    }
+}

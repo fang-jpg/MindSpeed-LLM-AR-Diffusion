@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip install *)",
+      "Bash(python3 *)",
+      "Bash(python *)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebSearch",
+      "Bash(pdftotext \"C:/Users/x00840191/AppData/Roaming/WeLink_Desktop/appdata/IM/x00840191/ReceiveFiles/Draft-OPD.pdf\" -)"
+    ]
+  }
+}

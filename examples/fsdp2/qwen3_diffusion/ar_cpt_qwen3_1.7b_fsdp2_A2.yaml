@@ -37,7 +37,7 @@ data:
   append_eod: true
 
 parallel:
-  fsdp_size: 8
+  fsdp_size: 16
   fsdp_modules:
     - model.layers.{*}
     - model.embed_tokens

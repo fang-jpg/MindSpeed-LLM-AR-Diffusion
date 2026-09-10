@@ -90,7 +90,6 @@ GPT_ARGS="
     --no-save-rng \
     --seed 42 \
     --bf16 \
-    --ckpt-format torch
 "
 
 DATA_ARGS="

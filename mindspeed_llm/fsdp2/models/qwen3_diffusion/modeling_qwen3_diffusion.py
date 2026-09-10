@@ -75,8 +75,8 @@ class Qwen3DiffusionForCausalLM(transformers.Qwen3PreTrainedModel, GenerationMix
 
         diffusion_config = copy.deepcopy(config)
         #训练时为了方便强制指定，推理的时候需要注释掉，用config读取
-        # diffusion_config.diffusion_lm = True
-        self.config.diffusion_lm = False
+        diffusion_config.diffusion_lm = True
+        # self.config.diffusion_lm = False
 
         self.model = transformers.Qwen3Model(diffusion_config)
 
@@ -106,12 +106,12 @@ class Qwen3DiffusionForCausalLM(transformers.Qwen3PreTrainedModel, GenerationMix
         """
         print("---------------pretrain start---------------------")
         model, loading_info  = super().from_pretrained(*args,output_loading_info=True,**kwargs)
-        ##训练时为了方便强制指定，推理的时候需要注释/删除权重拷贝
-        # with torch.no_grad():
-        #     print("copied")
-        #     model.lm_head.weight.copy_(
-        #         model.model.embed_tokens.weight
-        #     )
+        #训练时为了方便强制指定，推理的时候需要注释/删除权重拷贝
+        with torch.no_grad():
+            print("copied")
+            model.lm_head.weight.copy_(
+                model.model.embed_tokens.weight
+            )
 
         return model
 
@@ -385,20 +385,21 @@ class Qwen3DiffusionForCausalLM(transformers.Qwen3PreTrainedModel, GenerationMix
                         }
                         ar_loss = ar_loss.sum()
 
-                    # Match official DGPTStep: count all AR label slots in the
-                    # local micro-batch, including -100 slots (CE ignores them).
+                    # # 统计整个 batch 的有效 AR token 数，而不是只使用 seq_len。
+                    # ar_token_count = flat_ar_labels.ne(-100).sum()
                     ar_token_count = flat_ar_labels.new_tensor(flat_ar_labels.numel())
 
                     # 联合 loss 的分子：
                     # dlm_weight * diffusion_loss_sum + ar_weight * ar_loss_sum
                     weighted_loss_sum = loss + ar_weight * ar_loss
 
-                    # Official joint denominator: M + N. Objective weights
-                    # affect only the numerator, never the token counts.
-                    token_count = (
-                        num_mask_tokens.to(dtype=torch.float32)
-                        + ar_token_count.to(dtype=torch.float32)
-                    )
+                    # # 联合 loss 的分母。
+                    # # num_mask_tokens 已经包含当前 rank 整个 batch 的 mask token。
+                    # weighted_token_count = (
+                    #     num_mask_tokens.to(dtype=torch.float32)
+                    #     + ar_weight * ar_token_count.to(dtype=torch.float32)
+                    # )
+                    token_count = (num_mask_tokens.to(dtype=torch.float32) + ar_token_count.to(dtype=torch.float32))
 
                     ar_loss_value = ar_loss.detach().item()
                     if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:

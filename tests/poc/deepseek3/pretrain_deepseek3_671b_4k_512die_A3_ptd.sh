@@ -71,7 +71,6 @@ MOE_ARGS="
     --moe-router-score-function sigmoid \
     --moe-router-enable-expert-bias \
     --moe-router-dtype fp32 \
-    --router-gating-in-fp32 \
 "
 
 MTP_ARGS="
@@ -95,7 +94,6 @@ MEM_ARGS="
     --moe-zero-memory level0 \
     --swap-optimizer \
     --mla-swap-core-attn-out \
-    --disable-fb-overlap-linear-dw-detach \
 "
 
 ROPE_ARGS="
@@ -171,11 +169,9 @@ GPT_ARGS="
     --bf16 \
     --fix-router \
     --distributed-timeout-minutes 120 \
-    --ckpt-format torch
 "
 
 DATA_ARGS="
-    --handler-name GeneralPretrainHandler \
     --data-path $DATA_PATH \
     --split 100,0,0
 "
@@ -201,6 +197,6 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS pretrain_gpt.py \
     $MTP_ARGS \
     $OTHERS_ARGS \
     --save $CKPT_SAVE_DIR \
-    --load $CKPT_LOAD_DIR \
+    --load $CKPT_LOAD_DIR \    
     --transformer-impl local \
     --distributed-backend nccl | tee logs/pretrain_deepseek3_671b_4k_512die_A3_ptd.log

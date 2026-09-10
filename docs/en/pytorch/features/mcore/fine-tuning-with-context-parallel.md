@@ -14,7 +14,7 @@ Specifies that fine-tuning uses an instruction dataset to ensure that the model 
 
 `--prompt-type`
 
-Specifies the model template. It enables the base model to become more conversational after fine-tuning. You can view the available `prompt-type` options in the [templates.json](../../../../../configs/finetune/templates.json) file.
+Specifies the model template. It enables the base model to become more conversational after fine-tuning. You can view the available `prompt-type` options in the [`templates`](../../../../../configs/finetune/templates.json) file.
 
 `--reset-position-ids`
 
@@ -39,9 +39,9 @@ The default value is `causal`, and the `causal` and `general` formats are suppor
 
 Use the specified parameter to select a CP algorithm. The available algorithms are as follows:
 
-1. [**megatron_cp_algo**](https://gitcode.com/Ascend/MindSpeed/blob/master/docs/zh/features/ring-attention-context-parallel.md)
-2. [**ulysses_cp_algo**](https://gitcode.com/Ascend/MindSpeed/blob/master/docs/zh/features/ulysses-context-parallel.md)
-3. [**hybrid_cp_algo**](https://gitcode.com/Ascend/MindSpeed/blob/master/docs/zh/features/hybrid-context-parallel.md)
+1. [**megatron_cp_algo**](https://gitcode.com/Ascend/MindSpeed/blob/26.0.0_core_r0.12.1/docs/en/features/ring-attention-context-parallel.md)
+2. [**ulysses_cp_algo**](https://gitcode.com/Ascend/MindSpeed/blob/26.0.0_core_r0.12.1/docs/en/features/ulysses-context-parallel.md)
+3. [**hybrid_cp_algo**](https://gitcode.com/Ascend/MindSpeed/blob/26.0.0_core_r0.12.1/docs/en/features/hybrid-context-parallel.md)
 
 ```shell
     --seq-length 131072

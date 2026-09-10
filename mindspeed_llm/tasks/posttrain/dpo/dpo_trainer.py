@@ -20,6 +20,8 @@ from mindspeed.core.context_parallel.utils import pad_data
 
 
 IGNORE_INDEX = -100
+
+
 class DPOTrainer(BaseTrainer):
     """
     A trainer class for Direct Preference Optimization (DPO).
@@ -413,6 +415,6 @@ class DPOTrainer(BaseTrainer):
 
         chosen_log_probs, rejected_log_probs = all_log_probs.split(batch_size, dim=0)
         chosen_length, _ = valid_length.split(batch_size, dim=0)
-        all_results = (chosen_log_probs, rejected_log_probs, chosen_log_probs / torch.clamp(chosen_length, min=1))
+        all_results = (chosen_log_probs, rejected_log_probs, chosen_log_probs / chosen_length)
 
         return all_results

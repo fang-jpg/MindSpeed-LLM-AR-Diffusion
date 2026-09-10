@@ -19,7 +19,7 @@
     <tr>
       <td rowspan="3"> <a href="https://modelscope.cn/collections/GLM-4-0414-e4ecc89c179d4c">GLM-4</a> </td>
       <td><a href="https://modelscope.cn/models/ZhipuAI/GLM-4-9B-0414">9B</a></td>
-      <td><a href="glm4-9b-0414/">GLM4-9B-0414</a></td>
+      <td><a href="glm4-9b-0414">GLM4-9B-0414</a></td>
       <td> 8K </td>
       <th> Mcore </th>
       <td> 1x8 </td>
@@ -28,7 +28,7 @@
     </tr>
     <tr>
       <td><a href="https://modelscope.cn/models/ZhipuAI/GLM-4-32B-0414">32B</a></td>
-      <td><a href="glm4-32b-0414/">GLM4-32B-0414</a></td>
+      <td><a href="glm4-32b-0414">GLM4-32B-0414</a></td>
       <td> 8K </td>
       <th> Mcore </th>
       <td> 4x8 </td>
@@ -37,7 +37,7 @@
     </tr>
     <tr>
       <td><a href="https://modelscope.cn/models/ZhipuAI/GLM-4-32B-Base-0414">32B-Base</a></td>
-      <td><a href="glm4-base-32b-0414/">GLM4-base-32B-0414</a></td>
+      <td><a href="glm4-base-32b-0414">GLM4-base-32B-0414</a></td>
       <td> 8K </td>
       <th> Mcore </th>
       <td> 4x8 </td>
@@ -47,7 +47,7 @@
     <tr>
       <td rowspan="3"> <a href="https://modelscope.cn/collections/GLM-4-0414-e4ecc89c179d4c">GLM-Z1</a> </td>
       <td><a href="https://modelscope.cn/models/ZhipuAI/GLM-Z1-9B-0414">9B</a></td>
-      <td><a href="glm-z1-9b-0414/">GLM-Z1-9B-0414</a></td>
+      <td><a href="glm-z1-9b-0414">GLM-Z1-9B-0414</a></td>
       <td> 8K </td>
       <th> Mcore </th>
       <td> 1x8 </td>
@@ -56,7 +56,7 @@
     </tr>
     <tr>
       <td><a href="https://modelscope.cn/models/ZhipuAI/GLM-Z1-32B-0414">32B</a></td>
-      <td><a href="glm-z1-32b-0414/">GLM-Z1-32B-0414</a></td>
+      <td><a href="glm-z1-32b-0414">GLM-Z1-32B-0414</a></td>
       <td> 8K </td>
       <th> Mcore </th>
       <td> 4x8 </td>
@@ -65,7 +65,7 @@
     </tr>
     <tr>
       <td><a href="https://modelscope.cn/models/ZhipuAI/GLM-Z1-Rumination-32B-0414">Rumination-32B</a></td>
-      <td><a href="glm-z1-rumination-32b-0414/">GLM-Z1-Rumination-32B-0414</a></td>
+      <td><a href="glm-z1-rumination-32b-0414">GLM-Z1-Rumination-32B-0414</a></td>
       <td> 8K </td>
       <th> Mcore </th>
       <td> 4x8 </td>
@@ -91,7 +91,7 @@
   <tr>
     <td>昇腾NPU驱动</td>
     <td rowspan="2">在研版本</td>
-  </tr>
+  </tr>  
   <tr>
     <td>昇腾NPU固件</td>
   </tr>

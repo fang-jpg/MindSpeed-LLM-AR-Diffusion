@@ -271,7 +271,7 @@ class DecoderPackedMTFDataset(torch.utils.data.Dataset):
             # get model chat template
             if hasattr(self.args, "prompt_type") and self.args.prompt_type is not None:
                 template = get_model_template(self.args.prompt_type, self.args.prompt_type_path,
-                                              self.args.enable_thinking, self.args.reasoning_effort, self.args.drop_thinking)
+                                              self.args.enable_thinking)
 
             prompt_begin_list, prompt_end_list = get_prompt_index(item["labels"], IGNORE_INDEX)
 
@@ -435,7 +435,7 @@ def _build_index_mappings(
     shuffle_idx_filename = _filename + '_decoder_packed_idx.npy'
 
     # Build the indexed mapping if not exist.
-    if torch.distributed.get_rank() % torch.cuda.device_count() == 0 or args.stage in ["ray_ppo", "ray_online_dpo",                                                                                "ray_grpo"]:
+    if torch.distributed.get_rank() % torch.cuda.device_count() == 0 or args.stage in ["ray_ppo", "ray_online_dpo", "ray_grpo"]:
         if not os.path.isfile(shuffle_idx_filename):
 
             print_rank_0(' > WARNING: could not find index map files, building '
