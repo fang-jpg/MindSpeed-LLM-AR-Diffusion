@@ -61,3 +61,46 @@ python scripts/test_trainer_token_loss.py
 
 逐 token CE 衡量给定正确上下文时的目标预测损失；AR 生成能力还需要结合
 因果 attention mask 检查与实际自回归生成结果判断。
+
+## 按训练 step 绘制未加权的 AR / Diffusion 平均 loss
+
+在服务器仓库根目录运行（绘图依赖 `matplotlib`）：
+
+```bash
+# 输入训练 stdout/tee 日志：通常仅包含 rank 0 的 token_loss summary。
+python scripts/plot_token_loss.py /path/to/train.log -o /path/to/raw_loss.png
+
+# 输入 token_losses 目录：汇总该目录中所有 rank_*.jsonl。
+python scripts/plot_token_loss.py /path/to/output_dir/token_losses -o /path/to/raw_loss.png
+
+# 可选：只查看某个 rank。
+python scripts/plot_token_loss.py /path/to/output_dir/token_losses --rank 0 -o /path/to/rank0_raw_loss.png
+```
+
+输出 `raw_loss.png` 和同名 `raw_loss.csv`。图中每条曲线每个点是一个已记录的
+optimizer step，没有乘训练权重，没有 Diffusion 的 `1/p_mask` 校正，不做平滑。
+脚本读取 summary 的 **`mean_loss`**，不使用 `mean_weighted_loss`。
+
+同一步同一分支，跨所选 rank、microbatch 和样本的计算公式为：
+
+```text
+step_mean_loss = sum(mean_loss * valid_token_count) / sum(valid_token_count)
+```
+
+这里按有效 token 数汇总，是为了还原所有有效 token 的 CE 均值，不是乘 AR 或
+Diffusion 训练权重。AR 的分母是有效 next-token 标签数；Diffusion 的分母是被
+mask 的有效目标数。因此与训练联合 loss 的分母和梯度累积平均口径不同。
+
+CSV 的 `ar_loss`、`diffusion_loss` 是每一步未加权的平均 CE，同时输出
+`ar_valid_tokens`、`diffusion_valid_tokens`、样本汇总数量及所含 rank。
+缺失分支或有效 token 数为 0 时留空，不补成 0；NaN/Infinity 保留在 CSV 中，
+在图中显示为断点。日志采样间隔大于 1 时只绘制实际记录的 step。
+
+一个目录应只包含同一次训练的日志。脚本会去除控制台与 JSONL 中完全相同的
+summary 副本，遇到同一 step/rank/microbatch/sample/component 的冲突记录时
+报错，需先拆开重新运行产生的日志。正在写入或不完整的日志只代表已采集的数据；
+应使用各 rank 完整日志来观察全局每步均值。
+
+旧版只有 `ar_loss:` / `diff_loss:` 累加值的日志缺少有效 token 数和原始
+Diffusion CE，无法准确恢复这里的曲线。原 `plot_training_log.py` 仍用于旧格式
+的训练指标；此处的新脚本用于逐 token 日志中的原始 CE。
