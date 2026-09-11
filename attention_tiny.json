@@ -1,0 +1,1052 @@
+{
+  "arguments": {
+    "model_path": null,
+    "tiny": true,
+    "diffusion_config": null,
+    "device": "npu:0",
+    "dtype": "float32",
+    "backend": "eager",
+    "mode": "both",
+    "block_size": null,
+    "num_blocks": 3,
+    "batch_size": 1,
+    "noise_ratio": 1.0,
+    "seeds": [
+      0
+    ],
+    "atol": 1e-06,
+    "grad_atol": 1e-08,
+    "gradient_probes": 2,
+    "use_fused_rmsnorm": false,
+    "use_fused_rotary_pos_emb": false,
+    "inject_leak": null,
+    "report": "attention_tiny.json"
+  },
+  "metadata": {
+    "torch": "2.7.1+cpu",
+    "transformers": "4.57.1",
+    "model_class": "Qwen3DiffusionForCausalLM",
+    "backend": "eager",
+    "block_size": 4,
+    "source_root": "/share/f50058111/MindSpeed-LLM",
+    "weight_source": "随机小模型",
+    "scope": "单设备、完整层数、无 FSDP/TP/CP 包装；train 保留原分支但关闭 dropout/recompute",
+    "mindspeed_llm/fsdp2/models/qwen3_diffusion/modeling_qwen3_diffusion.py:sha256": "aeeef79c28ff9186d2b6087a86315fa3612c5f3ab5c73a5bb644bb0590dabc87",
+    "mindspeed_llm/fsdp2/models/qwen3/qwen3_attention.py:sha256": "b1cd4b316505d2a161be1cc0332191c00299d2eefbe47f54e3148a587b3a39f9"
+  },
+  "checks": [
+    {
+      "name": "train/seed=0/方法二/实际 kernel mask/层0",
+      "status": "PASS",
+      "layer": 0,
+      "q_shape": [
+        1,
+        4,
+        24,
+        16
+      ],
+      "k_shape": [
+        1,
+        2,
+        24,
+        16
+      ],
+      "mask_shape": [
+        1,
+        1,
+        24,
+        24
+      ],
+      "is_causal": false,
+      "dropout": 0.0,
+      "wrong_entries": 0,
+      "first_wrong_qk": [],
+      "noisy_block1_query": 4,
+      "visible_key_positions": [
+        4,
+        5,
+        6,
+        7,
+        12,
+        13,
+        14,
+        15
+      ]
+    },
+    {
+      "name": "train/seed=0/方法二/实际 kernel mask/层1",
+      "status": "PASS",
+      "layer": 1,
+      "q_shape": [
+        1,
+        4,
+        24,
+        16
+      ],
+      "k_shape": [
+        1,
+        2,
+        24,
+        16
+      ],
+      "mask_shape": [
+        1,
+        1,
+        24,
+        24
+      ],
+      "is_causal": false,
+      "dropout": 0.0,
+      "wrong_entries": 0,
+      "first_wrong_qk": []
+    },
+    {
+      "name": "train/seed=0/方法二/所有层 kernel 均被观察",
+      "status": "PASS",
+      "layers": [
+        0,
+        1
+      ],
+      "expected_layers": 2
+    },
+    {
+      "name": "train/seed=0/方法一/重复性",
+      "status": "PASS",
+      "max_abs": 0.0,
+      "threshold": 1e-06
+    },
+    {
+      "name": "train/seed=0/方法一/clean块0→noisy块0/当前",
+      "status": "PASS",
+      "max_abs": 0.0,
+      "mean_abs": 0.0,
+      "l2": 0.0,
+      "threshold": 1e-06,
+      "expected": "应不变"
+    },
+    {
+      "name": "train/seed=0/方法一/clean块0→noisy块1/前缀",
+      "status": "PASS",
+      "max_abs": 0.47576940059661865,
+      "mean_abs": 0.12542593479156494,
+      "l2": 3.604879856109619,
+      "threshold": 1e-06,
+      "expected": "应变化（正对照）"
+    },
+    {
+      "name": "train/seed=0/方法一/clean块0→noisy块2/前缀",
+      "status": "PASS",
+      "max_abs": 0.3101228177547455,
+      "mean_abs": 0.09160081297159195,
+      "l2": 2.578565835952759,
+      "threshold": 1e-06,
+      "expected": "应变化（正对照）"
+    },
+    {
+      "name": "train/seed=0/方法一/clean块1→noisy块0/未来",
+      "status": "PASS",
+      "max_abs": 0.0,
+      "mean_abs": 0.0,
+      "l2": 0.0,
+      "threshold": 1e-06,
+      "expected": "应不变"
+    },
+    {
+      "name": "train/seed=0/方法一/clean块1→noisy块1/当前",
+      "status": "PASS",
+      "max_abs": 0.0,
+      "mean_abs": 0.0,
+      "l2": 0.0,
+      "threshold": 1e-06,
+      "expected": "应不变"
+    },
+    {
+      "name": "train/seed=0/方法一/clean块1→noisy块2/前缀",
+      "status": "PASS",
+      "max_abs": 0.2091517597436905,
+      "mean_abs": 0.05825144052505493,
+      "l2": 1.6277228593826294,
+      "threshold": 1e-06,
+      "expected": "应变化（正对照）"
+    },
+    {
+      "name": "train/seed=0/方法一/clean块2→noisy块0/未来",
+      "status": "PASS",
+      "max_abs": 0.0,
+      "mean_abs": 0.0,
+      "l2": 0.0,
+      "threshold": 1e-06,
+      "expected": "应不变"
+    },
+    {
+      "name": "train/seed=0/方法一/clean块2→noisy块1/未来",
+      "status": "PASS",
+      "max_abs": 0.0,
+      "mean_abs": 0.0,
+      "l2": 0.0,
+      "threshold": 1e-06,
+      "expected": "应不变"
+    },
+    {
+      "name": "train/seed=0/方法一/clean块2→noisy块2/当前",
+      "status": "PASS",
+      "max_abs": 0.0,
+      "mean_abs": 0.0,
+      "l2": 0.0,
+      "threshold": 1e-06,
+      "expected": "应不变"
+    },
+    {
+      "name": "train/seed=0/方法四/秘密替换",
+      "status": "PASS",
+      "max_abs": 0.0,
+      "mean_abs": 0.0,
+      "l2": 0.0,
+      "threshold": 1e-06,
+      "expected": "应不变"
+    },
+    {
+      "name": "train/seed=0/方法三/noisy块0/投影0/禁止位置",
+      "status": "PASS",
+      "max_norm": 0.0,
+      "threshold": 1e-08,
+      "per_position_norm": [
+        [
+          2.7796707153320312,
+          2.7389309406280518,
+          2.836817741394043,
+          3.10044527053833,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      ]
+    },
+    {
+      "name": "train/seed=0/方法三/noisy块0/投影1/禁止位置",
+      "status": "PASS",
+      "max_norm": 0.0,
+      "threshold": 1e-08,
+      "per_position_norm": [
+        [
+          2.3748815059661865,
+          2.6714398860931396,
+          2.586712598800659,
+          2.4166390895843506,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      ]
+    },
+    {
+      "name": "train/seed=0/方法三/noisy块1/投影0/禁止位置",
+      "status": "PASS",
+      "max_norm": 0.0,
+      "threshold": 1e-08,
+      "per_position_norm": [
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          3.164376974105835,
+          3.3152899742126465,
+          3.971794605255127,
+          3.5160515308380127,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          2.93355655670166,
+          1.852002501487732,
+          2.011108160018921,
+          2.6648006439208984,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      ]
+    },
+    {
+      "name": "train/seed=0/方法三/noisy块1/投影0/前缀正对照",
+      "status": "PASS",
+      "max_norm": 2.93355655670166,
+      "threshold": 1e-08
+    },
+    {
+      "name": "train/seed=0/方法三/noisy块1/投影1/禁止位置",
+      "status": "PASS",
+      "max_norm": 0.0,
+      "threshold": 1e-08,
+      "per_position_norm": [
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          2.876446008682251,
+          3.3324780464172363,
+          4.633569717407227,
+          3.380849838256836,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          3.815617561340332,
+          2.2547614574432373,
+          2.7283775806427,
+          3.301847457885742,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      ]
+    },
+    {
+      "name": "train/seed=0/方法三/noisy块1/投影1/前缀正对照",
+      "status": "PASS",
+      "max_norm": 3.815617561340332,
+      "threshold": 1e-08
+    },
+    {
+      "name": "train/seed=0/方法三/noisy块2/投影0/禁止位置",
+      "status": "PASS",
+      "max_norm": 0.0,
+      "threshold": 1e-08,
+      "per_position_norm": [
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          3.508465528488159,
+          3.2802140712738037,
+          3.4177844524383545,
+          3.7735438346862793,
+          1.9574460983276367,
+          1.3300211429595947,
+          1.666426181793213,
+          3.3290164470672607,
+          2.1176328659057617,
+          1.4395619630813599,
+          1.1155667304992676,
+          1.6222392320632935,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      ]
+    },
+    {
+      "name": "train/seed=0/方法三/noisy块2/投影0/前缀正对照",
+      "status": "PASS",
+      "max_norm": 3.3290164470672607,
+      "threshold": 1e-08
+    },
+    {
+      "name": "train/seed=0/方法三/noisy块2/投影1/禁止位置",
+      "status": "PASS",
+      "max_norm": 0.0,
+      "threshold": 1e-08,
+      "per_position_norm": [
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          3.4121103286743164,
+          3.2448923587799072,
+          2.923672914505005,
+          4.421595096588135,
+          2.706643581390381,
+          2.0551092624664307,
+          2.250493049621582,
+          3.7336530685424805,
+          2.5462887287139893,
+          1.8390003442764282,
+          1.5652738809585571,
+          2.4866068363189697,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      ]
+    },
+    {
+      "name": "train/seed=0/方法三/noisy块2/投影1/前缀正对照",
+      "status": "PASS",
+      "max_norm": 3.7336530685424805,
+      "threshold": 1e-08
+    },
+    {
+      "name": "eval/seed=0/方法二/实际 kernel mask/层0",
+      "status": "PASS",
+      "layer": 0,
+      "q_shape": [
+        1,
+        4,
+        24,
+        16
+      ],
+      "k_shape": [
+        1,
+        2,
+        24,
+        16
+      ],
+      "mask_shape": [
+        1,
+        1,
+        24,
+        24
+      ],
+      "is_causal": false,
+      "dropout": 0.0,
+      "wrong_entries": 0,
+      "first_wrong_qk": [],
+      "noisy_block1_query": 4,
+      "visible_key_positions": [
+        4,
+        5,
+        6,
+        7,
+        12,
+        13,
+        14,
+        15
+      ]
+    },
+    {
+      "name": "eval/seed=0/方法二/实际 kernel mask/层1",
+      "status": "PASS",
+      "layer": 1,
+      "q_shape": [
+        1,
+        4,
+        24,
+        16
+      ],
+      "k_shape": [
+        1,
+        2,
+        24,
+        16
+      ],
+      "mask_shape": [
+        1,
+        1,
+        24,
+        24
+      ],
+      "is_causal": false,
+      "dropout": 0.0,
+      "wrong_entries": 0,
+      "first_wrong_qk": []
+    },
+    {
+      "name": "eval/seed=0/方法二/所有层 kernel 均被观察",
+      "status": "PASS",
+      "layers": [
+        0,
+        1
+      ],
+      "expected_layers": 2
+    },
+    {
+      "name": "eval/seed=0/方法一/重复性",
+      "status": "PASS",
+      "max_abs": 0.0,
+      "threshold": 1e-06
+    },
+    {
+      "name": "eval/seed=0/方法一/clean块0→noisy块0/当前",
+      "status": "PASS",
+      "max_abs": 0.0,
+      "mean_abs": 0.0,
+      "l2": 0.0,
+      "threshold": 1e-06,
+      "expected": "应不变"
+    },
+    {
+      "name": "eval/seed=0/方法一/clean块0→noisy块1/前缀",
+      "status": "PASS",
+      "max_abs": 0.47576940059661865,
+      "mean_abs": 0.12542593479156494,
+      "l2": 3.604879856109619,
+      "threshold": 1e-06,
+      "expected": "应变化（正对照）"
+    },
+    {
+      "name": "eval/seed=0/方法一/clean块0→noisy块2/前缀",
+      "status": "PASS",
+      "max_abs": 0.3101228177547455,
+      "mean_abs": 0.09160081297159195,
+      "l2": 2.578565835952759,
+      "threshold": 1e-06,
+      "expected": "应变化（正对照）"
+    },
+    {
+      "name": "eval/seed=0/方法一/clean块1→noisy块0/未来",
+      "status": "PASS",
+      "max_abs": 0.0,
+      "mean_abs": 0.0,
+      "l2": 0.0,
+      "threshold": 1e-06,
+      "expected": "应不变"
+    },
+    {
+      "name": "eval/seed=0/方法一/clean块1→noisy块1/当前",
+      "status": "PASS",
+      "max_abs": 0.0,
+      "mean_abs": 0.0,
+      "l2": 0.0,
+      "threshold": 1e-06,
+      "expected": "应不变"
+    },
+    {
+      "name": "eval/seed=0/方法一/clean块1→noisy块2/前缀",
+      "status": "PASS",
+      "max_abs": 0.2091517597436905,
+      "mean_abs": 0.05825144052505493,
+      "l2": 1.6277228593826294,
+      "threshold": 1e-06,
+      "expected": "应变化（正对照）"
+    },
+    {
+      "name": "eval/seed=0/方法一/clean块2→noisy块0/未来",
+      "status": "PASS",
+      "max_abs": 0.0,
+      "mean_abs": 0.0,
+      "l2": 0.0,
+      "threshold": 1e-06,
+      "expected": "应不变"
+    },
+    {
+      "name": "eval/seed=0/方法一/clean块2→noisy块1/未来",
+      "status": "PASS",
+      "max_abs": 0.0,
+      "mean_abs": 0.0,
+      "l2": 0.0,
+      "threshold": 1e-06,
+      "expected": "应不变"
+    },
+    {
+      "name": "eval/seed=0/方法一/clean块2→noisy块2/当前",
+      "status": "PASS",
+      "max_abs": 0.0,
+      "mean_abs": 0.0,
+      "l2": 0.0,
+      "threshold": 1e-06,
+      "expected": "应不变"
+    },
+    {
+      "name": "eval/seed=0/方法四/秘密替换",
+      "status": "PASS",
+      "max_abs": 0.0,
+      "mean_abs": 0.0,
+      "l2": 0.0,
+      "threshold": 1e-06,
+      "expected": "应不变"
+    },
+    {
+      "name": "eval/seed=0/方法三/noisy块0/投影0/禁止位置",
+      "status": "PASS",
+      "max_norm": 0.0,
+      "threshold": 1e-08,
+      "per_position_norm": [
+        [
+          2.7796707153320312,
+          2.7389309406280518,
+          2.836817741394043,
+          3.10044527053833,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      ]
+    },
+    {
+      "name": "eval/seed=0/方法三/noisy块0/投影1/禁止位置",
+      "status": "PASS",
+      "max_norm": 0.0,
+      "threshold": 1e-08,
+      "per_position_norm": [
+        [
+          2.3748815059661865,
+          2.6714398860931396,
+          2.586712598800659,
+          2.4166390895843506,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      ]
+    },
+    {
+      "name": "eval/seed=0/方法三/noisy块1/投影0/禁止位置",
+      "status": "PASS",
+      "max_norm": 0.0,
+      "threshold": 1e-08,
+      "per_position_norm": [
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          3.164376974105835,
+          3.3152899742126465,
+          3.971794605255127,
+          3.5160515308380127,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          2.93355655670166,
+          1.852002501487732,
+          2.011108160018921,
+          2.6648006439208984,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      ]
+    },
+    {
+      "name": "eval/seed=0/方法三/noisy块1/投影0/前缀正对照",
+      "status": "PASS",
+      "max_norm": 2.93355655670166,
+      "threshold": 1e-08
+    },
+    {
+      "name": "eval/seed=0/方法三/noisy块1/投影1/禁止位置",
+      "status": "PASS",
+      "max_norm": 0.0,
+      "threshold": 1e-08,
+      "per_position_norm": [
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          2.876446008682251,
+          3.3324780464172363,
+          4.633569717407227,
+          3.380849838256836,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          3.815617561340332,
+          2.2547614574432373,
+          2.7283775806427,
+          3.301847457885742,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      ]
+    },
+    {
+      "name": "eval/seed=0/方法三/noisy块1/投影1/前缀正对照",
+      "status": "PASS",
+      "max_norm": 3.815617561340332,
+      "threshold": 1e-08
+    },
+    {
+      "name": "eval/seed=0/方法三/noisy块2/投影0/禁止位置",
+      "status": "PASS",
+      "max_norm": 0.0,
+      "threshold": 1e-08,
+      "per_position_norm": [
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          3.508465528488159,
+          3.2802140712738037,
+          3.4177844524383545,
+          3.7735438346862793,
+          1.9574460983276367,
+          1.3300211429595947,
+          1.666426181793213,
+          3.3290164470672607,
+          2.1176328659057617,
+          1.4395619630813599,
+          1.1155667304992676,
+          1.6222392320632935,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      ]
+    },
+    {
+      "name": "eval/seed=0/方法三/noisy块2/投影0/前缀正对照",
+      "status": "PASS",
+      "max_norm": 3.3290164470672607,
+      "threshold": 1e-08
+    },
+    {
+      "name": "eval/seed=0/方法三/noisy块2/投影1/禁止位置",
+      "status": "PASS",
+      "max_norm": 0.0,
+      "threshold": 1e-08,
+      "per_position_norm": [
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          3.4121103286743164,
+          3.2448923587799072,
+          2.923672914505005,
+          4.421595096588135,
+          2.706643581390381,
+          2.0551092624664307,
+          2.250493049621582,
+          3.7336530685424805,
+          2.5462887287139893,
+          1.8390003442764282,
+          1.5652738809585571,
+          2.4866068363189697,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      ]
+    },
+    {
+      "name": "eval/seed=0/方法三/noisy块2/投影1/前缀正对照",
+      "status": "PASS",
+      "max_norm": 3.7336530685424805,
+      "threshold": 1e-08
+    }
+  ],
+  "cases": {
+    "train/seed=0": {
+      "clean_ids": [
+        [
+          42,
+          93,
+          96,
+          47,
+          64,
+          21,
+          11,
+          76,
+          14,
+          31,
+          81,
+          84
+        ]
+      ],
+      "noisy_ids": [
+        [
+          127,
+          127,
+          127,
+          127,
+          127,
+          127,
+          127,
+          127,
+          127,
+          127,
+          127,
+          127
+        ]
+      ],
+      "masked_indices": [
+        [
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true
+        ]
+      ],
+      "position_ids": [
+        [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11
+        ]
+      ],
+      "secret_demo": {
+        "说明": "词表 ID 序列作为秘密；无需 tokenizer，不将 argmax 不变单独当作通过证据",
+        "before_secret": [
+          [
+            64,
+            21,
+            11,
+            76
+          ]
+        ],
+        "after_secret": [
+          [
+            81,
+            38,
+            28,
+            93
+          ]
+        ],
+        "before_prediction": [
+          [
+            18,
+            121,
+            121,
+            121
+          ]
+        ],
+        "after_prediction": [
+          [
+            18,
+            121,
+            121,
+            121
+          ]
+        ]
+      }
+    },
+    "eval/seed=0": {
+      "clean_ids": [
+        [
+          42,
+          93,
+          96,
+          47,
+          64,
+          21,
+          11,
+          76,
+          14,
+          31,
+          81,
+          84
+        ]
+      ],
+      "noisy_ids": [
+        [
+          127,
+          127,
+          127,
+          127,
+          127,
+          127,
+          127,
+          127,
+          127,
+          127,
+          127,
+          127
+        ]
+      ],
+      "masked_indices": [
+        [
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true
+        ]
+      ],
+      "position_ids": [
+        [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11
+        ]
+      ],
+      "secret_demo": {
+        "说明": "词表 ID 序列作为秘密；无需 tokenizer，不将 argmax 不变单独当作通过证据",
+        "before_secret": [
+          [
+            64,
+            21,
+            11,
+            76
+          ]
+        ],
+        "after_secret": [
+          [
+            81,
+            38,
+            28,
+            93
+          ]
+        ],
+        "before_prediction": [
+          [
+            18,
+            121,
+            121,
+            121
+          ]
+        ],
+        "after_prediction": [
+          [
+            18,
+            121,
+            121,
+            121
+          ]
+        ]
+      }
+    }
+  },
+  "status": "PASS"
+}
