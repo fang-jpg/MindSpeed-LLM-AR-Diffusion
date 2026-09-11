@@ -18,7 +18,7 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 cd "${SCRIPT_DIR}/../../.."  # repo root: MindSpeed-LLM/
 
 # ── Configuration (override via env vars) ──
-MODEL_PATH=${MODEL_PATH:-/share/dataset/x00840191/model_train/ckpt/phase4_cpt_ar_duffision_0814/models/global_step_69500/}
+MODEL_PATH=${MODEL_PATH:-/share/dataset/x00840191/model_train/ckpt/phase4_cpt_ar_duffision_0909/models/global_step_500/}
 DEVICE=${DEVICE:-""}           # auto-detect if empty
 DTYPE=${DTYPE:-bfloat16}
 MAX_NEW_TOKENS=${MAX_NEW_TOKENS:-256}
