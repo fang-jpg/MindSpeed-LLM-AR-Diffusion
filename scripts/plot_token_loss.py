@@ -227,7 +227,60 @@ def plot_losses(rows: list[StepLoss], output: Path, title="AR and Diffusion loss
     figure.savefig(output, dpi=180)
     plt.close(figure)
 
+def plot_ar_loss(rows: list[StepLoss], output: Path, title="AR loss"):
+    try:
+        import matplotlib
+    except ImportError as error:
+        raise ValueError(
+            "Plotting requires matplotlib: python -m pip install matplotlib"
+        ) from error
 
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    values = [
+        row.ar_loss if row.ar_loss is not None and math.isfinite(row.ar_loss)
+        else math.nan
+        for row in rows
+    ]
+
+    steps = [row.step for row in rows]
+
+    figure, ax = plt.subplots(
+        figsize=(12, 5.5),
+        constrained_layout=True
+    )
+
+    ax.plot(
+        steps,
+        values,
+        label="AR",
+        linewidth=1.5,
+        marker=".",
+        markersize=3
+    )
+
+    figure.suptitle(title, fontsize=15, fontweight="bold")
+
+    ax.set_title(
+        "Raw AR CE, pooled by valid token count",
+        fontsize=10,
+        pad=14
+    )
+
+    ax.set_xlabel("Optimizer step")
+    ax.set_ylabel("Mean cross-entropy (nats / valid token)")
+
+    ax.grid(True, alpha=0.2)
+
+    ax.spines[["top", "right"]].set_visible(False)
+
+    ax.legend(frameon=False)
+
+    output.parent.mkdir(parents=True, exist_ok=True)
+    figure.savefig(output, dpi=180)
+
+    plt.close(figure)
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("logs", nargs="+", type=Path, help="Training .log, rank JSONL files, or token_losses directory")
@@ -244,7 +297,7 @@ def main(argv=None):
         csv_path = args.csv or output.with_suffix(".csv")
         if output.resolve() in paths or csv_path.resolve() in paths or output.resolve() == csv_path.resolve():
             raise ValueError("PNG and CSV output paths must differ from each other and the input logs.")
-        plot_losses(rows, output, args.title)
+        plot_ar_loss(rows, output, "AR loss")
         write_csv(rows, csv_path)
     except (OSError, ValueError) as error:
         parser.exit(1, f"Error: {error}\n")

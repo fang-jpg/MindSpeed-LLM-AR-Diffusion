@@ -4,7 +4,7 @@
 #
 # Usage:
 #   # AR mode (single card)
-#   bash inference_qwen3_diffusion.sh ar "Explain quantum computing."
+#   bash inference_qwen3_diffusion.sh ar "为什么天空是蓝色的"
 #
 #   # Diffusion mode
 #   bash inference_qwen3_diffusion.sh diffusion "Explain quantum computing."
@@ -18,7 +18,7 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 cd "${SCRIPT_DIR}/../../.."  # repo root: MindSpeed-LLM/
 
 # ── Configuration (override via env vars) ──
-MODEL_PATH=${MODEL_PATH:-/share/dataset/x00840191/model_train/ckpt/phase4_cpt_ar_duffision_0909/models/global_step_500/}
+MODEL_PATH=${MODEL_PATH:-/share/dataset/x00840191/model_train/ckpt/phase4_cpt_ar_duffision_0910/models/global_step_30500/}
 DEVICE=${DEVICE:-""}           # auto-detect if empty
 DTYPE=${DTYPE:-bfloat16}
 MAX_NEW_TOKENS=${MAX_NEW_TOKENS:-256}
