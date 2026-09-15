@@ -37,7 +37,7 @@ data:
   append_eod: true
 
 parallel:
-  fsdp_size: 16
+  fsdp_size: 8
   fsdp_modules:
     - model.layers.{*}
     - model.embed_tokens
@@ -64,8 +64,8 @@ training:
   # Using stage='pt' would strip labels (trainer.py:652-653), breaking
   # forward_process which needs labels to mask.
   stage: pt
-  per_device_train_batch_size: 2
-  gradient_accumulation_steps: 4         # GBS = 4*4*8 = 128
+  per_device_train_batch_size: 1
+  gradient_accumulation_steps: 4         # GBS = 1*4*16 = 64
   dataloader_num_workers: 4
   seed: 42
   dataloader_drop_last: True
@@ -83,8 +83,8 @@ training:
   num_train_epochs: 1.0
   max_steps: 102500                        # Smoke run; bump up after pass
   save_steps: 500
-  logging_steps: 1
-  log_per_token_loss: True
+  logging_steps: 10
+  log_per_token_loss: False
   log_token_loss_details: False  # Summary only; keep full token dumps for short debug runs.
   token_loss_logging_steps: 10
   # log_throughput: True

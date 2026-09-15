@@ -15,6 +15,10 @@ from mindspeed_llm.fsdp2.distributed.clip_grad_norm import clip_grad_norm
 from mindspeed_llm.fsdp2.data.data_factory import DataManager
 from mindspeed_llm.fsdp2.data.processor.processor_utils import IGNORE_INDEX
 from mindspeed_llm.fsdp2.features.chunkloss import chunk_loss, calculate_lm_loss
+from mindspeed_llm.fsdp2.models.common.diffusion_loss_reporting import (
+    build_diffusion_loss_report,
+    reduce_diffusion_loss_reports,
+)
 from mindspeed_llm.fsdp2.models.common.token_loss_logging import write_token_loss_logs
 from mindspeed_llm.fsdp2.checkpoint.utils import empty_cache, cleanup_old_checkpoints
 from mindspeed_llm.fsdp2.utils.dist_op import all_reduce
@@ -68,6 +72,9 @@ class Trainer:
         self._logging_loss_scalar = 0.0
         self._global_step_last_logged = 0
         self._last_logged_loss_scalar = 0.0
+        self._total_loss_metrics = {}
+        self._last_logged_loss_metrics = {}
+        self._last_loss_report = None
         self.batch_seqlens = []
 
         # Timing state
@@ -252,6 +259,7 @@ class Trainer:
                 self.current_gradient_accumulation_steps = len(batch_samples)
                 # Initialize accumulated loss for the current step
                 current_step_loss = 0.0
+                current_step_loss_reports = []
 
                 # --- Micro-Batch Loop ---
                 for i, inputs in enumerate(batch_samples):
@@ -268,6 +276,8 @@ class Trainer:
                         # Forward & Backward
                         # Note: training_step already divides loss by accum_steps
                         loss = self.training_step(inputs, num_items_in_batch)
+                    if self._last_loss_report is not None:
+                        current_step_loss_reports.append(self._last_loss_report)
                     # Accumulate Loss for logging (restore to original scale for display)
                     # Check for NaN/Inf to avoid polluting metrics
                     if not torch.isnan(loss) and not torch.isinf(loss):
@@ -305,21 +315,40 @@ class Trainer:
                     group=reduce_group
                 )
 
+                reduced_loss_metrics = reduce_diffusion_loss_reports(
+                    current_step_loss_reports,
+                    group=reduce_group,
+                )
+                if reduced_loss_metrics:
+                    reduced_loss = reduced_loss_metrics["lm loss"].item()
+                    for key, value in reduced_loss_metrics.items():
+                        self._total_loss_metrics[key] = self._total_loss_metrics.get(key, 0.0) + value.item()
+
                 self._total_loss_scalar += reduced_loss
                 self.batch_seqlens.extend(batch_seqlens)
 
                 # 4. Logging
                 if self.global_step % args.logging_steps == 0:
+                    step_diff = self.global_step - self._last_logged_step
+                    interval_loss_metrics = None
+                    if self._total_loss_metrics and step_diff > 0:
+                        interval_loss_metrics = {
+                            key: (value - self._last_logged_loss_metrics.get(key, 0.0)) / step_diff
+                            for key, value in self._total_loss_metrics.items()
+                        }
                     _, record_info = self.train_monitor.step(
                         self.epoch, self.lr_scheduler, global_batch_size,
                         reduced_grad_norm, self.batch_seqlens,
                         self._step_start_time, total_steps, self.global_step,
                         self._last_logged_step, self._total_loss_scalar,
-                        self._last_logged_loss_scalar)
+                        self._last_logged_loss_scalar,
+                        loss_metrics=interval_loss_metrics)
                     # update record
                     self._step_start_time = record_info['time']
                     self._last_logged_loss_scalar = record_info['logged_loss']
                     self._last_logged_step = record_info['logged_step']
+                    if interval_loss_metrics is not None:
+                        self._last_logged_loss_metrics = self._total_loss_metrics.copy()
                     self.batch_seqlens.clear()
 
                 # 5. Saving
@@ -601,6 +630,7 @@ class Trainer:
         Computes the loss for the batch.
         """
         args = self.args
+        self._last_loss_report = None
         device = torch.accelerator.current_device()
         log_token_loss = (
             getattr(args, "log_per_token_loss", False)
@@ -654,6 +684,22 @@ class Trainer:
                 raise ValueError(f"Model outputs have no loss key: {list(outputs.keys())}")
             loss = outputs["loss"] if isinstance(outputs, dict) else outputs[0]
             uses_token_sum_loss = isinstance(loss, (tuple, list))
+            if uses_token_sum_loss and isinstance(outputs, dict):
+                report_fields = (
+                    "diffusion_loss_sum",
+                    "ar_loss_sum",
+                    "masked_token_count",
+                    "ar_token_count",
+                )
+                if all(outputs.get(field) is not None for field in report_fields):
+                    self._last_loss_report = build_diffusion_loss_report(
+                        weighted_loss_sum=loss[0],
+                        total_token_count=loss[1],
+                        ar_loss_sum=outputs["ar_loss_sum"],
+                        ar_token_count=outputs["ar_token_count"],
+                        dlm_loss_sum=outputs["diffusion_loss_sum"],
+                        dlm_token_count=outputs["masked_token_count"],
+                    )
             loss = self._normalize_token_sum_loss(loss)
             # lm_loss_output = loss.clone()
 

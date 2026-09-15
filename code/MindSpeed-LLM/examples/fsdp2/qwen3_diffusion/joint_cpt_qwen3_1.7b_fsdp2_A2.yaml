@@ -75,5 +75,5 @@ training:
   num_train_epochs: 1.0
   max_steps: 2000                        # Smoke run; bump up after pass
   save_steps: 500
-  logging_steps: 1
+  logging_steps: 10
   log_throughput: True

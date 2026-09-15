@@ -121,9 +121,10 @@ class TrainMonitor:
              _step_start_time, 
              total_steps, 
              current_step, 
-             _last_logged_step, 
-             _total_loss_scalar, 
-             _last_logged_loss_scalar) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+             _last_logged_step,
+             _total_loss_scalar,
+             _last_logged_loss_scalar,
+             loss_metrics: Optional[Dict[str, float]] = None) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         """
         Calculate and log training metrics for the current training step
         
@@ -139,6 +140,8 @@ class TrainMonitor:
             _last_logged_step (int): Step number of the last logging
             _total_loss_scalar (float): Cumulative total loss up to current step
             _last_logged_loss_scalar (float): Cumulative loss at last logging step
+            loss_metrics (dict, optional): Pre-reduced Nemotron loss metrics for
+                the current logging interval.
         
         Returns:
             Tuple[Dict[str, Any], Dict[str, Any]]:
@@ -168,6 +171,8 @@ class TrainMonitor:
         loss_optimizer_metrics = TrainMonitor._compute_loss_optimizer_metrics(
             _total_loss_scalar, _last_logged_loss_scalar, step_diff, grad_norm
         )
+        if loss_metrics and "lm loss" in loss_metrics:
+            loss_optimizer_metrics["avg_loss"] = loss_metrics["lm loss"]
         
         # 3.3 Memory Metrics (merged NPU + CPU memory stats)
         memory_metrics = TrainMonitor._compute_memory_metrics()
@@ -190,6 +195,7 @@ class TrainMonitor:
             **training_progress_metrics,
             # Loss/Optimizer
             **loss_optimizer_metrics,
+            **(loss_metrics or {}),
             # Memory (merged NPU + CPU)
             **memory_metrics,
             # FLOPS/MFU
@@ -364,6 +370,12 @@ class TrainMonitor:
         log_string += self.log_templates["optimizer"].format(
             metrics["lr"], global_batch_size, metrics["avg_loss"]
         )
+        if "ar loss" in metrics:
+            log_string += " ar loss: {:.6E} |".format(metrics["ar loss"])
+        if "dlm loss" in metrics:
+            log_string += " dlm loss: {:.6E} |".format(metrics["dlm loss"])
+        if "num_tokens_dlm" in metrics:
+            log_string += " num_tokens_dlm: {:.6E} |".format(metrics["num_tokens_dlm"])
 
         # Append gradient norm metrics (optional, if available)
         if metrics["grad_norm"] is not None:
