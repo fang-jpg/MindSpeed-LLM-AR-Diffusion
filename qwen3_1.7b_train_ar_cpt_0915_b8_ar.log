@@ -1,0 +1,522 @@
+W0915 09:09:56.822000 2418997 site-packages/torch/distributed/run.py:766] 
+W0915 09:09:56.822000 2418997 site-packages/torch/distributed/run.py:766] *****************************************
+W0915 09:09:56.822000 2418997 site-packages/torch/distributed/run.py:766] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0915 09:09:56.822000 2418997 site-packages/torch/distributed/run.py:766] *****************************************
+/opt/conda/lib/python3.11/site-packages/torch_npu/contrib/transfer_to_npu.py:360: ImportWarning: 
+    *************************************************************************************************************
+    The torch.Tensor.cuda and torch.nn.Module.cuda are replaced with torch.Tensor.npu and torch.nn.Module.npu now..
+    The torch.cuda.DoubleTensor is replaced with torch.npu.FloatTensor cause the double type is not supported now..
+    The backend in torch.distributed.init_process_group set to hccl now..
+    The torch.cuda.* and torch.cuda.amp.* are replaced with torch.npu.* and torch.npu.amp.* now..
+    The device parameters have been replaced with npu in the function below:
+    torch.logspace, torch.randint, torch.hann_window, torch.rand, torch.full_like, torch.ones_like, torch.rand_like, torch.randperm, torch.arange, torch.frombuffer, torch.normal, torch._empty_per_channel_affine_quantized, torch.empty_strided, torch.empty_like, torch.scalar_tensor, torch.tril_indices, torch.bartlett_window, torch.ones, torch.sparse_coo_tensor, torch.randn, torch.kaiser_window, torch.tensor, torch.triu_indices, torch.as_tensor, torch.zeros, torch.randint_like, torch.full, torch.eye, torch._sparse_csr_tensor_unsafe, torch.empty, torch._sparse_coo_tensor_unsafe, torch.blackman_window, torch.zeros_like, torch.range, torch.sparse_csr_tensor, torch.randn_like, torch.from_file, torch._cudnn_init_dropout_state, torch._empty_affine_quantized, torch.linspace, torch.hamming_window, torch.empty_quantized, torch._pin_memory, torch.load, torch.set_default_device, torch.get_device_module, torch.sparse_compressed_tensor, torch.Tensor.new_empty, torch.Tensor.new_empty_strided, torch.Tensor.new_full, torch.Tensor.new_ones, torch.Tensor.new_tensor, torch.Tensor.new_zeros, torch.Tensor.to, torch.Tensor.pin_memory, torch.nn.Module.to, torch.nn.Module.to_empty
+    *************************************************************************************************************
+    
+  warnings.warn(msg, ImportWarning)
+/opt/conda/lib/python3.11/site-packages/torch_npu/contrib/transfer_to_npu.py:291: RuntimeWarning: torch.jit.script and torch.jit.script_method will be disabled by transfer_to_npu, which currently does not support them, if you need to enable them, please do not use transfer_to_npu.
+  warnings.warn(msg, RuntimeWarning)
+INFO [2026-09-15 09:10:56] >> get env LOCAL_RANK = 2
+INFO [2026-09-15 09:10:56] >> get env LOCAL_RANK = 6
+INFO [2026-09-15 09:10:56] >> get env LOCAL_RANK = 4
+INFO [2026-09-15 09:10:56] >> get env LOCAL_RANK = 7
+INFO [2026-09-15 09:10:56] >> get env LOCAL_RANK = 3
+INFO [2026-09-15 09:10:56] >> get env LOCAL_RANK = 0
+INFO [2026-09-15 09:10:56] >> Global logging initialized | Level: INFO | Local Rank: 0
+INFO [2026-09-15 09:10:56] >> get env LOCAL_RANK = 1
+INFO [2026-09-15 09:10:56] >> get env LOCAL_RANK = 5
+INFO [2026-09-15 09:10:56] >> Registered MFU-capable model: qwen3_moe -> Qwen3MoeFlopsEstimator
+INFO [2026-09-15 09:10:56] >> Registered MFU-capable model: qwen3 -> Qwen3DenseFlopsEstimator
+INFO [2026-09-15 09:10:56] >> >>> [AutoTrainer] Initializing MindSpeed FSDP backend...
+INFO [2026-09-15 09:10:56] >> Some specified arguments are not used by the ArgumentParser: ['--data.append_eod', 'True']
+INFO [2026-09-15 09:10:58] >> get env MASTER_ADDR = 127.0.0.1
+INFO [2026-09-15 09:10:58] >> get env MASTER_PORT = 6499
+INFO [2026-09-15 09:10:58] >> get env MASTER_ADDR = 127.0.0.1
+INFO [2026-09-15 09:10:58] >> get env TORCHELASTIC_USE_AGENT_STORE = True
+INFO [2026-09-15 09:10:58] >> get env MASTER_PORT = 6499
+INFO [2026-09-15 09:10:58] >> get env TORCHELASTIC_USE_AGENT_STORE = True
+INFO [2026-09-15 09:10:58] >> get env MASTER_ADDR = 127.0.0.1
+INFO [2026-09-15 09:10:58] >> get env MASTER_PORT = 6499
+INFO [2026-09-15 09:10:58] >> get env TORCHELASTIC_USE_AGENT_STORE = True
+INFO [2026-09-15 09:10:58] >> get env MASTER_ADDR = 127.0.0.1
+INFO [2026-09-15 09:10:58] >> get env MASTER_PORT = 6499
+INFO [2026-09-15 09:10:58] >> get env MASTER_ADDR = 127.0.0.1
+INFO [2026-09-15 09:10:58] >> get env TORCHELASTIC_USE_AGENT_STORE = True
+INFO [2026-09-15 09:10:58] >> get env MASTER_ADDR = 127.0.0.1
+INFO [2026-09-15 09:10:58] >> get env MASTER_PORT = 6499
+INFO [2026-09-15 09:10:58] >> get env MASTER_PORT = 6499
+INFO [2026-09-15 09:10:58] >> get env TORCHELASTIC_USE_AGENT_STORE = True
+INFO [2026-09-15 09:10:58] >> get env TORCHELASTIC_USE_AGENT_STORE = True
+INFO [2026-09-15 09:10:58] >> get env MASTER_ADDR = 127.0.0.1
+INFO [2026-09-15 09:10:58] >> get env MASTER_PORT = 6499
+INFO [2026-09-15 09:10:58] >> get env TORCHELASTIC_USE_AGENT_STORE = True
+---------------pretrain start---------------------
+---------------pretrain start---------------------
+`torch_dtype` is deprecated! Use `dtype` instead!
+---------------pretrain start---------------------
+---------------pretrain start---------------------
+---------------pretrain start---------------------
+`torch_dtype` is deprecated! Use `dtype` instead!
+`torch_dtype` is deprecated! Use `dtype` instead!
+`torch_dtype` is deprecated! Use `dtype` instead!
+`torch_dtype` is deprecated! Use `dtype` instead!
+---------------pretrain start---------------------
+`torch_dtype` is deprecated! Use `dtype` instead!
+---------------pretrain start---------------------
+`torch_dtype` is deprecated! Use `dtype` instead!
+INFO [2026-09-15 09:11:03] >> get env MASTER_ADDR = 127.0.0.1
+INFO [2026-09-15 09:11:03] >> get env MASTER_PORT = 6499
+INFO [2026-09-15 09:11:03] >> get env TORCHELASTIC_USE_AGENT_STORE = True
+
+ ModelArguments
+------------------------------------------------------------
+  model_name_or_path              /share/model_weights/Qwen3-1.7B-Base
+  model_id                        qwen3_diffusion
+  init_model_with_meta_device     False
+  trust_remote_code               False
+  train_from_scratch              False
+  tokenizer_name_or_path          None
+  cache_dir                       None
+  use_fast_tokenizer              True
+  resize_vocab                    False
+  split_special_tokens            False
+  add_tokens                      None
+  add_special_tokens              None
+  new_special_tokens_config       None
+  init_special_tokens             noise_init
+  model_revision                  main
+  hf_hub_token                    None
+  ms_hub_token                    None
+  om_hub_token                    None
+  quant_recipe                    None
+  quant_format                    None
+  quant_block_size                32
+  quant_apply_modules             ['model.layers.{*}']
+  quant_ignored_modules           ['lm_head']
+  converters                      ['quantize.linear.mx']
+  gemm_gradient_accumulation_fusion  False
+  quant_gmm                       False
+
+ DataArguments
+------------------------------------------------------------
+  template                        empty
+  dataset                         {'file_name': ['/share/dataset/x00840191/comm_math_code/RedStone_QA_oq_part_text_document', '/share/dataset/x00840191/comm_math_code/swallow_code_ablation_exp11_scor_text_document', '/share/dataset/x00840191/comm_math_code/megamath_qa_llama_3.3_text_document', '/share/dataset/x00840191/comm_math_code/megamath_qa_text_document', '/share/dataset/x00840191/comm_math_code/MetaMathQA_text_document', '/share/dataset/x00840191/comm_math_code/RedStone_QA_mcq_text_document', '/share/dataset/x00840191/comm_math_code/swallow_math_text_document']}
+  eval_dataset                    None
+  dataset_dir                     ./configs/fsdp2/data
+  cutoff_len                      4096
+  train_on_prompt                 False
+  mask_history                    False
+  streaming                       False
+  buffer_size                     16384
+  mix_strategy                    concat
+  interleave_probs                None
+  overwrite_cache                 True
+  preprocessing_batch_size        1000
+  preprocessing_num_workers       4
+  max_samples                     100000
+  eval_num_beams                  None
+  ignore_pad_token_for_loss       True
+  val_size                        0.0
+  eval_on_each_dataset            False
+  packing                         False
+  neat_packing                    False
+  tool_format                     None
+  default_system                  None
+  enable_thinking                 True
+  tokenized_path                  None
+  data_shared_file_system         False
+  data_manager_type               mg
+  split                           100,0,0
+  create_attention_mask_in_dataloader  False
+  no_shared_storage               False
+  dataloader_type                 single
+
+ ParallelArguments
+------------------------------------------------------------
+  tp_size                         1
+  fsdp_size                       8
+  recompute                       True
+  ep_size                         1
+  ep_fsdp_size                    1
+  cp_size                         1
+  cp_type                         ulysses
+  fsdp_modules                    ['model.layers.{*}', 'model.embed_tokens', 'lm_head']
+  ignored_modules                 None
+  reshard_after_forward           True
+  shard_placement_fn              None
+  tp_colwise                      ['*.q_proj', '*.k_proj', '*.v_proj', '*.gate_proj', '*.up_proj']
+  tp_rowwise                      ['*.o_proj', '*.down_proj']
+  ep_modules                      ['model.layers.{*}.mlp.experts']
+  ep_fsdp_modules                 ['model.layers.{*}.mlp.experts']
+  ep_dispatcher                   eager
+  recompute_modules               ['model.layers.{*}']
+  param_dtype                     bf16
+  reduce_dtype                    fp32
+  num_to_forward_prefetch         1
+  num_to_backward_prefetch        1
+
+ TrainingArguments
+------------------------------------------------------------
+  output_dir                      /share/dataset/x00840191/model_train/ckpt/phase4_cpt_ar_duffision_0910/
+  optimizer                       adamw
+  lr                              5e-05
+  weight_decay                    0.01
+  adam_beta1                      0.9
+  adam_beta2                      0.95
+  adam_epsilon                    1e-08
+  max_grad_norm                   1.0
+  lr_scheduler_type               cosine
+  warmup_ratio                    0.01
+  min_lr                          1e-06
+  num_train_epochs                1.0
+  max_steps                       102500
+  gradient_accumulation_steps     4
+  disable_shuffling               False
+  seed                            42
+  save_steps                      500
+  save_total_limit                3
+  resume_from_checkpoint          None
+  logging_steps                   10
+  log_per_token_loss              False
+  log_token_loss_details          False
+  token_loss_logging_steps        10
+  log_throughput                  False
+  log_cpu_memory                  False
+  stage                           pt
+  calculate_per_token_loss        True
+  dataloader_num_workers          4
+  dataloader_prefetch_factor      None
+  dataloader_pin_memory           True
+  dataloader_persistent_workers   False
+  dataloader_drop_last            True
+  per_device_train_batch_size     1
+  save_only_model                 False
+  save_async                      False
+  save_epochs                     1
+  save_hf_weights                 True
+  profile                         False
+  profile_step_start              0
+  profile_step_end                -1
+  profile_ranks                   [-1]
+  profile_level                   level0
+  profile_export_type             text
+  profile_data_simplification     False
+  profile_with_cpu                False
+  profile_with_stack              False
+  profile_with_memory             False
+  profile_record_shapes           False
+  profile_save_path               ./profile
+INFO [2026-09-15 09:11:03] >> > Building FSDP2 Model...
+INFO [2026-09-15 09:11:03] >> > Model initialization device: cpu (init_model_with_meta_device=False)
+INFO [2026-09-15 09:11:03] >> > Loading AutoConfig from /share/model_weights/Qwen3-1.7B-Base...
+INFO [2026-09-15 09:11:03] >> > Using factory mode with model_id: qwen3_diffusion
+INFO [2026-09-15 09:11:03] >> > Loading config from /share/model_weights/Qwen3-1.7B-Base...
+INFO [2026-09-15 09:11:03] >> > Loading Qwen3DiffusionForCausalLM on CPU...
+---------------pretrain start---------------------
+`torch_dtype` is deprecated! Use `dtype` instead!
+Some weights of Qwen3DiffusionForCausalLM were not initialized from the model checkpoint at /share/model_weights/Qwen3-1.7B-Base and are newly initialized: ['lm_head.weight']
+You should probably TRAIN this model on a down-stream task to be able to use it for predictions and inference.
+copied
+Some weights of Qwen3DiffusionForCausalLM were not initialized from the model checkpoint at /share/model_weights/Qwen3-1.7B-Base and are newly initialized: ['lm_head.weight']
+You should probably TRAIN this model on a down-stream task to be able to use it for predictions and inference.
+Some weights of Qwen3DiffusionForCausalLM were not initialized from the model checkpoint at /share/model_weights/Qwen3-1.7B-Base and are newly initialized: ['lm_head.weight']
+You should probably TRAIN this model on a down-stream task to be able to use it for predictions and inference.
+Some weights of Qwen3DiffusionForCausalLM were not initialized from the model checkpoint at /share/model_weights/Qwen3-1.7B-Base and are newly initialized: ['lm_head.weight']
+You should probably TRAIN this model on a down-stream task to be able to use it for predictions and inference.
+copied
+Some weights of Qwen3DiffusionForCausalLM were not initialized from the model checkpoint at /share/model_weights/Qwen3-1.7B-Base and are newly initialized: ['lm_head.weight']
+You should probably TRAIN this model on a down-stream task to be able to use it for predictions and inference.
+copied
+copied
+copied
+Some weights of Qwen3DiffusionForCausalLM were not initialized from the model checkpoint at /share/model_weights/Qwen3-1.7B-Base and are newly initialized: ['lm_head.weight']
+You should probably TRAIN this model on a down-stream task to be able to use it for predictions and inference.
+copied
+Some weights of Qwen3DiffusionForCausalLM were not initialized from the model checkpoint at /share/model_weights/Qwen3-1.7B-Base and are newly initialized: ['lm_head.weight']
+You should probably TRAIN this model on a down-stream task to be able to use it for predictions and inference.
+copied
+tokenizer.pad_token_id:151643
+tokenizer.eos_token_id:151643
+/opt/conda/lib/python3.11/site-packages/torch/distributed/distributed_c10d.py:4631: UserWarning: No device id is provided via `init_process_group` or `barrier `. Using the current device set by the user. 
+  warnings.warn(  # warn only once
+tokenizer.pad_token_id:151643
+tokenizer.eos_token_id:151643
+/opt/conda/lib/python3.11/site-packages/torch/distributed/distributed_c10d.py:4631: UserWarning: No device id is provided via `init_process_group` or `barrier `. Using the current device set by the user. 
+  warnings.warn(  # warn only once
+tokenizer.pad_token_id:151643
+tokenizer.eos_token_id:151643
+/opt/conda/lib/python3.11/site-packages/torch/distributed/distributed_c10d.py:4631: UserWarning: No device id is provided via `init_process_group` or `barrier `. Using the current device set by the user. 
+  warnings.warn(  # warn only once
+tokenizer.pad_token_id:151643
+tokenizer.eos_token_id:151643
+/opt/conda/lib/python3.11/site-packages/torch/distributed/distributed_c10d.py:4631: UserWarning: No device id is provided via `init_process_group` or `barrier `. Using the current device set by the user. 
+  warnings.warn(  # warn only once
+tokenizer.pad_token_id:151643
+tokenizer.eos_token_id:151643
+/opt/conda/lib/python3.11/site-packages/torch/distributed/distributed_c10d.py:4631: UserWarning: No device id is provided via `init_process_group` or `barrier `. Using the current device set by the user. 
+  warnings.warn(  # warn only once
+tokenizer.pad_token_id:151643
+tokenizer.eos_token_id:151643
+/opt/conda/lib/python3.11/site-packages/torch/distributed/distributed_c10d.py:4631: UserWarning: No device id is provided via `init_process_group` or `barrier `. Using the current device set by the user. 
+  warnings.warn(  # warn only once
+Some weights of Qwen3DiffusionForCausalLM were not initialized from the model checkpoint at /share/model_weights/Qwen3-1.7B-Base and are newly initialized: ['lm_head.weight']
+You should probably TRAIN this model on a down-stream task to be able to use it for predictions and inference.
+copied
+tokenizer.pad_token_id:151643
+tokenizer.eos_token_id:151643
+/opt/conda/lib/python3.11/site-packages/torch/distributed/distributed_c10d.py:4631: UserWarning: No device id is provided via `init_process_group` or `barrier `. Using the current device set by the user. 
+  warnings.warn(  # warn only once
+INFO [2026-09-15 09:11:15] >> > Wrapping model with MindSpeed FSDP (TP=1,CP=1, FSDP=8)...
+INFO [2026-09-15 09:11:15] >> Parallel state initialized:
+ [dp] = False | Group size: 1 | device mesh:DeviceMesh('npu', [0], mesh_dim_names=('dp',)) 
+[fsdp] = True | Group size: 8 | device mesh:DeviceMesh('npu', [0, 1, 2, 3, 4, 5, 6, 7], mesh_dim_names=('fsdp',)) 
+[tp] = False | Group size: 1 | device mesh:DeviceMesh('npu', [0], mesh_dim_names=('tp',)) 
+[edp] = True | Group size: 8 | device mesh:DeviceMesh('npu', [0, 1, 2, 3, 4, 5, 6, 7], mesh_dim_names=('edp',)) 
+[efsdp] = False | Group size: 1 | device mesh:DeviceMesh('npu', [0], mesh_dim_names=('efsdp',)) 
+[ep] = False | Group size: 1 | device mesh:DeviceMesh('npu', [0], mesh_dim_names=('ep',)) 
+[dp_fsdp] = True | Group size: 8 | device mesh:DeviceMesh('npu', [0, 1, 2, 3, 4, 5, 6, 7], mesh_dim_names=('dp_fsdp',)) 
+[cp] = False | Group size: 1 | device mesh:DeviceMesh('npu', [0], mesh_dim_names=('cp',)) 
+
+INFO [2026-09-15 09:11:15] >> Applying recompute to module: model.layers.0
+INFO [2026-09-15 09:11:15] >> Applying recompute to module: model.layers.1
+INFO [2026-09-15 09:11:15] >> Applying recompute to module: model.layers.2
+INFO [2026-09-15 09:11:15] >> Applying recompute to module: model.layers.3
+INFO [2026-09-15 09:11:15] >> Applying recompute to module: model.layers.4
+INFO [2026-09-15 09:11:15] >> Applying recompute to module: model.layers.5
+INFO [2026-09-15 09:11:15] >> Applying recompute to module: model.layers.6
+INFO [2026-09-15 09:11:15] >> Applying recompute to module: model.layers.7
+INFO [2026-09-15 09:11:15] >> Applying recompute to module: model.layers.8
+INFO [2026-09-15 09:11:15] >> Applying recompute to module: model.layers.9
+INFO [2026-09-15 09:11:15] >> Applying recompute to module: model.layers.10
+INFO [2026-09-15 09:11:15] >> Applying recompute to module: model.layers.11
+INFO [2026-09-15 09:11:15] >> Applying recompute to module: model.layers.12
+INFO [2026-09-15 09:11:15] >> Applying recompute to module: model.layers.13
+INFO [2026-09-15 09:11:15] >> Applying recompute to module: model.layers.14
+INFO [2026-09-15 09:11:15] >> Applying recompute to module: model.layers.15
+INFO [2026-09-15 09:11:15] >> Applying recompute to module: model.layers.16
+INFO [2026-09-15 09:11:15] >> Applying recompute to module: model.layers.17
+INFO [2026-09-15 09:11:15] >> Applying recompute to module: model.layers.18
+INFO [2026-09-15 09:11:15] >> Applying recompute to module: model.layers.19
+INFO [2026-09-15 09:11:15] >> Applying recompute to module: model.layers.20
+INFO [2026-09-15 09:11:15] >> Applying recompute to module: model.layers.21
+INFO [2026-09-15 09:11:15] >> Applying recompute to module: model.layers.22
+INFO [2026-09-15 09:11:15] >> Applying recompute to module: model.layers.23
+INFO [2026-09-15 09:11:15] >> Applying recompute to module: model.layers.24
+INFO [2026-09-15 09:11:15] >> Applying recompute to module: model.layers.25
+INFO [2026-09-15 09:11:15] >> Applying recompute to module: model.layers.26
+INFO [2026-09-15 09:11:15] >> Applying recompute to module: model.layers.27
+INFO [2026-09-15 09:11:16] >> > Building Tokenizer...
+INFO [2026-09-15 09:11:17] >> > Building DataFactory...
+INFO [2026-09-15 09:11:17] >> [InitHook] Megatron-format (.bin/.idx) dataset already exists — skipping conversion.
+tokenizer.pad_token_id:151643
+tokenizer.eos_token_id:151643
+INFO [2026-09-15 09:11:17] >> Let split_matrix = [(0, 1.0), None, None]
+INFO [2026-09-15 09:11:17] >> > building train, validation, and test datasets for GPT ...
+INFO [2026-09-15 09:11:17] >> Building GPTDataset splits with sizes=(3280000, 0, 0) and config=GPTDatasetConfig(random_seed=42, sequence_length=4096, blend=(['/share/dataset/x00840191/comm_math_code/RedStone_QA_oq_part_text_document', '/share/dataset/x00840191/comm_math_code/swallow_code_ablation_exp11_scor_text_document', '/share/dataset/x00840191/comm_math_code/megamath_qa_llama_3.3_text_document', '/share/dataset/x00840191/comm_math_code/megamath_qa_text_document', '/share/dataset/x00840191/comm_math_code/MetaMathQA_text_document', '/share/dataset/x00840191/comm_math_code/RedStone_QA_mcq_text_document', '/share/dataset/x00840191/comm_math_code/swallow_math_text_document'], None), blend_per_split=None, split='100,0,0', split_matrix=[(0, 1.0), None, None], num_dataset_builder_threads=1, path_to_cache=None, mmap_bin_files=True, mock=False, tokenizer=<mindspeed_llm.fsdp2.data.megatron_data.megatron_tokenizer._AutoTokenizer object at 0xfffed7c23990>, reset_position_ids=False, reset_attention_mask=False, eod_mask_loss=False, create_attention_mask=False, drop_last_partial_validation_sequence=True, add_extra_token_to_sequence=True)
+INFO [2026-09-15 09:11:17] >> Load the _IndexReader from /share/dataset/x00840191/comm_math_code/RedStone_QA_oq_part_text_document.idx.
+INFO [2026-09-15 09:11:17] >> 	Extract the sequence lengths
+INFO [2026-09-15 09:11:17] >> 	> time elapsed: 0.000014 seconds
+INFO [2026-09-15 09:11:17] >> 	Extract the sequence pointers
+INFO [2026-09-15 09:11:17] >> 	> time elapsed: 0.000016 seconds
+INFO [2026-09-15 09:11:17] >> 	Extract the document indices
+INFO [2026-09-15 09:11:17] >> 	> time elapsed: 0.000010 seconds
+INFO [2026-09-15 09:11:17] >> > total number of sequences: 21600000
+INFO [2026-09-15 09:11:17] >> > total number of documents: 21600000
+INFO [2026-09-15 09:11:17] >> Load the GPTDataset train indices
+INFO [2026-09-15 09:11:17] >> 	Load the document index from 25490873a0b852c60ce1b236942c5b9d-GPTDataset-document_index.npy
+INFO [2026-09-15 09:11:17] >> 	> time elapsed: 0.004587 seconds
+INFO [2026-09-15 09:11:17] >> 	Load the sample index from 25490873a0b852c60ce1b236942c5b9d-GPTDataset-sample_index.npy
+INFO [2026-09-15 09:11:17] >> 	> time elapsed: 0.218584 seconds
+INFO [2026-09-15 09:11:17] >> 	Load the shuffle index from 25490873a0b852c60ce1b236942c5b9d-GPTDataset-shuffle_index.npy
+INFO [2026-09-15 09:11:17] >> 	> time elapsed: 0.006325 seconds
+INFO [2026-09-15 09:11:17] >> > total number of samples: 6572977
+INFO [2026-09-15 09:11:17] >> Load the _IndexReader from /share/dataset/x00840191/comm_math_code/swallow_code_ablation_exp11_scor_text_document.idx.
+INFO [2026-09-15 09:11:17] >> 	Extract the sequence lengths
+INFO [2026-09-15 09:11:17] >> 	> time elapsed: 0.000009 seconds
+INFO [2026-09-15 09:11:17] >> 	Extract the sequence pointers
+INFO [2026-09-15 09:11:17] >> 	> time elapsed: 0.000007 seconds
+INFO [2026-09-15 09:11:17] >> 	Extract the document indices
+INFO [2026-09-15 09:11:17] >> 	> time elapsed: 0.000006 seconds
+INFO [2026-09-15 09:11:17] >> > total number of sequences: 19318507
+INFO [2026-09-15 09:11:17] >> > total number of documents: 19318507
+INFO [2026-09-15 09:11:17] >> Load the GPTDataset train indices
+INFO [2026-09-15 09:11:17] >> 	Load the document index from 0b1c12c88d30f73e529bb74d6fbce8c8-GPTDataset-document_index.npy
+INFO [2026-09-15 09:11:17] >> 	> time elapsed: 0.003523 seconds
+INFO [2026-09-15 09:11:17] >> 	Load the sample index from 0b1c12c88d30f73e529bb74d6fbce8c8-GPTDataset-sample_index.npy
+INFO [2026-09-15 09:11:18] >> 	> time elapsed: 0.134317 seconds
+INFO [2026-09-15 09:11:18] >> 	Load the shuffle index from 0b1c12c88d30f73e529bb74d6fbce8c8-GPTDataset-shuffle_index.npy
+INFO [2026-09-15 09:11:18] >> 	> time elapsed: 0.003687 seconds
+INFO [2026-09-15 09:11:18] >> > total number of samples: 3968921
+INFO [2026-09-15 09:11:18] >> Load the _IndexReader from /share/dataset/x00840191/comm_math_code/megamath_qa_llama_3.3_text_document.idx.
+INFO [2026-09-15 09:11:18] >> 	Extract the sequence lengths
+INFO [2026-09-15 09:11:18] >> 	> time elapsed: 0.000009 seconds
+INFO [2026-09-15 09:11:18] >> 	Extract the sequence pointers
+INFO [2026-09-15 09:11:18] >> 	> time elapsed: 0.000008 seconds
+INFO [2026-09-15 09:11:18] >> 	Extract the document indices
+INFO [2026-09-15 09:11:18] >> 	> time elapsed: 0.000006 seconds
+INFO [2026-09-15 09:11:18] >> > total number of sequences: 11280746
+INFO [2026-09-15 09:11:18] >> > total number of documents: 11280746
+INFO [2026-09-15 09:11:18] >> Load the GPTDataset train indices
+INFO [2026-09-15 09:11:18] >> 	Load the document index from b216c128de10639049945297595e1c55-GPTDataset-document_index.npy
+INFO [2026-09-15 09:11:18] >> 	> time elapsed: 0.013477 seconds
+INFO [2026-09-15 09:11:18] >> 	Load the sample index from b216c128de10639049945297595e1c55-GPTDataset-sample_index.npy
+INFO [2026-09-15 09:11:18] >> 	> time elapsed: 0.029135 seconds
+INFO [2026-09-15 09:11:18] >> 	Load the shuffle index from b216c128de10639049945297595e1c55-GPTDataset-shuffle_index.npy
+INFO [2026-09-15 09:11:18] >> 	> time elapsed: 0.003110 seconds
+INFO [2026-09-15 09:11:18] >> > total number of samples: 780614
+INFO [2026-09-15 09:11:18] >> Load the _IndexReader from /share/dataset/x00840191/comm_math_code/megamath_qa_text_document.idx.
+INFO [2026-09-15 09:11:18] >> 	Extract the sequence lengths
+INFO [2026-09-15 09:11:18] >> 	> time elapsed: 0.000010 seconds
+INFO [2026-09-15 09:11:18] >> 	Extract the sequence pointers
+INFO [2026-09-15 09:11:18] >> 	> time elapsed: 0.000008 seconds
+INFO [2026-09-15 09:11:18] >> 	Extract the document indices
+INFO [2026-09-15 09:11:18] >> 	> time elapsed: 0.000006 seconds
+INFO [2026-09-15 09:11:18] >> > total number of sequences: 11354446
+INFO [2026-09-15 09:11:18] >> > total number of documents: 11354446
+INFO [2026-09-15 09:11:18] >> Load the GPTDataset train indices
+INFO [2026-09-15 09:11:18] >> 	Load the document index from 9bab2a3b14e07f88326597b366548a7f-GPTDataset-document_index.npy
+INFO [2026-09-15 09:11:18] >> 	> time elapsed: 0.003413 seconds
+INFO [2026-09-15 09:11:18] >> 	Load the sample index from 9bab2a3b14e07f88326597b366548a7f-GPTDataset-sample_index.npy
+INFO [2026-09-15 09:11:18] >> 	> time elapsed: 0.029439 seconds
+INFO [2026-09-15 09:11:18] >> 	Load the shuffle index from 9bab2a3b14e07f88326597b366548a7f-GPTDataset-shuffle_index.npy
+INFO [2026-09-15 09:11:18] >> 	> time elapsed: 0.003683 seconds
+INFO [2026-09-15 09:11:18] >> > total number of samples: 783172
+INFO [2026-09-15 09:11:18] >> Load the _IndexReader from /share/dataset/x00840191/comm_math_code/MetaMathQA_text_document.idx.
+INFO [2026-09-15 09:11:18] >> 	Extract the sequence lengths
+INFO [2026-09-15 09:11:18] >> 	> time elapsed: 0.000009 seconds
+INFO [2026-09-15 09:11:18] >> 	Extract the sequence pointers
+INFO [2026-09-15 09:11:18] >> 	> time elapsed: 0.000008 seconds
+INFO [2026-09-15 09:11:18] >> 	Extract the document indices
+INFO [2026-09-15 09:11:18] >> 	> time elapsed: 0.000006 seconds
+INFO [2026-09-15 09:11:18] >> > total number of sequences: 395000
+INFO [2026-09-15 09:11:18] >> > total number of documents: 395000
+INFO [2026-09-15 09:11:18] >> Load the GPTDataset train indices
+INFO [2026-09-15 09:11:18] >> 	Load the document index from 841d8a42f398a5c3357629d39fcc4ad4-GPTDataset-document_index.npy
+INFO [2026-09-15 09:11:18] >> 	> time elapsed: 0.004438 seconds
+INFO [2026-09-15 09:11:18] >> 	Load the sample index from 841d8a42f398a5c3357629d39fcc4ad4-GPTDataset-sample_index.npy
+INFO [2026-09-15 09:11:18] >> 	> time elapsed: 0.008281 seconds
+INFO [2026-09-15 09:11:18] >> 	Load the shuffle index from 841d8a42f398a5c3357629d39fcc4ad4-GPTDataset-shuffle_index.npy
+INFO [2026-09-15 09:11:18] >> 	> time elapsed: 0.004361 seconds
+INFO [2026-09-15 09:11:18] >> > total number of samples: 22744
+INFO [2026-09-15 09:11:18] >> Load the _IndexReader from /share/dataset/x00840191/comm_math_code/RedStone_QA_mcq_text_document.idx.
+INFO [2026-09-15 09:11:18] >> 	Extract the sequence lengths
+INFO [2026-09-15 09:11:18] >> 	> time elapsed: 0.000008 seconds
+INFO [2026-09-15 09:11:18] >> 	Extract the sequence pointers
+INFO [2026-09-15 09:11:18] >> 	> time elapsed: 0.000008 seconds
+INFO [2026-09-15 09:11:18] >> 	Extract the document indices
+INFO [2026-09-15 09:11:18] >> 	> time elapsed: 0.000007 seconds
+INFO [2026-09-15 09:11:18] >> > total number of sequences: 1661603
+INFO [2026-09-15 09:11:18] >> > total number of documents: 1661603
+INFO [2026-09-15 09:11:18] >> Load the GPTDataset train indices
+INFO [2026-09-15 09:11:18] >> 	Load the document index from b5ba4f75060e5522d0cccd61039fdd36-GPTDataset-document_index.npy
+INFO [2026-09-15 09:11:18] >> 	> time elapsed: 0.003751 seconds
+INFO [2026-09-15 09:11:18] >> 	Load the sample index from b5ba4f75060e5522d0cccd61039fdd36-GPTDataset-sample_index.npy
+INFO [2026-09-15 09:11:18] >> 	> time elapsed: 0.008404 seconds
+INFO [2026-09-15 09:11:18] >> 	Load the shuffle index from b5ba4f75060e5522d0cccd61039fdd36-GPTDataset-shuffle_index.npy
+INFO [2026-09-15 09:11:18] >> 	> time elapsed: 0.003992 seconds
+INFO [2026-09-15 09:11:18] >> > total number of samples: 21455
+INFO [2026-09-15 09:11:18] >> Load the _IndexReader from /share/dataset/x00840191/comm_math_code/swallow_math_text_document.idx.
+INFO [2026-09-15 09:11:18] >> 	Extract the sequence lengths
+INFO [2026-09-15 09:11:18] >> 	> time elapsed: 0.000008 seconds
+INFO [2026-09-15 09:11:18] >> 	Extract the sequence pointers
+INFO [2026-09-15 09:11:18] >> 	> time elapsed: 0.000008 seconds
+INFO [2026-09-15 09:11:18] >> 	Extract the document indices
+INFO [2026-09-15 09:11:18] >> 	> time elapsed: 0.000006 seconds
+INFO [2026-09-15 09:11:18] >> > total number of sequences: 6497564
+INFO [2026-09-15 09:11:18] >> > total number of documents: 6497564
+INFO [2026-09-15 09:11:18] >> Load the GPTDataset train indices
+INFO [2026-09-15 09:11:18] >> 	Load the document index from 2d5136bbe98f8b5863474fd94561aabb-GPTDataset-document_index.npy
+INFO [2026-09-15 09:11:18] >> 	> time elapsed: 0.003900 seconds
+INFO [2026-09-15 09:11:18] >> 	Load the sample index from 2d5136bbe98f8b5863474fd94561aabb-GPTDataset-sample_index.npy
+INFO [2026-09-15 09:11:18] >> 	> time elapsed: 0.033099 seconds
+INFO [2026-09-15 09:11:18] >> 	Load the shuffle index from 2d5136bbe98f8b5863474fd94561aabb-GPTDataset-shuffle_index.npy
+INFO [2026-09-15 09:11:18] >> 	> time elapsed: 0.044060 seconds
+INFO [2026-09-15 09:11:18] >> > total number of samples: 932983
+/opt/conda/lib/python3.11/site-packages/torch/distributed/distributed_c10d.py:4631: UserWarning: No device id is provided via `init_process_group` or `barrier `. Using the current device set by the user. 
+  warnings.warn(  # warn only once
+INFO [2026-09-15 09:11:19] >> Build and save the BlendedDataset indices
+INFO [2026-09-15 09:11:19] >> 	Build and save the dataset and dataset sample indexes
+make: Nothing to be done for 'default'.
+INFO [2026-09-15 09:11:19] >> Cannot save the BlendedDataset indexes because path_to_cache is None
+INFO [2026-09-15 09:11:19] >> 	> time elapsed: 0.505863 seconds
+/opt/conda/lib/python3.11/site-packages/torch/distributed/distributed_c10d.py:4631: UserWarning: No device id is provided via `init_process_group` or `barrier `. Using the current device set by the user. 
+  warnings.warn(  # warn only once
+INFO [2026-09-15 09:11:19] >> Verifying NumPy indices for BlendedDataset train split
+INFO [2026-09-15 09:11:19] >> > finished creating GPT datasets ...
+INFO [2026-09-15 09:11:19] >> > Building Optimizer...
+INFO [2026-09-15 09:11:19] >> Created single optimizer adamw | lr=5e-05, weight_decay=0.01
+INFO [2026-09-15 09:11:19] >> > Building LR Scheduler...
+INFO [2026-09-15 09:11:19] >> Creating 'cosine' scheduler: lr=5e-05, min_lr=1e-06, warmup_steps=1025, total_steps=102500
+INFO [2026-09-15 09:11:19] >> > Building Checkpointer...
+INFO [2026-09-15 09:11:19] >> > Building Monitor...
+----------------dataset--------------
+len(dataset):3280000
+training_args.per_device_train_batch_size:1
+--------------------------------------------
+INFO [2026-09-15 09:11:19] >> ***** Running training (FSDP2) *****
+INFO [2026-09-15 09:11:19] >>   Num examples = 3280000
+INFO [2026-09-15 09:11:19] >>   Num Epochs = 1.0
+INFO [2026-09-15 09:11:19] >>   Total Batch Size = 32
+INFO [2026-09-15 09:11:19] >>   Gradient Accumulation steps = 4
+INFO [2026-09-15 09:11:19] >>   Total optimization steps = 102500
+make: Nothing to be done for 'default'.
+make: Nothing to be done for 'default'.
+make: Nothing to be done for 'default'.
+make: Nothing to be done for 'default'.
+make: Nothing to be done for 'default'.
+make: Nothing to be done for 'default'.
+make: Nothing to be done for 'default'.
+----------------dataset--------------
+len(dataset):3280000
+training_args.per_device_train_batch_size:1
+--------------------------------------------
+----------------dataset--------------
+len(dataset):3280000
+training_args.per_device_train_batch_size:1
+--------------------------------------------
+----------------dataset--------------
+len(dataset):3280000
+training_args.per_device_train_batch_size:1
+--------------------------------------------
+----------------dataset--------------
+len(dataset):3280000
+training_args.per_device_train_batch_size:1
+--------------------------------------------
+----------------dataset--------------
+len(dataset):3280000
+training_args.per_device_train_batch_size:1
+--------------------------------------------
+----------------dataset--------------
+len(dataset):3280000
+training_args.per_device_train_batch_size:1
+--------------------------------------------
+----------------dataset--------------
+len(dataset):3280000
+training_args.per_device_train_batch_size:1
+--------------------------------------------
+/opt/conda/lib/python3.11/site-packages/torch_npu/contrib/transfer_to_npu.py:183: UserWarning: Cannot create tensor with interal format while allow_internel_format=False, tensor will be created with base format. (Triggered internally at ../torch_npu/csrc/aten/common/TensorFactories.cpp:340.)
+  return fn(*args, **kwargs)
+INFO [2026-09-15 09:12:28] >>  iteration       10/  102500 | consumed samples:        320 | consumed tokens:    1310720 | elapsed time per iteration (ms): 6856.18 | learning rate: 4.878049E-07 | global batch size:    32 | lm loss: 4.032404E+00 | ar loss: 1.417420E+00 | dlm loss: 1.845884E+01 | num_tokens_dlm: 2.080525E+03 | grad norm: 44.583 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-15 09:13:24] >>  iteration       20/  102500 | consumed samples:        640 | consumed tokens:    2621440 | elapsed time per iteration (ms): 5565.93 | learning rate: 9.756098E-07 | global batch size:    32 | lm loss: 3.949790E+00 | ar loss: 1.438145E+00 | dlm loss: 1.807445E+01 | num_tokens_dlm: 1.911900E+03 | grad norm: 48.704 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-15 09:14:19] >>  iteration       30/  102500 | consumed samples:        960 | consumed tokens:    3932160 | elapsed time per iteration (ms): 5562.01 | learning rate: 1.463415E-06 | global batch size:    32 | lm loss: 3.365961E+00 | ar loss: 1.439781E+00 | dlm loss: 1.467163E+01 | num_tokens_dlm: 2.174275E+03 | grad norm: 28.819 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-15 09:15:15] >>  iteration       40/  102500 | consumed samples:       1280 | consumed tokens:    5242880 | elapsed time per iteration (ms): 5566.52 | learning rate: 1.951220E-06 | global batch size:    32 | lm loss: 2.608701E+00 | ar loss: 1.401046E+00 | dlm loss: 1.018657E+01 | num_tokens_dlm: 1.962750E+03 | grad norm: 8.541 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-15 09:16:11] >>  iteration       50/  102500 | consumed samples:       1600 | consumed tokens:    6553600 | elapsed time per iteration (ms): 5597.23 | learning rate: 2.439024E-06 | global batch size:    32 | lm loss: 2.305491E+00 | ar loss: 1.434275E+00 | dlm loss: 7.958704E+00 | num_tokens_dlm: 2.056775E+03 | grad norm: 4.342 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-15 09:17:06] >>  iteration       60/  102500 | consumed samples:       1920 | consumed tokens:    7864320 | elapsed time per iteration (ms): 5565.74 | learning rate: 2.926829E-06 | global batch size:    32 | lm loss: 2.095515E+00 | ar loss: 1.392325E+00 | dlm loss: 7.167443E+00 | num_tokens_dlm: 2.186100E+03 | grad norm: 2.799 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-15 09:18:02] >>  iteration       70/  102500 | consumed samples:       2240 | consumed tokens:    9175040 | elapsed time per iteration (ms): 5571.00 | learning rate: 3.414634E-06 | global batch size:    32 | lm loss: 2.015611E+00 | ar loss: 1.429846E+00 | dlm loss: 6.315947E+00 | num_tokens_dlm: 2.000625E+03 | grad norm: 1.530 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-15 09:18:58] >>  iteration       80/  102500 | consumed samples:       2560 | consumed tokens:   10485760 | elapsed time per iteration (ms): 5567.80 | learning rate: 3.902439E-06 | global batch size:    32 | lm loss: 1.897177E+00 | ar loss: 1.388238E+00 | dlm loss: 5.693293E+00 | num_tokens_dlm: 2.398300E+03 | grad norm: 1.374 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-15 09:19:54] >>  iteration       90/  102500 | consumed samples:       2880 | consumed tokens:   11796480 | elapsed time per iteration (ms): 5602.07 | learning rate: 4.390244E-06 | global batch size:    32 | lm loss: 1.842626E+00 | ar loss: 1.376543E+00 | dlm loss: 5.453531E+00 | num_tokens_dlm: 2.085350E+03 | grad norm: 1.029 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-15 09:20:49] >>  iteration      100/  102500 | consumed samples:       3200 | consumed tokens:   13107200 | elapsed time per iteration (ms): 5563.94 | learning rate: 4.878049E-06 | global batch size:    32 | lm loss: 1.845245E+00 | ar loss: 1.393746E+00 | dlm loss: 5.595576E+00 | num_tokens_dlm: 1.960100E+03 | grad norm: 1.371 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-15 09:21:45] >>  iteration      110/  102500 | consumed samples:       3520 | consumed tokens:   14417920 | elapsed time per iteration (ms): 5557.56 | learning rate: 5.365854E-06 | global batch size:    32 | lm loss: 1.794556E+00 | ar loss: 1.379221E+00 | dlm loss: 5.392330E+00 | num_tokens_dlm: 1.726300E+03 | grad norm: 1.688 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-15 09:22:41] >>  iteration      120/  102500 | consumed samples:       3840 | consumed tokens:   15728640 | elapsed time per iteration (ms): 5560.59 | learning rate: 5.853659E-06 | global batch size:    32 | lm loss: 1.785409E+00 | ar loss: 1.393489E+00 | dlm loss: 5.147114E+00 | num_tokens_dlm: 1.867025E+03 | grad norm: 1.640 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-15 09:23:36] >>  iteration      130/  102500 | consumed samples:       4160 | consumed tokens:   17039360 | elapsed time per iteration (ms): 5555.63 | learning rate: 6.341463E-06 | global batch size:    32 | lm loss: 1.768489E+00 | ar loss: 1.397352E+00 | dlm loss: 5.074241E+00 | num_tokens_dlm: 1.962675E+03 | grad norm: 1.059 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-15 09:24:33] >>  iteration      140/  102500 | consumed samples:       4480 | consumed tokens:   18350080 | elapsed time per iteration (ms): 5663.91 | learning rate: 6.829268E-06 | global batch size:    32 | lm loss: 1.709795E+00 | ar loss: 1.361887E+00 | dlm loss: 4.847348E+00 | num_tokens_dlm: 2.105800E+03 | grad norm: 0.929 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-15 09:25:29] >>  iteration      150/  102500 | consumed samples:       4800 | consumed tokens:   19660800 | elapsed time per iteration (ms): 5593.13 | learning rate: 7.317073E-06 | global batch size:    32 | lm loss: 1.720534E+00 | ar loss: 1.389403E+00 | dlm loss: 4.798600E+00 | num_tokens_dlm: 2.209525E+03 | grad norm: 0.962 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-15 09:26:25] >>  iteration      160/  102500 | consumed samples:       5120 | consumed tokens:   20971520 | elapsed time per iteration (ms): 5593.52 | learning rate: 7.804878E-06 | global batch size:    32 | lm loss: 1.698687E+00 | ar loss: 1.378656E+00 | dlm loss: 4.704552E+00 | num_tokens_dlm: 2.085575E+03 | grad norm: 1.173 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-15 09:27:21] >>  iteration      170/  102500 | consumed samples:       5440 | consumed tokens:   22282240 | elapsed time per iteration (ms): 5596.67 | learning rate: 8.292683E-06 | global batch size:    32 | lm loss: 1.673206E+00 | ar loss: 1.354466E+00 | dlm loss: 4.703175E+00 | num_tokens_dlm: 1.809350E+03 | grad norm: 1.592 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-15 09:28:17] >>  iteration      180/  102500 | consumed samples:       5760 | consumed tokens:   23592960 | elapsed time per iteration (ms): 5599.31 | learning rate: 8.780488E-06 | global batch size:    32 | lm loss: 1.685122E+00 | ar loss: 1.370270E+00 | dlm loss: 4.746729E+00 | num_tokens_dlm: 1.716675E+03 | grad norm: 1.071 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-15 09:29:13] >>  iteration      190/  102500 | consumed samples:       6080 | consumed tokens:   24903680 | elapsed time per iteration (ms): 5656.32 | learning rate: 9.268293E-06 | global batch size:    32 | lm loss: 1.652036E+00 | ar loss: 1.354817E+00 | dlm loss: 4.526005E+00 | num_tokens_dlm: 1.959100E+03 | grad norm: 1.166 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-15 09:30:09] >>  iteration      200/  102500 | consumed samples:       6400 | consumed tokens:   26214400 | elapsed time per iteration (ms): 5585.93 | learning rate: 9.756098E-06 | global batch size:    32 | lm loss: 1.639914E+00 | ar loss: 1.340536E+00 | dlm loss: 4.543368E+00 | num_tokens_dlm: 2.050575E+03 | grad norm: 0.988 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-15 09:31:05] >>  iteration      210/  102500 | consumed samples:       6720 | consumed tokens:   27525120 | elapsed time per iteration (ms): 5593.82 | learning rate: 1.024390E-05 | global batch size:    32 | lm loss: 1.627473E+00 | ar loss: 1.351270E+00 | dlm loss: 4.310842E+00 | num_tokens_dlm: 1.879875E+03 | grad norm: 1.725 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-15 09:32:02] >>  iteration      220/  102500 | consumed samples:       7040 | consumed tokens:   28835840 | elapsed time per iteration (ms): 5660.27 | learning rate: 1.073171E-05 | global batch size:    32 | lm loss: 1.636099E+00 | ar loss: 1.352225E+00 | dlm loss: 4.459780E+00 | num_tokens_dlm: 1.737400E+03 | grad norm: 1.055 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-15 09:32:59] >>  iteration      230/  102500 | consumed samples:       7360 | consumed tokens:   30146560 | elapsed time per iteration (ms): 5722.60 | learning rate: 1.121951E-05 | global batch size:    32 | lm loss: 1.628312E+00 | ar loss: 1.353670E+00 | dlm loss: 4.336512E+00 | num_tokens_dlm: 1.819600E+03 | grad norm: 1.098 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-15 09:33:56] >>  iteration      240/  102500 | consumed samples:       7680 | consumed tokens:   31457280 | elapsed time per iteration (ms): 5708.24 | learning rate: 1.170732E-05 | global batch size:    32 | lm loss: 1.632448E+00 | ar loss: 1.358453E+00 | dlm loss: 4.325114E+00 | num_tokens_dlm: 2.007325E+03 | grad norm: 0.977 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-15 09:34:53] >>  iteration      250/  102500 | consumed samples:       8000 | consumed tokens:   32768000 | elapsed time per iteration (ms): 5661.89 | learning rate: 1.219512E-05 | global batch size:    32 | lm loss: 1.614028E+00 | ar loss: 1.347803E+00 | dlm loss: 4.302829E+00 | num_tokens_dlm: 1.871300E+03 | grad norm: 1.343 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
