@@ -577,7 +577,12 @@ class TrainingArguments:
     #megatron train args
     calculate_per_token_loss: bool = field(
         default=False,
-        metadata={"help": "Scale cross entropy loss by the number of non-padded tokens in the global batch, versus the default behavior of assuming all tokens are non-padded"}
+        metadata={
+            "help": (
+                "Accumulate unnormalized loss sums and scale gradients by the number of contributing tokens "
+                "in the global batch. When disabled, normalize each micro-batch before gradient averaging."
+            )
+        }
     )
     dataloader_num_workers: int = field(
         default=0,

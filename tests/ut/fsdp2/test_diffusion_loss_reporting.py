@@ -16,6 +16,7 @@ reporting_module = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(reporting_module)
 
 build_diffusion_loss_report = reporting_module.build_diffusion_loss_report
+finalize_global_token_gradients = reporting_module.finalize_global_token_gradients
 reduce_diffusion_loss_reports = reporting_module.reduce_diffusion_loss_reports
 
 
@@ -56,3 +57,52 @@ def test_reduce_report_uses_component_token_denominators():
 
 def test_empty_report_list_is_supported():
     assert reduce_diffusion_loss_reports([]) == {}
+
+
+def test_finalize_global_token_gradients_uses_one_global_denominator():
+    model = torch.nn.Linear(1, 1, bias=False)
+    model.weight.grad = torch.tensor([[20.0]])
+
+    global_tokens, scale = finalize_global_token_gradients(
+        model,
+        [torch.tensor(10), torch.tensor(100)],
+    )
+
+    torch.testing.assert_close(global_tokens, torch.tensor(110.0))
+    torch.testing.assert_close(scale, torch.tensor(1.0 / 110.0))
+    torch.testing.assert_close(model.weight.grad, torch.tensor([[20.0 / 110.0]]))
+
+
+def test_finalize_global_token_gradients_compensates_for_fsdp_average(monkeypatch):
+    model = torch.nn.Linear(1, 1, bias=False)
+    # This represents the gradient after FSDP averaged two identical ranks.
+    model.weight.grad = torch.tensor([[20.0]])
+
+    monkeypatch.setattr(reporting_module.dist, "is_available", lambda: True)
+    monkeypatch.setattr(reporting_module.dist, "is_initialized", lambda: True)
+    monkeypatch.setattr(reporting_module.dist, "get_world_size", lambda group=None: 2)
+
+    def fake_all_reduce(value, op=None, group=None):
+        value.mul_(2)
+
+    monkeypatch.setattr(reporting_module.dist, "all_reduce", fake_all_reduce)
+
+    global_tokens, scale = finalize_global_token_gradients(
+        model,
+        [torch.tensor(10), torch.tensor(100)],
+    )
+
+    torch.testing.assert_close(global_tokens, torch.tensor(220.0))
+    torch.testing.assert_close(scale, torch.tensor(2.0 / 220.0))
+    torch.testing.assert_close(model.weight.grad, torch.tensor([[20.0 / 110.0]]))
+
+
+def test_finalize_global_token_gradients_rejects_empty_counts():
+    model = torch.nn.Linear(1, 1, bias=False)
+
+    try:
+        finalize_global_token_gradients(model, [])
+    except ValueError as error:
+        assert "at least one local token count" in str(error)
+    else:
+        raise AssertionError("Expected an empty token-count list to fail.")

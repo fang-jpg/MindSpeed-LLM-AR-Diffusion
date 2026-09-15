@@ -1,8 +1,8 @@
 # Copyright (c) 2026, HUAWEI CORPORATION. All rights reserved.
 
-"""Nemotron-style loss reporting for block-diffusion language models."""
+"""Nemotron-style loss reporting and global-token gradient normalization."""
 
-from typing import Dict, Iterable, Optional
+from typing import Dict, Iterable, Optional, Tuple
 
 import torch
 import torch.distributed as dist
@@ -70,4 +70,49 @@ def reduce_diffusion_loss_reports(
     return reduced
 
 
-__all__ = ["build_diffusion_loss_report", "reduce_diffusion_loss_reports"]
+@torch.no_grad()
+def finalize_global_token_gradients(
+    model: torch.nn.Module,
+    local_token_counts: Iterable[torch.Tensor],
+    group: Optional[dist.ProcessGroup] = None,
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    """Normalize averaged FSDP gradients by the global token count.
+
+    With per-token loss enabled, backward accumulates unnormalized loss sums
+    over the local micro-batches. MindSpeed FSDP averages those gradients over
+    its process group. Multiplying by ``group_size / global_token_count`` is
+    therefore equivalent to Megatron's SUM reduction followed by division by
+    the number of contributing tokens in the global batch.
+
+    Returns:
+        A pair containing the global token count and applied gradient scale.
+    """
+    token_counts = [torch.as_tensor(count).detach().reshape(()) for count in local_token_counts]
+    if not token_counts:
+        raise ValueError("Global token loss requires at least one local token count.")
+
+    global_token_count = torch.stack(
+        [count.to(device=token_counts[0].device, dtype=torch.float32) for count in token_counts]
+    ).sum()
+    group_size = 1
+    if dist.is_available() and dist.is_initialized():
+        dist.all_reduce(global_token_count, op=dist.ReduceOp.SUM, group=group)
+        group_size = dist.get_world_size(group)
+
+    if global_token_count.item() > 0:
+        gradient_scale = global_token_count.new_tensor(float(group_size)) / global_token_count
+        scale_value = gradient_scale.item()
+        for parameter in model.parameters():
+            if parameter.grad is not None:
+                parameter.grad.mul_(scale_value)
+    else:
+        gradient_scale = global_token_count.new_tensor(1.0)
+
+    return global_token_count, gradient_scale
+
+
+__all__ = [
+    "build_diffusion_loss_report",
+    "finalize_global_token_gradients",
+    "reduce_diffusion_loss_reports",
+]

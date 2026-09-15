@@ -58,6 +58,7 @@ training:
   stage: pt
   per_device_train_batch_size: 1
   gradient_accumulation_steps: 4         # GBS = 1*4*8 = 32
+  calculate_per_token_loss: True         # Paper Eq. 5: global loss averaging
   dataloader_num_workers: 4
   seed: 42
   dataloader_drop_last: True

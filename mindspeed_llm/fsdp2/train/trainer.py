@@ -17,6 +17,7 @@ from mindspeed_llm.fsdp2.data.processor.processor_utils import IGNORE_INDEX
 from mindspeed_llm.fsdp2.features.chunkloss import chunk_loss, calculate_lm_loss
 from mindspeed_llm.fsdp2.models.common.diffusion_loss_reporting import (
     build_diffusion_loss_report,
+    finalize_global_token_gradients,
     reduce_diffusion_loss_reports,
 )
 from mindspeed_llm.fsdp2.models.common.token_loss_logging import write_token_loss_logs
@@ -75,6 +76,8 @@ class Trainer:
         self._total_loss_metrics = {}
         self._last_logged_loss_metrics = {}
         self._last_loss_report = None
+        self._last_loss_uses_global_token_average = False
+        self._last_loss_token_count = None
         self.batch_seqlens = []
 
         # Timing state
@@ -260,6 +263,7 @@ class Trainer:
                 # Initialize accumulated loss for the current step
                 current_step_loss = 0.0
                 current_step_loss_reports = []
+                global_token_counts = []
 
                 # --- Micro-Batch Loop ---
                 for i, inputs in enumerate(batch_samples):
@@ -274,10 +278,15 @@ class Trainer:
 
                     with sync_context:
                         # Forward & Backward
-                        # Note: training_step already divides loss by accum_steps
+                        # The local-average mode divides by accum_steps here;
+                        # global-token mode accumulates raw loss-sum gradients.
                         loss = self.training_step(inputs, num_items_in_batch)
                     if self._last_loss_report is not None:
                         current_step_loss_reports.append(self._last_loss_report)
+                    if self._last_loss_uses_global_token_average:
+                        if self._last_loss_token_count is None:
+                            raise RuntimeError("Global token loss is missing its local token count.")
+                        global_token_counts.append(self._last_loss_token_count)
                     # Accumulate Loss for logging (restore to original scale for display)
                     # Check for NaN/Inf to avoid polluting metrics
                     if not torch.isnan(loss) and not torch.isinf(loss):
@@ -285,6 +294,21 @@ class Trainer:
                 # --- Optimizer Step (Executed only after accumulation) ---
                 # At this point, the micro-batch loop is finished, gradients are accumulated
                 
+                # Match Megatron's calculate_per_token_loss=True semantics.
+                # Raw loss-sum gradients were accumulated over micro-batches;
+                # FSDP has averaged them across ranks, so compensate for that
+                # average and divide once by the global contributing-token count.
+                if global_token_counts:
+                    if len(global_token_counts) != len(batch_samples):
+                        raise RuntimeError(
+                            "All micro-batches in an optimizer step must use the same global-token loss mode."
+                        )
+                    finalize_global_token_gradients(
+                        self.model,
+                        global_token_counts,
+                        group=reduce_group,
+                    )
+
                 # 1. Clip Gradients and get Norm
                 grad_norm = clip_grad_norm(
                     self.model,
@@ -462,7 +486,7 @@ class Trainer:
         # 2. Forward pass
         # loss = self._compute_loss(inputs, return_outputs=False, num_items_in_batch=num_items_in_batch)
         loss_all = self._compute_loss(inputs, return_outputs=False, num_items_in_batch=num_items_in_batch)
-        if self.args.stage == 'pt':
+        if self.args.stage == 'pt' and not self._last_loss_uses_global_token_average:
             loss_all = loss_all / self.current_gradient_accumulation_steps
 
         loss = loss_all
@@ -631,6 +655,8 @@ class Trainer:
         """
         args = self.args
         self._last_loss_report = None
+        self._last_loss_uses_global_token_average = False
+        self._last_loss_token_count = None
         device = torch.accelerator.current_device()
         log_token_loss = (
             getattr(args, "log_per_token_loss", False)
@@ -700,7 +726,16 @@ class Trainer:
                         dlm_loss_sum=outputs["diffusion_loss_sum"],
                         dlm_token_count=outputs["masked_token_count"],
                     )
-            loss = self._normalize_token_sum_loss(loss)
+            if uses_token_sum_loss and args.calculate_per_token_loss:
+                loss_sum, token_count = loss
+                self._last_loss_uses_global_token_average = True
+                self._last_loss_token_count = torch.as_tensor(
+                    token_count,
+                    device=loss_sum.device,
+                ).detach()
+                loss = loss_sum
+            else:
+                loss = self._normalize_token_sum_loss(loss)
             # lm_loss_output = loss.clone()
 
 
