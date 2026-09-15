@@ -105,12 +105,12 @@ class Qwen3DiffusionForCausalLM(transformers.Qwen3PreTrainedModel, GenerationMix
         """
         print("---------------pretrain start---------------------")
         model, loading_info  = super().from_pretrained(*args,output_loading_info=True,**kwargs)
-        # #训练时为了方便强制指定，推理的时候需要注释/删除权重拷贝
-        # with torch.no_grad():
-        #     print("copied")
-        #     model.lm_head.weight.copy_(
-        #         model.model.embed_tokens.weight
-        #     )
+        #训练时为了方便强制指定，推理的时候需要注释/删除权重拷贝
+        with torch.no_grad():
+            print("copied")
+            model.lm_head.weight.copy_(
+                model.model.embed_tokens.weight
+            )
 
         return model
 
