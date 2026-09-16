@@ -20,7 +20,15 @@ finalize_global_token_gradients = reporting_module.finalize_global_token_gradien
 reduce_diffusion_loss_reports = reporting_module.reduce_diffusion_loss_reports
 
 
-def _report(weighted, total_tokens, ar, ar_tokens, dlm, dlm_tokens):
+def _report(
+    weighted,
+    total_tokens,
+    ar,
+    ar_tokens,
+    dlm,
+    dlm_tokens,
+    calculate_per_token_loss=True,
+):
     return build_diffusion_loss_report(
         weighted_loss_sum=torch.tensor(weighted),
         total_token_count=torch.tensor(total_tokens),
@@ -28,6 +36,7 @@ def _report(weighted, total_tokens, ar, ar_tokens, dlm, dlm_tokens):
         ar_token_count=torch.tensor(ar_tokens),
         dlm_loss_sum=torch.tensor(dlm),
         dlm_token_count=torch.tensor(dlm_tokens),
+        calculate_per_token_loss=calculate_per_token_loss,
     )
 
 
@@ -53,6 +62,37 @@ def test_reduce_report_uses_component_token_denominators():
     torch.testing.assert_close(reduced["ar loss"], torch.tensor(11.0 / 12.0))
     torch.testing.assert_close(reduced["dlm loss"], torch.tensor(18.0 / 8.0))
     torch.testing.assert_close(reduced["num_tokens_dlm"], torch.tensor(4.0))
+
+
+def test_reduce_report_matches_local_average_training_when_per_token_loss_is_disabled():
+    reports = [
+        _report(
+            weighted=7.0,
+            total_tokens=8,
+            ar=3.0,
+            ar_tokens=5,
+            dlm=8.0,
+            dlm_tokens=3,
+            calculate_per_token_loss=False,
+        ),
+        _report(
+            weighted=13.0,
+            total_tokens=12,
+            ar=8.0,
+            ar_tokens=7,
+            dlm=10.0,
+            dlm_tokens=5,
+            calculate_per_token_loss=False,
+        ),
+    ]
+
+    reduced = reduce_diffusion_loss_reports(reports)
+
+    expected_lm_loss = ((7.0 / 8.0) + (13.0 / 12.0)) / 2.0
+    torch.testing.assert_close(reduced["lm loss"], torch.tensor(expected_lm_loss))
+    # Component metrics retain their official token-weighted reporting rules.
+    torch.testing.assert_close(reduced["ar loss"], torch.tensor(11.0 / 12.0))
+    torch.testing.assert_close(reduced["dlm loss"], torch.tensor(18.0 / 8.0))
 
 
 def test_empty_report_list_is_supported():

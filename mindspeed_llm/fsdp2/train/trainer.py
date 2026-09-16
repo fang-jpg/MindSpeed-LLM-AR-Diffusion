@@ -725,6 +725,7 @@ class Trainer:
                         ar_token_count=outputs["ar_token_count"],
                         dlm_loss_sum=outputs["diffusion_loss_sum"],
                         dlm_token_count=outputs["masked_token_count"],
+                        calculate_per_token_loss=args.calculate_per_token_loss,
                     )
             if uses_token_sum_loss and args.calculate_per_token_loss:
                 loss_sum, token_count = loss

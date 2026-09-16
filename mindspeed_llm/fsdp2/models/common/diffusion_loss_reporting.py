@@ -22,15 +22,30 @@ def build_diffusion_loss_report(
     ar_token_count: torch.Tensor,
     dlm_loss_sum: torch.Tensor,
     dlm_token_count: torch.Tensor,
+    calculate_per_token_loss: bool = True,
 ) -> Dict[str, torch.Tensor]:
-    """Build the same loss report emitted by NemotronLabsDiffusion.
+    """Build loss reports using the same averaging mode as training.
 
     ``dlm_loss_sum`` is the unweighted diffusion loss after the ``1 / p_mask``
     correction. ``weighted_loss_sum`` already includes the configured DLM and
-    AR objective weights.
+    AR objective weights. Global-token mode reports ``sum(loss) / sum(tokens)``.
+    Local-average mode reports the mean of the per-micro-batch normalized
+    losses, matching the objective used by ``calculate_per_token_loss=False``.
     """
+    if calculate_per_token_loss:
+        lm_loss_report = _report_pair(weighted_loss_sum, total_token_count)
+    else:
+        token_count = torch.as_tensor(
+            total_token_count,
+            device=weighted_loss_sum.device,
+        ).detach().to(torch.float32)
+        normalized_loss = weighted_loss_sum / token_count.clamp_min(1)
+        # The reducer sums both entries across micro-batches and DP ranks.
+        # A denominator of one therefore produces their arithmetic mean.
+        lm_loss_report = _report_pair(normalized_loss, normalized_loss.new_ones(()))
+
     return {
-        "lm loss": _report_pair(weighted_loss_sum, total_token_count),
+        "lm loss": lm_loss_report,
         "ar loss": _report_pair(ar_loss_sum, ar_token_count),
         "dlm loss": _report_pair(dlm_loss_sum, dlm_token_count),
         "num_tokens_dlm": torch.as_tensor(dlm_token_count, device=weighted_loss_sum.device)
@@ -47,7 +62,7 @@ def reduce_diffusion_loss_reports(
     """Reduce reports across micro-batches and the data-parallel group.
 
     Two-element values are summed across micro-batches and DP ranks, then
-    normalized by their token count. One-element values retain Megatron's
+    normalized by their reported denominator. One-element values retain Megatron's
     legacy behavior and are averaged over local micro-batches only.
     """
     reports = list(reports)
