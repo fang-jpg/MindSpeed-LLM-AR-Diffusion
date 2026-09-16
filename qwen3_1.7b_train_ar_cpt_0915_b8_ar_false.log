@@ -1,0 +1,808 @@
+W0916 02:03:49.549000 282211 site-packages/torch/distributed/run.py:766] 
+W0916 02:03:49.549000 282211 site-packages/torch/distributed/run.py:766] *****************************************
+W0916 02:03:49.549000 282211 site-packages/torch/distributed/run.py:766] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0916 02:03:49.549000 282211 site-packages/torch/distributed/run.py:766] *****************************************
+/opt/conda/lib/python3.11/site-packages/torch_npu/contrib/transfer_to_npu.py:360: ImportWarning: 
+    *************************************************************************************************************
+    The torch.Tensor.cuda and torch.nn.Module.cuda are replaced with torch.Tensor.npu and torch.nn.Module.npu now..
+    The torch.cuda.DoubleTensor is replaced with torch.npu.FloatTensor cause the double type is not supported now..
+    The backend in torch.distributed.init_process_group set to hccl now..
+    The torch.cuda.* and torch.cuda.amp.* are replaced with torch.npu.* and torch.npu.amp.* now..
+    The device parameters have been replaced with npu in the function below:
+    torch.logspace, torch.randint, torch.hann_window, torch.rand, torch.full_like, torch.ones_like, torch.rand_like, torch.randperm, torch.arange, torch.frombuffer, torch.normal, torch._empty_per_channel_affine_quantized, torch.empty_strided, torch.empty_like, torch.scalar_tensor, torch.tril_indices, torch.bartlett_window, torch.ones, torch.sparse_coo_tensor, torch.randn, torch.kaiser_window, torch.tensor, torch.triu_indices, torch.as_tensor, torch.zeros, torch.randint_like, torch.full, torch.eye, torch._sparse_csr_tensor_unsafe, torch.empty, torch._sparse_coo_tensor_unsafe, torch.blackman_window, torch.zeros_like, torch.range, torch.sparse_csr_tensor, torch.randn_like, torch.from_file, torch._cudnn_init_dropout_state, torch._empty_affine_quantized, torch.linspace, torch.hamming_window, torch.empty_quantized, torch._pin_memory, torch.load, torch.set_default_device, torch.get_device_module, torch.sparse_compressed_tensor, torch.Tensor.new_empty, torch.Tensor.new_empty_strided, torch.Tensor.new_full, torch.Tensor.new_ones, torch.Tensor.new_tensor, torch.Tensor.new_zeros, torch.Tensor.to, torch.Tensor.pin_memory, torch.nn.Module.to, torch.nn.Module.to_empty
+    *************************************************************************************************************
+    
+  warnings.warn(msg, ImportWarning)
+/opt/conda/lib/python3.11/site-packages/torch_npu/contrib/transfer_to_npu.py:291: RuntimeWarning: torch.jit.script and torch.jit.script_method will be disabled by transfer_to_npu, which currently does not support them, if you need to enable them, please do not use transfer_to_npu.
+  warnings.warn(msg, RuntimeWarning)
+INFO [2026-09-16 02:04:49] >> get env LOCAL_RANK = 7
+INFO [2026-09-16 02:04:49] >> get env LOCAL_RANK = 3
+INFO [2026-09-16 02:04:49] >> get env LOCAL_RANK = 2
+INFO [2026-09-16 02:04:49] >> get env LOCAL_RANK = 4
+INFO [2026-09-16 02:04:49] >> get env LOCAL_RANK = 6
+INFO [2026-09-16 02:04:49] >> get env LOCAL_RANK = 0
+INFO [2026-09-16 02:04:49] >> Global logging initialized | Level: INFO | Local Rank: 0
+INFO [2026-09-16 02:04:49] >> Registered MFU-capable model: qwen3_moe -> Qwen3MoeFlopsEstimator
+INFO [2026-09-16 02:04:49] >> Registered MFU-capable model: qwen3 -> Qwen3DenseFlopsEstimator
+INFO [2026-09-16 02:04:49] >> >>> [AutoTrainer] Initializing MindSpeed FSDP backend...
+INFO [2026-09-16 02:04:49] >> Some specified arguments are not used by the ArgumentParser: ['--data.append_eod', 'True']
+INFO [2026-09-16 02:04:49] >> get env LOCAL_RANK = 1
+INFO [2026-09-16 02:04:49] >> get env LOCAL_RANK = 5
+INFO [2026-09-16 02:04:50] >> get env MASTER_ADDR = 127.0.0.1
+INFO [2026-09-16 02:04:50] >> get env MASTER_PORT = 6499
+INFO [2026-09-16 02:04:50] >> get env TORCHELASTIC_USE_AGENT_STORE = True
+INFO [2026-09-16 02:04:50] >> get env MASTER_ADDR = 127.0.0.1
+INFO [2026-09-16 02:04:50] >> get env MASTER_PORT = 6499
+INFO [2026-09-16 02:04:50] >> get env TORCHELASTIC_USE_AGENT_STORE = True
+---------------pretrain start---------------------
+`torch_dtype` is deprecated! Use `dtype` instead!
+---------------pretrain start---------------------
+`torch_dtype` is deprecated! Use `dtype` instead!
+INFO [2026-09-16 02:04:50] >> get env MASTER_ADDR = 127.0.0.1
+INFO [2026-09-16 02:04:50] >> get env MASTER_PORT = 6499
+INFO [2026-09-16 02:04:50] >> get env TORCHELASTIC_USE_AGENT_STORE = True
+
+ ModelArguments
+------------------------------------------------------------
+  model_name_or_path              /share/model_weights/Qwen3-1.7B-Base
+  model_id                        qwen3_diffusion
+  init_model_with_meta_device     False
+  trust_remote_code               False
+  train_from_scratch              False
+  tokenizer_name_or_path          None
+  cache_dir                       None
+  use_fast_tokenizer              True
+  resize_vocab                    False
+  split_special_tokens            False
+  add_tokens                      None
+  add_special_tokens              None
+  new_special_tokens_config       None
+  init_special_tokens             noise_init
+  model_revision                  main
+  hf_hub_token                    None
+  ms_hub_token                    None
+  om_hub_token                    None
+  quant_recipe                    None
+  quant_format                    None
+  quant_block_size                32
+  quant_apply_modules             ['model.layers.{*}']
+  quant_ignored_modules           ['lm_head']
+  converters                      ['quantize.linear.mx']
+  gemm_gradient_accumulation_fusion  False
+  quant_gmm                       False
+
+ DataArguments
+------------------------------------------------------------
+  template                        empty
+  dataset                         {'file_name': ['/share/dataset/x00840191/comm_math_code/RedStone_QA_oq_part_text_document', '/share/dataset/x00840191/comm_math_code/swallow_code_ablation_exp11_scor_text_document', '/share/dataset/x00840191/comm_math_code/megamath_qa_llama_3.3_text_document', '/share/dataset/x00840191/comm_math_code/megamath_qa_text_document', '/share/dataset/x00840191/comm_math_code/MetaMathQA_text_document', '/share/dataset/x00840191/comm_math_code/RedStone_QA_mcq_text_document', '/share/dataset/x00840191/comm_math_code/swallow_math_text_document']}
+  eval_dataset                    None
+  dataset_dir                     ./configs/fsdp2/data
+  cutoff_len                      4096
+  train_on_prompt                 False
+  mask_history                    False
+  streaming                       False
+  buffer_size                     16384
+  mix_strategy                    concat
+  interleave_probs                None
+  overwrite_cache                 True
+  preprocessing_batch_size        1000
+  preprocessing_num_workers       4
+  max_samples                     100000
+  eval_num_beams                  None
+  ignore_pad_token_for_loss       True
+  val_size                        0.0
+  eval_on_each_dataset            False
+  packing                         False
+  neat_packing                    False
+  tool_format                     None
+  default_system                  None
+  enable_thinking                 True
+  tokenized_path                  None
+  data_shared_file_system         False
+  data_manager_type               mg
+  split                           100,0,0
+  create_attention_mask_in_dataloader  False
+  no_shared_storage               False
+  dataloader_type                 single
+
+ ParallelArguments
+------------------------------------------------------------
+  tp_size                         1
+  fsdp_size                       8
+  recompute                       True
+  ep_size                         1
+  ep_fsdp_size                    1
+  cp_size                         1
+  cp_type                         ulysses
+  fsdp_modules                    ['model.layers.{*}', 'model.embed_tokens', 'lm_head']
+  ignored_modules                 None
+  reshard_after_forward           True
+  shard_placement_fn              None
+  tp_colwise                      ['*.q_proj', '*.k_proj', '*.v_proj', '*.gate_proj', '*.up_proj']
+  tp_rowwise                      ['*.o_proj', '*.down_proj']
+  ep_modules                      ['model.layers.{*}.mlp.experts']
+  ep_fsdp_modules                 ['model.layers.{*}.mlp.experts']
+  ep_dispatcher                   eager
+  recompute_modules               ['model.layers.{*}']
+  param_dtype                     bf16
+  reduce_dtype                    fp32
+  num_to_forward_prefetch         1
+  num_to_backward_prefetch        1
+
+ TrainingArguments
+------------------------------------------------------------
+  output_dir                      /share/dataset/x00840191/model_train/ckpt/phase4_cpt_ar_duffision_0910/
+  optimizer                       adamw
+  lr                              5e-05
+  weight_decay                    0.01
+  adam_beta1                      0.9
+  adam_beta2                      0.95
+  adam_epsilon                    1e-08
+  max_grad_norm                   1.0
+  lr_scheduler_type               cosine
+  warmup_ratio                    0.01
+  min_lr                          1e-06
+  num_train_epochs                1.0
+  max_steps                       102500
+  gradient_accumulation_steps     4
+  disable_shuffling               False
+  seed                            42
+  save_steps                      500
+  save_total_limit                3
+  resume_from_checkpoint          None
+  logging_steps                   10
+  log_per_token_loss              False
+  log_token_loss_details          False
+  token_loss_logging_steps        10
+  log_throughput                  False
+  log_cpu_memory                  False
+  stage                           pt
+  calculate_per_token_loss        False
+  dataloader_num_workers          4
+  dataloader_prefetch_factor      None
+  dataloader_pin_memory           True
+  dataloader_persistent_workers   False
+  dataloader_drop_last            True
+  per_device_train_batch_size     1
+  save_only_model                 False
+  save_async                      False
+  save_epochs                     1
+  save_hf_weights                 True
+  profile                         False
+  profile_step_start              0
+  profile_step_end                -1
+  profile_ranks                   [-1]
+  profile_level                   level0
+  profile_export_type             text
+  profile_data_simplification     False
+  profile_with_cpu                False
+  profile_with_stack              False
+  profile_with_memory             False
+  profile_record_shapes           False
+  profile_save_path               ./profile
+INFO [2026-09-16 02:04:50] >> > Building FSDP2 Model...
+INFO [2026-09-16 02:04:50] >> > Model initialization device: cpu (init_model_with_meta_device=False)
+INFO [2026-09-16 02:04:50] >> > Loading AutoConfig from /share/model_weights/Qwen3-1.7B-Base...
+INFO [2026-09-16 02:04:50] >> get env MASTER_ADDR = 127.0.0.1
+INFO [2026-09-16 02:04:50] >> get env MASTER_PORT = 6499
+INFO [2026-09-16 02:04:50] >> get env TORCHELASTIC_USE_AGENT_STORE = True
+INFO [2026-09-16 02:04:50] >> get env MASTER_ADDR = 127.0.0.1
+INFO [2026-09-16 02:04:50] >> get env MASTER_PORT = 6499
+INFO [2026-09-16 02:04:50] >> get env TORCHELASTIC_USE_AGENT_STORE = True
+INFO [2026-09-16 02:04:50] >> > Using factory mode with model_id: qwen3_diffusion
+INFO [2026-09-16 02:04:50] >> > Loading config from /share/model_weights/Qwen3-1.7B-Base...
+INFO [2026-09-16 02:04:50] >> > Loading Qwen3DiffusionForCausalLM on CPU...
+---------------pretrain start---------------------
+`torch_dtype` is deprecated! Use `dtype` instead!
+---------------pretrain start---------------------
+`torch_dtype` is deprecated! Use `dtype` instead!
+---------------pretrain start---------------------
+`torch_dtype` is deprecated! Use `dtype` instead!
+INFO [2026-09-16 02:04:50] >> get env MASTER_ADDR = 127.0.0.1
+INFO [2026-09-16 02:04:50] >> get env MASTER_PORT = 6499
+INFO [2026-09-16 02:04:50] >> get env TORCHELASTIC_USE_AGENT_STORE = True
+---------------pretrain start---------------------
+`torch_dtype` is deprecated! Use `dtype` instead!
+INFO [2026-09-16 02:04:50] >> get env MASTER_ADDR = 127.0.0.1
+INFO [2026-09-16 02:04:50] >> get env MASTER_PORT = 6499
+INFO [2026-09-16 02:04:50] >> get env TORCHELASTIC_USE_AGENT_STORE = True
+---------------pretrain start---------------------
+`torch_dtype` is deprecated! Use `dtype` instead!
+INFO [2026-09-16 02:04:50] >> get env MASTER_ADDR = 127.0.0.1
+INFO [2026-09-16 02:04:50] >> get env MASTER_PORT = 6499
+INFO [2026-09-16 02:04:50] >> get env TORCHELASTIC_USE_AGENT_STORE = True
+---------------pretrain start---------------------
+`torch_dtype` is deprecated! Use `dtype` instead!
+Some weights of Qwen3DiffusionForCausalLM were not initialized from the model checkpoint at /share/model_weights/Qwen3-1.7B-Base and are newly initialized: ['lm_head.weight']
+You should probably TRAIN this model on a down-stream task to be able to use it for predictions and inference.
+copied
+Some weights of Qwen3DiffusionForCausalLM were not initialized from the model checkpoint at /share/model_weights/Qwen3-1.7B-Base and are newly initialized: ['lm_head.weight']
+You should probably TRAIN this model on a down-stream task to be able to use it for predictions and inference.
+copied
+Some weights of Qwen3DiffusionForCausalLM were not initialized from the model checkpoint at /share/model_weights/Qwen3-1.7B-Base and are newly initialized: ['lm_head.weight']
+You should probably TRAIN this model on a down-stream task to be able to use it for predictions and inference.
+copied
+Some weights of Qwen3DiffusionForCausalLM were not initialized from the model checkpoint at /share/model_weights/Qwen3-1.7B-Base and are newly initialized: ['lm_head.weight']
+You should probably TRAIN this model on a down-stream task to be able to use it for predictions and inference.
+copied
+INFO [2026-09-16 02:05:03] >> > Wrapping model with MindSpeed FSDP (TP=1,CP=1, FSDP=8)...
+INFO [2026-09-16 02:05:03] >> Parallel state initialized:
+ [dp] = False | Group size: 1 | device mesh:DeviceMesh('npu', [0], mesh_dim_names=('dp',)) 
+[fsdp] = True | Group size: 8 | device mesh:DeviceMesh('npu', [0, 1, 2, 3, 4, 5, 6, 7], mesh_dim_names=('fsdp',)) 
+[tp] = False | Group size: 1 | device mesh:DeviceMesh('npu', [0], mesh_dim_names=('tp',)) 
+[edp] = True | Group size: 8 | device mesh:DeviceMesh('npu', [0, 1, 2, 3, 4, 5, 6, 7], mesh_dim_names=('edp',)) 
+[efsdp] = False | Group size: 1 | device mesh:DeviceMesh('npu', [0], mesh_dim_names=('efsdp',)) 
+[ep] = False | Group size: 1 | device mesh:DeviceMesh('npu', [0], mesh_dim_names=('ep',)) 
+[dp_fsdp] = True | Group size: 8 | device mesh:DeviceMesh('npu', [0, 1, 2, 3, 4, 5, 6, 7], mesh_dim_names=('dp_fsdp',)) 
+[cp] = False | Group size: 1 | device mesh:DeviceMesh('npu', [0], mesh_dim_names=('cp',)) 
+
+INFO [2026-09-16 02:05:03] >> Applying recompute to module: model.layers.0
+INFO [2026-09-16 02:05:03] >> Applying recompute to module: model.layers.1
+INFO [2026-09-16 02:05:03] >> Applying recompute to module: model.layers.2
+INFO [2026-09-16 02:05:03] >> Applying recompute to module: model.layers.3
+INFO [2026-09-16 02:05:03] >> Applying recompute to module: model.layers.4
+INFO [2026-09-16 02:05:03] >> Applying recompute to module: model.layers.5
+INFO [2026-09-16 02:05:03] >> Applying recompute to module: model.layers.6
+INFO [2026-09-16 02:05:03] >> Applying recompute to module: model.layers.7
+INFO [2026-09-16 02:05:03] >> Applying recompute to module: model.layers.8
+INFO [2026-09-16 02:05:03] >> Applying recompute to module: model.layers.9
+INFO [2026-09-16 02:05:03] >> Applying recompute to module: model.layers.10
+INFO [2026-09-16 02:05:03] >> Applying recompute to module: model.layers.11
+INFO [2026-09-16 02:05:03] >> Applying recompute to module: model.layers.12
+INFO [2026-09-16 02:05:03] >> Applying recompute to module: model.layers.13
+INFO [2026-09-16 02:05:03] >> Applying recompute to module: model.layers.14
+INFO [2026-09-16 02:05:03] >> Applying recompute to module: model.layers.15
+INFO [2026-09-16 02:05:03] >> Applying recompute to module: model.layers.16
+INFO [2026-09-16 02:05:03] >> Applying recompute to module: model.layers.17
+INFO [2026-09-16 02:05:03] >> Applying recompute to module: model.layers.18
+INFO [2026-09-16 02:05:03] >> Applying recompute to module: model.layers.19
+INFO [2026-09-16 02:05:03] >> Applying recompute to module: model.layers.20
+INFO [2026-09-16 02:05:03] >> Applying recompute to module: model.layers.21
+INFO [2026-09-16 02:05:03] >> Applying recompute to module: model.layers.22
+INFO [2026-09-16 02:05:03] >> Applying recompute to module: model.layers.23
+INFO [2026-09-16 02:05:03] >> Applying recompute to module: model.layers.24
+INFO [2026-09-16 02:05:03] >> Applying recompute to module: model.layers.25
+INFO [2026-09-16 02:05:03] >> Applying recompute to module: model.layers.26
+INFO [2026-09-16 02:05:03] >> Applying recompute to module: model.layers.27
+Some weights of Qwen3DiffusionForCausalLM were not initialized from the model checkpoint at /share/model_weights/Qwen3-1.7B-Base and are newly initialized: ['lm_head.weight']
+You should probably TRAIN this model on a down-stream task to be able to use it for predictions and inference.
+copied
+Some weights of Qwen3DiffusionForCausalLM were not initialized from the model checkpoint at /share/model_weights/Qwen3-1.7B-Base and are newly initialized: ['lm_head.weight']
+You should probably TRAIN this model on a down-stream task to be able to use it for predictions and inference.
+copied
+Some weights of Qwen3DiffusionForCausalLM were not initialized from the model checkpoint at /share/model_weights/Qwen3-1.7B-Base and are newly initialized: ['lm_head.weight']
+You should probably TRAIN this model on a down-stream task to be able to use it for predictions and inference.
+copied
+INFO [2026-09-16 02:05:05] >> > Building Tokenizer...
+Some weights of Qwen3DiffusionForCausalLM were not initialized from the model checkpoint at /share/model_weights/Qwen3-1.7B-Base and are newly initialized: ['lm_head.weight']
+You should probably TRAIN this model on a down-stream task to be able to use it for predictions and inference.
+copied
+INFO [2026-09-16 02:05:05] >> > Building DataFactory...
+INFO [2026-09-16 02:05:05] >> [InitHook] Megatron-format (.bin/.idx) dataset already exists — skipping conversion.
+tokenizer.pad_token_id:151643
+tokenizer.eos_token_id:151643
+INFO [2026-09-16 02:05:05] >> Let split_matrix = [(0, 1.0), None, None]
+INFO [2026-09-16 02:05:05] >> > building train, validation, and test datasets for GPT ...
+INFO [2026-09-16 02:05:05] >> Building GPTDataset splits with sizes=(3280000, 0, 0) and config=GPTDatasetConfig(random_seed=42, sequence_length=4096, blend=(['/share/dataset/x00840191/comm_math_code/RedStone_QA_oq_part_text_document', '/share/dataset/x00840191/comm_math_code/swallow_code_ablation_exp11_scor_text_document', '/share/dataset/x00840191/comm_math_code/megamath_qa_llama_3.3_text_document', '/share/dataset/x00840191/comm_math_code/megamath_qa_text_document', '/share/dataset/x00840191/comm_math_code/MetaMathQA_text_document', '/share/dataset/x00840191/comm_math_code/RedStone_QA_mcq_text_document', '/share/dataset/x00840191/comm_math_code/swallow_math_text_document'], None), blend_per_split=None, split='100,0,0', split_matrix=[(0, 1.0), None, None], num_dataset_builder_threads=1, path_to_cache=None, mmap_bin_files=True, mock=False, tokenizer=<mindspeed_llm.fsdp2.data.megatron_data.megatron_tokenizer._AutoTokenizer object at 0xfffec0feb990>, reset_position_ids=False, reset_attention_mask=False, eod_mask_loss=False, create_attention_mask=False, drop_last_partial_validation_sequence=True, add_extra_token_to_sequence=True)
+INFO [2026-09-16 02:05:05] >> Load the _IndexReader from /share/dataset/x00840191/comm_math_code/RedStone_QA_oq_part_text_document.idx.
+INFO [2026-09-16 02:05:05] >> 	Extract the sequence lengths
+INFO [2026-09-16 02:05:05] >> 	> time elapsed: 0.000011 seconds
+INFO [2026-09-16 02:05:05] >> 	Extract the sequence pointers
+INFO [2026-09-16 02:05:05] >> 	> time elapsed: 0.000016 seconds
+INFO [2026-09-16 02:05:05] >> 	Extract the document indices
+INFO [2026-09-16 02:05:05] >> 	> time elapsed: 0.000009 seconds
+INFO [2026-09-16 02:05:05] >> > total number of sequences: 21600000
+INFO [2026-09-16 02:05:05] >> > total number of documents: 21600000
+tokenizer.pad_token_id:151643
+tokenizer.eos_token_id:151643
+/opt/conda/lib/python3.11/site-packages/torch/distributed/distributed_c10d.py:4631: UserWarning: No device id is provided via `init_process_group` or `barrier `. Using the current device set by the user. 
+  warnings.warn(  # warn only once
+INFO [2026-09-16 02:05:05] >> Load the GPTDataset train indices
+INFO [2026-09-16 02:05:05] >> 	Load the document index from 25490873a0b852c60ce1b236942c5b9d-GPTDataset-document_index.npy
+INFO [2026-09-16 02:05:05] >> 	> time elapsed: 0.004769 seconds
+INFO [2026-09-16 02:05:05] >> 	Load the sample index from 25490873a0b852c60ce1b236942c5b9d-GPTDataset-sample_index.npy
+tokenizer.pad_token_id:151643
+tokenizer.eos_token_id:151643
+/opt/conda/lib/python3.11/site-packages/torch/distributed/distributed_c10d.py:4631: UserWarning: No device id is provided via `init_process_group` or `barrier `. Using the current device set by the user. 
+  warnings.warn(  # warn only once
+tokenizer.pad_token_id:151643
+tokenizer.eos_token_id:151643
+/opt/conda/lib/python3.11/site-packages/torch/distributed/distributed_c10d.py:4631: UserWarning: No device id is provided via `init_process_group` or `barrier `. Using the current device set by the user. 
+  warnings.warn(  # warn only once
+INFO [2026-09-16 02:05:05] >> 	> time elapsed: 0.172097 seconds
+INFO [2026-09-16 02:05:05] >> 	Load the shuffle index from 25490873a0b852c60ce1b236942c5b9d-GPTDataset-shuffle_index.npy
+INFO [2026-09-16 02:05:05] >> 	> time elapsed: 0.004190 seconds
+INFO [2026-09-16 02:05:05] >> > total number of samples: 6572977
+INFO [2026-09-16 02:05:05] >> Load the _IndexReader from /share/dataset/x00840191/comm_math_code/swallow_code_ablation_exp11_scor_text_document.idx.
+INFO [2026-09-16 02:05:05] >> 	Extract the sequence lengths
+INFO [2026-09-16 02:05:05] >> 	> time elapsed: 0.000009 seconds
+INFO [2026-09-16 02:05:05] >> 	Extract the sequence pointers
+INFO [2026-09-16 02:05:05] >> 	> time elapsed: 0.000008 seconds
+INFO [2026-09-16 02:05:05] >> 	Extract the document indices
+INFO [2026-09-16 02:05:05] >> 	> time elapsed: 0.000006 seconds
+INFO [2026-09-16 02:05:05] >> > total number of sequences: 19318507
+INFO [2026-09-16 02:05:05] >> > total number of documents: 19318507
+INFO [2026-09-16 02:05:06] >> Load the GPTDataset train indices
+INFO [2026-09-16 02:05:06] >> 	Load the document index from 0b1c12c88d30f73e529bb74d6fbce8c8-GPTDataset-document_index.npy
+INFO [2026-09-16 02:05:06] >> 	> time elapsed: 0.004205 seconds
+INFO [2026-09-16 02:05:06] >> 	Load the sample index from 0b1c12c88d30f73e529bb74d6fbce8c8-GPTDataset-sample_index.npy
+INFO [2026-09-16 02:05:06] >> 	> time elapsed: 0.113417 seconds
+INFO [2026-09-16 02:05:06] >> 	Load the shuffle index from 0b1c12c88d30f73e529bb74d6fbce8c8-GPTDataset-shuffle_index.npy
+INFO [2026-09-16 02:05:06] >> 	> time elapsed: 0.003655 seconds
+INFO [2026-09-16 02:05:06] >> > total number of samples: 3968921
+INFO [2026-09-16 02:05:06] >> Load the _IndexReader from /share/dataset/x00840191/comm_math_code/megamath_qa_llama_3.3_text_document.idx.
+INFO [2026-09-16 02:05:06] >> 	Extract the sequence lengths
+INFO [2026-09-16 02:05:06] >> 	> time elapsed: 0.000007 seconds
+INFO [2026-09-16 02:05:06] >> 	Extract the sequence pointers
+INFO [2026-09-16 02:05:06] >> 	> time elapsed: 0.000007 seconds
+INFO [2026-09-16 02:05:06] >> 	Extract the document indices
+INFO [2026-09-16 02:05:06] >> 	> time elapsed: 0.000005 seconds
+INFO [2026-09-16 02:05:06] >> > total number of sequences: 11280746
+INFO [2026-09-16 02:05:06] >> > total number of documents: 11280746
+INFO [2026-09-16 02:05:06] >> Load the GPTDataset train indices
+INFO [2026-09-16 02:05:06] >> 	Load the document index from b216c128de10639049945297595e1c55-GPTDataset-document_index.npy
+INFO [2026-09-16 02:05:06] >> 	> time elapsed: 0.013320 seconds
+INFO [2026-09-16 02:05:06] >> 	Load the sample index from b216c128de10639049945297595e1c55-GPTDataset-sample_index.npy
+INFO [2026-09-16 02:05:06] >> 	> time elapsed: 0.024685 seconds
+INFO [2026-09-16 02:05:06] >> 	Load the shuffle index from b216c128de10639049945297595e1c55-GPTDataset-shuffle_index.npy
+INFO [2026-09-16 02:05:06] >> 	> time elapsed: 0.003534 seconds
+INFO [2026-09-16 02:05:06] >> > total number of samples: 780614
+INFO [2026-09-16 02:05:06] >> Load the _IndexReader from /share/dataset/x00840191/comm_math_code/megamath_qa_text_document.idx.
+INFO [2026-09-16 02:05:06] >> 	Extract the sequence lengths
+INFO [2026-09-16 02:05:06] >> 	> time elapsed: 0.000007 seconds
+INFO [2026-09-16 02:05:06] >> 	Extract the sequence pointers
+INFO [2026-09-16 02:05:06] >> 	> time elapsed: 0.000007 seconds
+INFO [2026-09-16 02:05:06] >> 	Extract the document indices
+INFO [2026-09-16 02:05:06] >> 	> time elapsed: 0.000006 seconds
+INFO [2026-09-16 02:05:06] >> > total number of sequences: 11354446
+INFO [2026-09-16 02:05:06] >> > total number of documents: 11354446
+INFO [2026-09-16 02:05:06] >> Load the GPTDataset train indices
+INFO [2026-09-16 02:05:06] >> 	Load the document index from 9bab2a3b14e07f88326597b366548a7f-GPTDataset-document_index.npy
+INFO [2026-09-16 02:05:06] >> 	> time elapsed: 0.004684 seconds
+INFO [2026-09-16 02:05:06] >> 	Load the sample index from 9bab2a3b14e07f88326597b366548a7f-GPTDataset-sample_index.npy
+INFO [2026-09-16 02:05:06] >> 	> time elapsed: 0.024207 seconds
+INFO [2026-09-16 02:05:06] >> 	Load the shuffle index from 9bab2a3b14e07f88326597b366548a7f-GPTDataset-shuffle_index.npy
+INFO [2026-09-16 02:05:06] >> 	> time elapsed: 0.003884 seconds
+INFO [2026-09-16 02:05:06] >> > total number of samples: 783172
+INFO [2026-09-16 02:05:06] >> Load the _IndexReader from /share/dataset/x00840191/comm_math_code/MetaMathQA_text_document.idx.
+INFO [2026-09-16 02:05:06] >> 	Extract the sequence lengths
+INFO [2026-09-16 02:05:06] >> 	> time elapsed: 0.000008 seconds
+INFO [2026-09-16 02:05:06] >> 	Extract the sequence pointers
+INFO [2026-09-16 02:05:06] >> 	> time elapsed: 0.000007 seconds
+INFO [2026-09-16 02:05:06] >> 	Extract the document indices
+INFO [2026-09-16 02:05:06] >> 	> time elapsed: 0.000006 seconds
+INFO [2026-09-16 02:05:06] >> > total number of sequences: 395000
+INFO [2026-09-16 02:05:06] >> > total number of documents: 395000
+INFO [2026-09-16 02:05:06] >> Load the GPTDataset train indices
+INFO [2026-09-16 02:05:06] >> 	Load the document index from 841d8a42f398a5c3357629d39fcc4ad4-GPTDataset-document_index.npy
+INFO [2026-09-16 02:05:06] >> 	> time elapsed: 0.003726 seconds
+INFO [2026-09-16 02:05:06] >> 	Load the sample index from 841d8a42f398a5c3357629d39fcc4ad4-GPTDataset-sample_index.npy
+INFO [2026-09-16 02:05:06] >> 	> time elapsed: 0.006532 seconds
+INFO [2026-09-16 02:05:06] >> 	Load the shuffle index from 841d8a42f398a5c3357629d39fcc4ad4-GPTDataset-shuffle_index.npy
+INFO [2026-09-16 02:05:06] >> 	> time elapsed: 0.004675 seconds
+INFO [2026-09-16 02:05:06] >> > total number of samples: 22744
+INFO [2026-09-16 02:05:06] >> Load the _IndexReader from /share/dataset/x00840191/comm_math_code/RedStone_QA_mcq_text_document.idx.
+INFO [2026-09-16 02:05:06] >> 	Extract the sequence lengths
+INFO [2026-09-16 02:05:06] >> 	> time elapsed: 0.000008 seconds
+INFO [2026-09-16 02:05:06] >> 	Extract the sequence pointers
+INFO [2026-09-16 02:05:06] >> 	> time elapsed: 0.000007 seconds
+INFO [2026-09-16 02:05:06] >> 	Extract the document indices
+INFO [2026-09-16 02:05:06] >> 	> time elapsed: 0.000006 seconds
+INFO [2026-09-16 02:05:06] >> > total number of sequences: 1661603
+INFO [2026-09-16 02:05:06] >> > total number of documents: 1661603
+INFO [2026-09-16 02:05:06] >> Load the GPTDataset train indices
+INFO [2026-09-16 02:05:06] >> 	Load the document index from b5ba4f75060e5522d0cccd61039fdd36-GPTDataset-document_index.npy
+INFO [2026-09-16 02:05:06] >> 	> time elapsed: 0.004193 seconds
+INFO [2026-09-16 02:05:06] >> 	Load the sample index from b5ba4f75060e5522d0cccd61039fdd36-GPTDataset-sample_index.npy
+INFO [2026-09-16 02:05:06] >> 	> time elapsed: 0.006054 seconds
+INFO [2026-09-16 02:05:06] >> 	Load the shuffle index from b5ba4f75060e5522d0cccd61039fdd36-GPTDataset-shuffle_index.npy
+INFO [2026-09-16 02:05:06] >> 	> time elapsed: 0.004100 seconds
+INFO [2026-09-16 02:05:06] >> > total number of samples: 21455
+INFO [2026-09-16 02:05:06] >> Load the _IndexReader from /share/dataset/x00840191/comm_math_code/swallow_math_text_document.idx.
+INFO [2026-09-16 02:05:06] >> 	Extract the sequence lengths
+INFO [2026-09-16 02:05:06] >> 	> time elapsed: 0.000007 seconds
+INFO [2026-09-16 02:05:06] >> 	Extract the sequence pointers
+INFO [2026-09-16 02:05:06] >> 	> time elapsed: 0.000007 seconds
+INFO [2026-09-16 02:05:06] >> 	Extract the document indices
+INFO [2026-09-16 02:05:06] >> 	> time elapsed: 0.000005 seconds
+INFO [2026-09-16 02:05:06] >> > total number of sequences: 6497564
+INFO [2026-09-16 02:05:06] >> > total number of documents: 6497564
+INFO [2026-09-16 02:05:06] >> Load the GPTDataset train indices
+INFO [2026-09-16 02:05:06] >> 	Load the document index from 2d5136bbe98f8b5863474fd94561aabb-GPTDataset-document_index.npy
+INFO [2026-09-16 02:05:06] >> 	> time elapsed: 0.003859 seconds
+INFO [2026-09-16 02:05:06] >> 	Load the sample index from 2d5136bbe98f8b5863474fd94561aabb-GPTDataset-sample_index.npy
+INFO [2026-09-16 02:05:06] >> 	> time elapsed: 0.028034 seconds
+INFO [2026-09-16 02:05:06] >> 	Load the shuffle index from 2d5136bbe98f8b5863474fd94561aabb-GPTDataset-shuffle_index.npy
+INFO [2026-09-16 02:05:06] >> 	> time elapsed: 0.047161 seconds
+INFO [2026-09-16 02:05:06] >> > total number of samples: 932983
+/opt/conda/lib/python3.11/site-packages/torch/distributed/distributed_c10d.py:4631: UserWarning: No device id is provided via `init_process_group` or `barrier `. Using the current device set by the user. 
+  warnings.warn(  # warn only once
+tokenizer.pad_token_id:151643
+tokenizer.eos_token_id:151643
+/opt/conda/lib/python3.11/site-packages/torch/distributed/distributed_c10d.py:4631: UserWarning: No device id is provided via `init_process_group` or `barrier `. Using the current device set by the user. 
+  warnings.warn(  # warn only once
+tokenizer.pad_token_id:151643
+tokenizer.eos_token_id:151643
+/opt/conda/lib/python3.11/site-packages/torch/distributed/distributed_c10d.py:4631: UserWarning: No device id is provided via `init_process_group` or `barrier `. Using the current device set by the user. 
+  warnings.warn(  # warn only once
+tokenizer.pad_token_id:151643
+tokenizer.eos_token_id:151643
+/opt/conda/lib/python3.11/site-packages/torch/distributed/distributed_c10d.py:4631: UserWarning: No device id is provided via `init_process_group` or `barrier `. Using the current device set by the user. 
+  warnings.warn(  # warn only once
+tokenizer.pad_token_id:151643
+tokenizer.eos_token_id:151643
+/opt/conda/lib/python3.11/site-packages/torch/distributed/distributed_c10d.py:4631: UserWarning: No device id is provided via `init_process_group` or `barrier `. Using the current device set by the user. 
+  warnings.warn(  # warn only once
+INFO [2026-09-16 02:05:08] >> Build and save the BlendedDataset indices
+INFO [2026-09-16 02:05:08] >> 	Build and save the dataset and dataset sample indexes
+make: Nothing to be done for 'default'.
+INFO [2026-09-16 02:05:09] >> Cannot save the BlendedDataset indexes because path_to_cache is None
+INFO [2026-09-16 02:05:09] >> 	> time elapsed: 0.547597 seconds
+/opt/conda/lib/python3.11/site-packages/torch/distributed/distributed_c10d.py:4631: UserWarning: No device id is provided via `init_process_group` or `barrier `. Using the current device set by the user. 
+  warnings.warn(  # warn only once
+INFO [2026-09-16 02:05:09] >> Verifying NumPy indices for BlendedDataset train split
+INFO [2026-09-16 02:05:09] >> > finished creating GPT datasets ...
+INFO [2026-09-16 02:05:09] >> > Building Optimizer...
+INFO [2026-09-16 02:05:09] >> Created single optimizer adamw | lr=5e-05, weight_decay=0.01
+INFO [2026-09-16 02:05:09] >> > Building LR Scheduler...
+INFO [2026-09-16 02:05:09] >> Creating 'cosine' scheduler: lr=5e-05, min_lr=1e-06, warmup_steps=1025, total_steps=102500
+INFO [2026-09-16 02:05:09] >> > Building Checkpointer...
+INFO [2026-09-16 02:05:09] >> > Building Monitor...
+----------------dataset--------------
+len(dataset):3280000
+training_args.per_device_train_batch_size:1
+--------------------------------------------
+INFO [2026-09-16 02:05:09] >> ***** Running training (FSDP2) *****
+INFO [2026-09-16 02:05:09] >>   Num examples = 3280000
+INFO [2026-09-16 02:05:09] >>   Num Epochs = 1.0
+INFO [2026-09-16 02:05:09] >>   Total Batch Size = 32
+INFO [2026-09-16 02:05:09] >>   Gradient Accumulation steps = 4
+INFO [2026-09-16 02:05:09] >>   Total optimization steps = 102500
+make: Nothing to be done for 'default'.
+make: Nothing to be done for 'default'.
+make: Nothing to be done for 'default'.
+make: Nothing to be done for 'default'.
+make: Nothing to be done for 'default'.
+make: Nothing to be done for 'default'.
+make: Nothing to be done for 'default'.
+----------------dataset--------------
+len(dataset):3280000
+training_args.per_device_train_batch_size:1
+--------------------------------------------
+----------------dataset--------------
+len(dataset):3280000
+training_args.per_device_train_batch_size:1
+--------------------------------------------
+----------------dataset--------------
+len(dataset):3280000
+training_args.per_device_train_batch_size:1
+--------------------------------------------
+----------------dataset--------------
+len(dataset):3280000
+training_args.per_device_train_batch_size:1
+--------------------------------------------
+----------------dataset--------------
+len(dataset):3280000
+training_args.per_device_train_batch_size:1
+--------------------------------------------
+----------------dataset--------------
+len(dataset):3280000
+training_args.per_device_train_batch_size:1
+--------------------------------------------
+----------------dataset--------------
+len(dataset):3280000
+training_args.per_device_train_batch_size:1
+--------------------------------------------
+/opt/conda/lib/python3.11/site-packages/torch_npu/contrib/transfer_to_npu.py:183: UserWarning: Cannot create tensor with interal format while allow_internel_format=False, tensor will be created with base format. (Triggered internally at ../torch_npu/csrc/aten/common/TensorFactories.cpp:340.)
+  return fn(*args, **kwargs)
+INFO [2026-09-16 02:06:15] >>  iteration       10/  102500 | consumed samples:        320 | consumed tokens:    1310720 | elapsed time per iteration (ms): 6603.50 | learning rate: 4.878049E-07 | global batch size:    32 | lm loss: 4.044704E+00 | ar loss: 1.417426E+00 | dlm loss: 1.915459E+01 | num_tokens_dlm: 2.033875E+03 | grad norm: 46.555 | max_memory_allocated(GB): 17.22 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:07:10] >>  iteration       20/  102500 | consumed samples:        640 | consumed tokens:    2621440 | elapsed time per iteration (ms): 5519.17 | learning rate: 9.756098E-07 | global batch size:    32 | lm loss: 3.949832E+00 | ar loss: 1.438153E+00 | dlm loss: 1.852552E+01 | num_tokens_dlm: 1.829825E+03 | grad norm: 41.666 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:08:05] >>  iteration       30/  102500 | consumed samples:        960 | consumed tokens:    3932160 | elapsed time per iteration (ms): 5522.50 | learning rate: 1.463415E-06 | global batch size:    32 | lm loss: 3.366105E+00 | ar loss: 1.439791E+00 | dlm loss: 1.453276E+01 | num_tokens_dlm: 1.842275E+03 | grad norm: 35.514 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:09:01] >>  iteration       40/  102500 | consumed samples:       1280 | consumed tokens:    5242880 | elapsed time per iteration (ms): 5550.10 | learning rate: 1.951220E-06 | global batch size:    32 | lm loss: 2.638700E+00 | ar loss: 1.401008E+00 | dlm loss: 9.897338E+00 | num_tokens_dlm: 1.747700E+03 | grad norm: 8.794 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:09:57] >>  iteration       50/  102500 | consumed samples:       1600 | consumed tokens:    6553600 | elapsed time per iteration (ms): 5590.45 | learning rate: 2.439024E-06 | global batch size:    32 | lm loss: 2.324085E+00 | ar loss: 1.434242E+00 | dlm loss: 8.007069E+00 | num_tokens_dlm: 1.857450E+03 | grad norm: 4.386 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:10:52] >>  iteration       60/  102500 | consumed samples:       1920 | consumed tokens:    7864320 | elapsed time per iteration (ms): 5545.21 | learning rate: 2.926829E-06 | global batch size:    32 | lm loss: 2.110260E+00 | ar loss: 1.392216E+00 | dlm loss: 7.099663E+00 | num_tokens_dlm: 2.113175E+03 | grad norm: 2.615 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:11:48] >>  iteration       70/  102500 | consumed samples:       2240 | consumed tokens:    9175040 | elapsed time per iteration (ms): 5555.19 | learning rate: 3.414634E-06 | global batch size:    32 | lm loss: 2.071999E+00 | ar loss: 1.430266E+00 | dlm loss: 6.576270E+00 | num_tokens_dlm: 1.887750E+03 | grad norm: 1.687 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:12:43] >>  iteration       80/  102500 | consumed samples:       2560 | consumed tokens:   10485760 | elapsed time per iteration (ms): 5556.44 | learning rate: 3.902439E-06 | global batch size:    32 | lm loss: 1.938443E+00 | ar loss: 1.389080E+00 | dlm loss: 5.929220E+00 | num_tokens_dlm: 2.362125E+03 | grad norm: 1.916 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:13:39] >>  iteration       90/  102500 | consumed samples:       2880 | consumed tokens:   11796480 | elapsed time per iteration (ms): 5549.11 | learning rate: 4.390244E-06 | global batch size:    32 | lm loss: 1.846791E+00 | ar loss: 1.377432E+00 | dlm loss: 5.645551E+00 | num_tokens_dlm: 2.010200E+03 | grad norm: 1.126 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:14:36] >>  iteration      100/  102500 | consumed samples:       3200 | consumed tokens:   13107200 | elapsed time per iteration (ms): 5698.84 | learning rate: 4.878049E-06 | global batch size:    32 | lm loss: 1.852771E+00 | ar loss: 1.394681E+00 | dlm loss: 5.479967E+00 | num_tokens_dlm: 2.266275E+03 | grad norm: 1.210 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:15:31] >>  iteration      110/  102500 | consumed samples:       3520 | consumed tokens:   14417920 | elapsed time per iteration (ms): 5555.78 | learning rate: 5.365854E-06 | global batch size:    32 | lm loss: 1.807890E+00 | ar loss: 1.380155E+00 | dlm loss: 5.099928E+00 | num_tokens_dlm: 2.257875E+03 | grad norm: 1.250 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:16:27] >>  iteration      120/  102500 | consumed samples:       3840 | consumed tokens:   15728640 | elapsed time per iteration (ms): 5586.53 | learning rate: 5.853659E-06 | global batch size:    32 | lm loss: 1.787564E+00 | ar loss: 1.394579E+00 | dlm loss: 5.085099E+00 | num_tokens_dlm: 2.224475E+03 | grad norm: 1.747 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:17:23] >>  iteration      130/  102500 | consumed samples:       4160 | consumed tokens:   17039360 | elapsed time per iteration (ms): 5586.57 | learning rate: 6.341463E-06 | global batch size:    32 | lm loss: 1.781398E+00 | ar loss: 1.398738E+00 | dlm loss: 5.048907E+00 | num_tokens_dlm: 2.241250E+03 | grad norm: 1.084 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:18:19] >>  iteration      140/  102500 | consumed samples:       4480 | consumed tokens:   18350080 | elapsed time per iteration (ms): 5619.33 | learning rate: 6.829268E-06 | global batch size:    32 | lm loss: 1.708249E+00 | ar loss: 1.363252E+00 | dlm loss: 4.790407E+00 | num_tokens_dlm: 2.216225E+03 | grad norm: 1.304 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:19:15] >>  iteration      150/  102500 | consumed samples:       4800 | consumed tokens:   19660800 | elapsed time per iteration (ms): 5585.42 | learning rate: 7.317073E-06 | global batch size:    32 | lm loss: 1.732179E+00 | ar loss: 1.390430E+00 | dlm loss: 4.763709E+00 | num_tokens_dlm: 2.136575E+03 | grad norm: 1.293 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:20:10] >>  iteration      160/  102500 | consumed samples:       5120 | consumed tokens:   20971520 | elapsed time per iteration (ms): 5513.80 | learning rate: 7.804878E-06 | global batch size:    32 | lm loss: 1.710708E+00 | ar loss: 1.379723E+00 | dlm loss: 4.766772E+00 | num_tokens_dlm: 1.979150E+03 | grad norm: 1.345 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:21:06] >>  iteration      170/  102500 | consumed samples:       5440 | consumed tokens:   22282240 | elapsed time per iteration (ms): 5556.36 | learning rate: 8.292683E-06 | global batch size:    32 | lm loss: 1.690244E+00 | ar loss: 1.355662E+00 | dlm loss: 4.663890E+00 | num_tokens_dlm: 1.953275E+03 | grad norm: 1.063 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:22:01] >>  iteration      180/  102500 | consumed samples:       5760 | consumed tokens:   23592960 | elapsed time per iteration (ms): 5549.51 | learning rate: 8.780488E-06 | global batch size:    32 | lm loss: 1.695194E+00 | ar loss: 1.371738E+00 | dlm loss: 4.687261E+00 | num_tokens_dlm: 2.061350E+03 | grad norm: 2.201 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:22:57] >>  iteration      190/  102500 | consumed samples:       6080 | consumed tokens:   24903680 | elapsed time per iteration (ms): 5594.12 | learning rate: 9.268293E-06 | global batch size:    32 | lm loss: 1.677242E+00 | ar loss: 1.356147E+00 | dlm loss: 4.536781E+00 | num_tokens_dlm: 2.206225E+03 | grad norm: 1.736 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:23:53] >>  iteration      200/  102500 | consumed samples:       6400 | consumed tokens:   26214400 | elapsed time per iteration (ms): 5555.28 | learning rate: 9.756098E-06 | global batch size:    32 | lm loss: 1.644638E+00 | ar loss: 1.342083E+00 | dlm loss: 4.418013E+00 | num_tokens_dlm: 1.847225E+03 | grad norm: 1.344 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:24:48] >>  iteration      210/  102500 | consumed samples:       6720 | consumed tokens:   27525120 | elapsed time per iteration (ms): 5518.75 | learning rate: 1.024390E-05 | global batch size:    32 | lm loss: 1.651262E+00 | ar loss: 1.352940E+00 | dlm loss: 4.472509E+00 | num_tokens_dlm: 1.988000E+03 | grad norm: 1.530 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:25:45] >>  iteration      220/  102500 | consumed samples:       7040 | consumed tokens:   28835840 | elapsed time per iteration (ms): 5644.18 | learning rate: 1.073171E-05 | global batch size:    32 | lm loss: 1.654097E+00 | ar loss: 1.353642E+00 | dlm loss: 4.500223E+00 | num_tokens_dlm: 2.166100E+03 | grad norm: 1.361 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:26:40] >>  iteration      230/  102500 | consumed samples:       7360 | consumed tokens:   30146560 | elapsed time per iteration (ms): 5527.53 | learning rate: 1.121951E-05 | global batch size:    32 | lm loss: 1.634135E+00 | ar loss: 1.354821E+00 | dlm loss: 4.387408E+00 | num_tokens_dlm: 2.012400E+03 | grad norm: 1.159 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:27:35] >>  iteration      240/  102500 | consumed samples:       7680 | consumed tokens:   31457280 | elapsed time per iteration (ms): 5559.66 | learning rate: 1.170732E-05 | global batch size:    32 | lm loss: 1.642641E+00 | ar loss: 1.359679E+00 | dlm loss: 4.359437E+00 | num_tokens_dlm: 2.084250E+03 | grad norm: 1.307 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:28:31] >>  iteration      250/  102500 | consumed samples:       8000 | consumed tokens:   32768000 | elapsed time per iteration (ms): 5521.92 | learning rate: 1.219512E-05 | global batch size:    32 | lm loss: 1.614899E+00 | ar loss: 1.349228E+00 | dlm loss: 4.388109E+00 | num_tokens_dlm: 1.533525E+03 | grad norm: 1.455 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:29:26] >>  iteration      260/  102500 | consumed samples:       8320 | consumed tokens:   34078720 | elapsed time per iteration (ms): 5524.21 | learning rate: 1.268293E-05 | global batch size:    32 | lm loss: 1.661512E+00 | ar loss: 1.382879E+00 | dlm loss: 4.417931E+00 | num_tokens_dlm: 2.100150E+03 | grad norm: 1.011 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:30:21] >>  iteration      270/  102500 | consumed samples:       8640 | consumed tokens:   35389440 | elapsed time per iteration (ms): 5524.68 | learning rate: 1.317073E-05 | global batch size:    32 | lm loss: 1.601793E+00 | ar loss: 1.336757E+00 | dlm loss: 4.244054E+00 | num_tokens_dlm: 2.193900E+03 | grad norm: 1.348 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:31:16] >>  iteration      280/  102500 | consumed samples:       8960 | consumed tokens:   36700160 | elapsed time per iteration (ms): 5527.91 | learning rate: 1.365854E-05 | global batch size:    32 | lm loss: 1.574496E+00 | ar loss: 1.311916E+00 | dlm loss: 4.148824E+00 | num_tokens_dlm: 2.011600E+03 | grad norm: 1.169 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:32:12] >>  iteration      290/  102500 | consumed samples:       9280 | consumed tokens:   38010880 | elapsed time per iteration (ms): 5558.31 | learning rate: 1.414634E-05 | global batch size:    32 | lm loss: 1.631880E+00 | ar loss: 1.355931E+00 | dlm loss: 4.269120E+00 | num_tokens_dlm: 2.229725E+03 | grad norm: 1.182 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:33:07] >>  iteration      300/  102500 | consumed samples:       9600 | consumed tokens:   39321600 | elapsed time per iteration (ms): 5518.96 | learning rate: 1.463415E-05 | global batch size:    32 | lm loss: 1.549374E+00 | ar loss: 1.281438E+00 | dlm loss: 4.174881E+00 | num_tokens_dlm: 1.984050E+03 | grad norm: 1.081 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:34:02] >>  iteration      310/  102500 | consumed samples:       9920 | consumed tokens:   40632320 | elapsed time per iteration (ms): 5514.41 | learning rate: 1.512195E-05 | global batch size:    32 | lm loss: 1.588191E+00 | ar loss: 1.331984E+00 | dlm loss: 4.231378E+00 | num_tokens_dlm: 1.945125E+03 | grad norm: 1.512 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:34:57] >>  iteration      320/  102500 | consumed samples:      10240 | consumed tokens:   41943040 | elapsed time per iteration (ms): 5517.72 | learning rate: 1.560976E-05 | global batch size:    32 | lm loss: 1.545445E+00 | ar loss: 1.294896E+00 | dlm loss: 4.067031E+00 | num_tokens_dlm: 2.072950E+03 | grad norm: 1.098 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:35:53] >>  iteration      330/  102500 | consumed samples:      10560 | consumed tokens:   43253760 | elapsed time per iteration (ms): 5523.92 | learning rate: 1.609756E-05 | global batch size:    32 | lm loss: 1.577450E+00 | ar loss: 1.318592E+00 | dlm loss: 4.099578E+00 | num_tokens_dlm: 2.128350E+03 | grad norm: 1.151 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:36:48] >>  iteration      340/  102500 | consumed samples:      10880 | consumed tokens:   44564480 | elapsed time per iteration (ms): 5551.95 | learning rate: 1.658537E-05 | global batch size:    32 | lm loss: 1.583387E+00 | ar loss: 1.336302E+00 | dlm loss: 4.241290E+00 | num_tokens_dlm: 1.937225E+03 | grad norm: 1.030 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:37:43] >>  iteration      350/  102500 | consumed samples:      11200 | consumed tokens:   45875200 | elapsed time per iteration (ms): 5518.06 | learning rate: 1.707317E-05 | global batch size:    32 | lm loss: 1.600464E+00 | ar loss: 1.341325E+00 | dlm loss: 4.074619E+00 | num_tokens_dlm: 2.191225E+03 | grad norm: 1.049 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:38:39] >>  iteration      360/  102500 | consumed samples:      11520 | consumed tokens:   47185920 | elapsed time per iteration (ms): 5518.09 | learning rate: 1.756098E-05 | global batch size:    32 | lm loss: 1.583625E+00 | ar loss: 1.333446E+00 | dlm loss: 4.150000E+00 | num_tokens_dlm: 2.180600E+03 | grad norm: 0.946 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:39:34] >>  iteration      370/  102500 | consumed samples:      11840 | consumed tokens:   48496640 | elapsed time per iteration (ms): 5525.19 | learning rate: 1.804878E-05 | global batch size:    32 | lm loss: 1.596863E+00 | ar loss: 1.354767E+00 | dlm loss: 4.095796E+00 | num_tokens_dlm: 2.110500E+03 | grad norm: 0.886 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:40:29] >>  iteration      380/  102500 | consumed samples:      12160 | consumed tokens:   49807360 | elapsed time per iteration (ms): 5518.01 | learning rate: 1.853659E-05 | global batch size:    32 | lm loss: 1.566589E+00 | ar loss: 1.324452E+00 | dlm loss: 4.075635E+00 | num_tokens_dlm: 2.237700E+03 | grad norm: 1.118 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:41:25] >>  iteration      390/  102500 | consumed samples:      12480 | consumed tokens:   51118080 | elapsed time per iteration (ms): 5559.73 | learning rate: 1.902439E-05 | global batch size:    32 | lm loss: 1.566316E+00 | ar loss: 1.328156E+00 | dlm loss: 4.092387E+00 | num_tokens_dlm: 2.018125E+03 | grad norm: 1.115 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:42:20] >>  iteration      400/  102500 | consumed samples:      12800 | consumed tokens:   52428800 | elapsed time per iteration (ms): 5524.32 | learning rate: 1.951220E-05 | global batch size:    32 | lm loss: 1.534556E+00 | ar loss: 1.311297E+00 | dlm loss: 4.034529E+00 | num_tokens_dlm: 2.080850E+03 | grad norm: 1.011 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:43:15] >>  iteration      410/  102500 | consumed samples:      13120 | consumed tokens:   53739520 | elapsed time per iteration (ms): 5521.00 | learning rate: 2.000000E-05 | global batch size:    32 | lm loss: 1.566839E+00 | ar loss: 1.330167E+00 | dlm loss: 4.007512E+00 | num_tokens_dlm: 2.039925E+03 | grad norm: 1.144 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:44:10] >>  iteration      420/  102500 | consumed samples:      13440 | consumed tokens:   55050240 | elapsed time per iteration (ms): 5520.84 | learning rate: 2.048780E-05 | global batch size:    32 | lm loss: 1.558849E+00 | ar loss: 1.324352E+00 | dlm loss: 4.006234E+00 | num_tokens_dlm: 2.271375E+03 | grad norm: 1.133 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:45:06] >>  iteration      430/  102500 | consumed samples:      13760 | consumed tokens:   56360960 | elapsed time per iteration (ms): 5524.64 | learning rate: 2.097561E-05 | global batch size:    32 | lm loss: 1.528254E+00 | ar loss: 1.291621E+00 | dlm loss: 3.938701E+00 | num_tokens_dlm: 2.179625E+03 | grad norm: 1.014 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:46:01] >>  iteration      440/  102500 | consumed samples:      14080 | consumed tokens:   57671680 | elapsed time per iteration (ms): 5556.44 | learning rate: 2.146341E-05 | global batch size:    32 | lm loss: 1.548597E+00 | ar loss: 1.326050E+00 | dlm loss: 4.016606E+00 | num_tokens_dlm: 2.187850E+03 | grad norm: 1.121 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:46:56] >>  iteration      450/  102500 | consumed samples:      14400 | consumed tokens:   58982400 | elapsed time per iteration (ms): 5523.63 | learning rate: 2.195122E-05 | global batch size:    32 | lm loss: 1.562440E+00 | ar loss: 1.341935E+00 | dlm loss: 4.040717E+00 | num_tokens_dlm: 1.934425E+03 | grad norm: 1.566 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:47:51] >>  iteration      460/  102500 | consumed samples:      14720 | consumed tokens:   60293120 | elapsed time per iteration (ms): 5511.97 | learning rate: 2.243902E-05 | global batch size:    32 | lm loss: 1.531538E+00 | ar loss: 1.307365E+00 | dlm loss: 3.866679E+00 | num_tokens_dlm: 2.175925E+03 | grad norm: 1.618 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:48:47] >>  iteration      470/  102500 | consumed samples:      15040 | consumed tokens:   61603840 | elapsed time per iteration (ms): 5527.86 | learning rate: 2.292683E-05 | global batch size:    32 | lm loss: 1.610626E+00 | ar loss: 1.366786E+00 | dlm loss: 4.065201E+00 | num_tokens_dlm: 1.869800E+03 | grad norm: 0.989 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:49:42] >>  iteration      480/  102500 | consumed samples:      15360 | consumed tokens:   62914560 | elapsed time per iteration (ms): 5524.11 | learning rate: 2.341463E-05 | global batch size:    32 | lm loss: 1.540400E+00 | ar loss: 1.315962E+00 | dlm loss: 3.996670E+00 | num_tokens_dlm: 1.629300E+03 | grad norm: 1.190 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:50:38] >>  iteration      490/  102500 | consumed samples:      15680 | consumed tokens:   64225280 | elapsed time per iteration (ms): 5556.54 | learning rate: 2.390244E-05 | global batch size:    32 | lm loss: 1.525668E+00 | ar loss: 1.304684E+00 | dlm loss: 3.906453E+00 | num_tokens_dlm: 2.025250E+03 | grad norm: 0.918 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:51:33] >>  iteration      500/  102500 | consumed samples:      16000 | consumed tokens:   65536000 | elapsed time per iteration (ms): 5522.00 | learning rate: 2.439024E-05 | global batch size:    32 | lm loss: 1.552535E+00 | ar loss: 1.332028E+00 | dlm loss: 4.001256E+00 | num_tokens_dlm: 2.074525E+03 | grad norm: 0.948 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+/opt/conda/lib/python3.11/site-packages/torch_npu/distributed/distributed_c10d.py:158: UserWarning: HCCL doesn't support gather at the moment. Implemented with allgather instead.
+  warnings.warn("HCCL doesn't support gather at the moment. Implemented with allgather instead.")
+/opt/conda/lib/python3.11/site-packages/torch/distributed/checkpoint/filesystem.py:111: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+  if tensor.storage().size() != tensor.numel():
+/opt/conda/lib/python3.11/site-packages/torch/distributed/checkpoint/filesystem.py:111: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+  if tensor.storage().size() != tensor.numel():
+/opt/conda/lib/python3.11/site-packages/torch/distributed/checkpoint/filesystem.py:111: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+  if tensor.storage().size() != tensor.numel():
+/opt/conda/lib/python3.11/site-packages/torch/distributed/checkpoint/filesystem.py:111: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+  if tensor.storage().size() != tensor.numel():
+/opt/conda/lib/python3.11/site-packages/torch/distributed/checkpoint/filesystem.py:111: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+  if tensor.storage().size() != tensor.numel():
+/opt/conda/lib/python3.11/site-packages/torch/distributed/checkpoint/filesystem.py:111: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+  if tensor.storage().size() != tensor.numel():
+/opt/conda/lib/python3.11/site-packages/torch/distributed/checkpoint/filesystem.py:111: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+  if tensor.storage().size() != tensor.numel():
+/opt/conda/lib/python3.11/site-packages/torch/distributed/checkpoint/filesystem.py:111: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+  if tensor.storage().size() != tensor.numel():
+/opt/conda/lib/python3.11/site-packages/torch/distributed/distributed_c10d.py:4631: UserWarning: No device id is provided via `init_process_group` or `barrier `. Using the current device set by the user. 
+  warnings.warn(  # warn only once
+/opt/conda/lib/python3.11/site-packages/torch/distributed/distributed_c10d.py:4631: UserWarning: No device id is provided via `init_process_group` or `barrier `. Using the current device set by the user. 
+  warnings.warn(  # warn only once
+/opt/conda/lib/python3.11/site-packages/torch/distributed/distributed_c10d.py:4631: UserWarning: No device id is provided via `init_process_group` or `barrier `. Using the current device set by the user. 
+  warnings.warn(  # warn only once
+/opt/conda/lib/python3.11/site-packages/torch/distributed/distributed_c10d.py:4631: UserWarning: No device id is provided via `init_process_group` or `barrier `. Using the current device set by the user. 
+  warnings.warn(  # warn only once
+/opt/conda/lib/python3.11/site-packages/torch/distributed/distributed_c10d.py:4631: UserWarning: No device id is provided via `init_process_group` or `barrier `. Using the current device set by the user. 
+  warnings.warn(  # warn only once
+/opt/conda/lib/python3.11/site-packages/torch/distributed/distributed_c10d.py:4631: UserWarning: No device id is provided via `init_process_group` or `barrier `. Using the current device set by the user. 
+  warnings.warn(  # warn only once
+/opt/conda/lib/python3.11/site-packages/torch/distributed/distributed_c10d.py:4631: UserWarning: No device id is provided via `init_process_group` or `barrier `. Using the current device set by the user. 
+  warnings.warn(  # warn only once
+INFO [2026-09-16 02:51:49] >> Saved checkpoint to /share/dataset/x00840191/model_train/ckpt/phase4_cpt_ar_duffision_0910/checkpoints/global_step_500
+INFO [2026-09-16 02:51:50] >> Distributed checkpoint saved at /share/dataset/x00840191/model_train/ckpt/phase4_cpt_ar_duffision_0910/checkpoints/global_step_500 successfully!
+INFO [2026-09-16 02:51:50] >> Removing old checkpoint: /share/dataset/x00840191/model_train/ckpt/phase4_cpt_ar_duffision_0910/checkpoints/global_step_7500
+INFO [2026-09-16 02:52:00] >> Huggingface checkpoint saved at /share/dataset/x00840191/model_train/ckpt/phase4_cpt_ar_duffision_0910/models/global_step_500 successfully!
+INFO [2026-09-16 02:52:57] >>  iteration      510/  102500 | consumed samples:      16320 | consumed tokens:   66846720 | elapsed time per iteration (ms): 8467.01 | learning rate: 2.487805E-05 | global batch size:    32 | lm loss: 1.541551E+00 | ar loss: 1.333730E+00 | dlm loss: 3.968481E+00 | num_tokens_dlm: 2.042275E+03 | grad norm: 0.949 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:53:53] >>  iteration      520/  102500 | consumed samples:      16640 | consumed tokens:   68157440 | elapsed time per iteration (ms): 5569.00 | learning rate: 2.536585E-05 | global batch size:    32 | lm loss: 1.507076E+00 | ar loss: 1.281406E+00 | dlm loss: 3.808254E+00 | num_tokens_dlm: 2.336500E+03 | grad norm: 1.026 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:54:49] >>  iteration      530/  102500 | consumed samples:      16960 | consumed tokens:   69468160 | elapsed time per iteration (ms): 5558.72 | learning rate: 2.585366E-05 | global batch size:    32 | lm loss: 1.509301E+00 | ar loss: 1.289695E+00 | dlm loss: 3.905196E+00 | num_tokens_dlm: 2.079175E+03 | grad norm: 0.901 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:55:44] >>  iteration      540/  102500 | consumed samples:      17280 | consumed tokens:   70778880 | elapsed time per iteration (ms): 5561.39 | learning rate: 2.634146E-05 | global batch size:    32 | lm loss: 1.505623E+00 | ar loss: 1.302260E+00 | dlm loss: 3.774143E+00 | num_tokens_dlm: 1.754125E+03 | grad norm: 0.824 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:56:41] >>  iteration      550/  102500 | consumed samples:      17600 | consumed tokens:   72089600 | elapsed time per iteration (ms): 5705.25 | learning rate: 2.682927E-05 | global batch size:    32 | lm loss: 1.502454E+00 | ar loss: 1.282269E+00 | dlm loss: 3.882462E+00 | num_tokens_dlm: 1.856375E+03 | grad norm: 0.895 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:57:37] >>  iteration      560/  102500 | consumed samples:      17920 | consumed tokens:   73400320 | elapsed time per iteration (ms): 5554.16 | learning rate: 2.731707E-05 | global batch size:    32 | lm loss: 1.528072E+00 | ar loss: 1.305490E+00 | dlm loss: 3.958957E+00 | num_tokens_dlm: 2.285550E+03 | grad norm: 0.945 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:58:32] >>  iteration      570/  102500 | consumed samples:      18240 | consumed tokens:   74711040 | elapsed time per iteration (ms): 5555.43 | learning rate: 2.780488E-05 | global batch size:    32 | lm loss: 1.521099E+00 | ar loss: 1.297135E+00 | dlm loss: 3.835586E+00 | num_tokens_dlm: 2.236450E+03 | grad norm: 0.945 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 02:59:28] >>  iteration      580/  102500 | consumed samples:      18560 | consumed tokens:   76021760 | elapsed time per iteration (ms): 5553.16 | learning rate: 2.829268E-05 | global batch size:    32 | lm loss: 1.491909E+00 | ar loss: 1.272611E+00 | dlm loss: 3.840717E+00 | num_tokens_dlm: 2.005625E+03 | grad norm: 0.909 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:00:24] >>  iteration      590/  102500 | consumed samples:      18880 | consumed tokens:   77332480 | elapsed time per iteration (ms): 5556.33 | learning rate: 2.878049E-05 | global batch size:    32 | lm loss: 1.520909E+00 | ar loss: 1.299374E+00 | dlm loss: 3.743975E+00 | num_tokens_dlm: 2.155975E+03 | grad norm: 0.991 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:01:20] >>  iteration      600/  102500 | consumed samples:      19200 | consumed tokens:   78643200 | elapsed time per iteration (ms): 5604.08 | learning rate: 2.926829E-05 | global batch size:    32 | lm loss: 1.526210E+00 | ar loss: 1.315488E+00 | dlm loss: 3.825404E+00 | num_tokens_dlm: 2.189925E+03 | grad norm: 0.853 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:02:15] >>  iteration      610/  102500 | consumed samples:      19520 | consumed tokens:   79953920 | elapsed time per iteration (ms): 5560.48 | learning rate: 2.975610E-05 | global batch size:    32 | lm loss: 1.523869E+00 | ar loss: 1.310691E+00 | dlm loss: 3.785681E+00 | num_tokens_dlm: 2.153550E+03 | grad norm: 1.121 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:03:11] >>  iteration      620/  102500 | consumed samples:      19840 | consumed tokens:   81264640 | elapsed time per iteration (ms): 5557.65 | learning rate: 3.024390E-05 | global batch size:    32 | lm loss: 1.498401E+00 | ar loss: 1.282393E+00 | dlm loss: 3.740941E+00 | num_tokens_dlm: 2.034475E+03 | grad norm: 1.024 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:04:06] >>  iteration      630/  102500 | consumed samples:      20160 | consumed tokens:   82575360 | elapsed time per iteration (ms): 5562.96 | learning rate: 3.073171E-05 | global batch size:    32 | lm loss: 1.511957E+00 | ar loss: 1.312409E+00 | dlm loss: 3.820676E+00 | num_tokens_dlm: 2.053575E+03 | grad norm: 0.951 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:05:02] >>  iteration      640/  102500 | consumed samples:      20480 | consumed tokens:   83886080 | elapsed time per iteration (ms): 5554.20 | learning rate: 3.121951E-05 | global batch size:    32 | lm loss: 1.542636E+00 | ar loss: 1.332686E+00 | dlm loss: 3.826870E+00 | num_tokens_dlm: 2.325925E+03 | grad norm: 0.796 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:05:58] >>  iteration      650/  102500 | consumed samples:      20800 | consumed tokens:   85196800 | elapsed time per iteration (ms): 5605.49 | learning rate: 3.170732E-05 | global batch size:    32 | lm loss: 1.475276E+00 | ar loss: 1.278001E+00 | dlm loss: 3.729329E+00 | num_tokens_dlm: 2.169350E+03 | grad norm: 2.003 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:06:54] >>  iteration      660/  102500 | consumed samples:      21120 | consumed tokens:   86507520 | elapsed time per iteration (ms): 5552.92 | learning rate: 3.219512E-05 | global batch size:    32 | lm loss: 1.522351E+00 | ar loss: 1.307663E+00 | dlm loss: 3.826718E+00 | num_tokens_dlm: 2.039900E+03 | grad norm: 11.349 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:07:49] >>  iteration      670/  102500 | consumed samples:      21440 | consumed tokens:   87818240 | elapsed time per iteration (ms): 5562.18 | learning rate: 3.268293E-05 | global batch size:    32 | lm loss: 1.530572E+00 | ar loss: 1.319845E+00 | dlm loss: 3.906498E+00 | num_tokens_dlm: 2.014800E+03 | grad norm: 0.853 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:08:45] >>  iteration      680/  102500 | consumed samples:      21760 | consumed tokens:   89128960 | elapsed time per iteration (ms): 5562.91 | learning rate: 3.317073E-05 | global batch size:    32 | lm loss: 1.546688E+00 | ar loss: 1.335267E+00 | dlm loss: 3.901375E+00 | num_tokens_dlm: 1.999925E+03 | grad norm: 1.014 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:09:40] >>  iteration      690/  102500 | consumed samples:      22080 | consumed tokens:   90439680 | elapsed time per iteration (ms): 5561.11 | learning rate: 3.365854E-05 | global batch size:    32 | lm loss: 1.510162E+00 | ar loss: 1.299690E+00 | dlm loss: 3.756594E+00 | num_tokens_dlm: 1.741575E+03 | grad norm: 0.884 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:10:36] >>  iteration      700/  102500 | consumed samples:      22400 | consumed tokens:   91750400 | elapsed time per iteration (ms): 5605.36 | learning rate: 3.414634E-05 | global batch size:    32 | lm loss: 1.491045E+00 | ar loss: 1.292355E+00 | dlm loss: 3.729095E+00 | num_tokens_dlm: 2.059375E+03 | grad norm: 0.720 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:11:32] >>  iteration      710/  102500 | consumed samples:      22720 | consumed tokens:   93061120 | elapsed time per iteration (ms): 5562.32 | learning rate: 3.463415E-05 | global batch size:    32 | lm loss: 1.501730E+00 | ar loss: 1.296761E+00 | dlm loss: 3.741815E+00 | num_tokens_dlm: 1.724225E+03 | grad norm: 0.878 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:12:28] >>  iteration      720/  102500 | consumed samples:      23040 | consumed tokens:   94371840 | elapsed time per iteration (ms): 5558.21 | learning rate: 3.512195E-05 | global batch size:    32 | lm loss: 1.498411E+00 | ar loss: 1.306903E+00 | dlm loss: 3.688437E+00 | num_tokens_dlm: 1.958150E+03 | grad norm: 0.814 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:13:23] >>  iteration      730/  102500 | consumed samples:      23360 | consumed tokens:   95682560 | elapsed time per iteration (ms): 5560.72 | learning rate: 3.560976E-05 | global batch size:    32 | lm loss: 1.507790E+00 | ar loss: 1.310841E+00 | dlm loss: 3.732669E+00 | num_tokens_dlm: 1.944450E+03 | grad norm: 0.845 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:14:19] >>  iteration      740/  102500 | consumed samples:      23680 | consumed tokens:   96993280 | elapsed time per iteration (ms): 5559.67 | learning rate: 3.609756E-05 | global batch size:    32 | lm loss: 1.499879E+00 | ar loss: 1.314998E+00 | dlm loss: 3.722435E+00 | num_tokens_dlm: 2.034775E+03 | grad norm: 0.751 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:15:15] >>  iteration      750/  102500 | consumed samples:      24000 | consumed tokens:   98304000 | elapsed time per iteration (ms): 5604.37 | learning rate: 3.658537E-05 | global batch size:    32 | lm loss: 1.483658E+00 | ar loss: 1.281949E+00 | dlm loss: 3.686977E+00 | num_tokens_dlm: 2.219325E+03 | grad norm: 0.861 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:16:11] >>  iteration      760/  102500 | consumed samples:      24320 | consumed tokens:   99614720 | elapsed time per iteration (ms): 5559.74 | learning rate: 3.707317E-05 | global batch size:    32 | lm loss: 1.477901E+00 | ar loss: 1.281100E+00 | dlm loss: 3.763593E+00 | num_tokens_dlm: 2.215950E+03 | grad norm: 0.954 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:17:06] >>  iteration      770/  102500 | consumed samples:      24640 | consumed tokens:  100925440 | elapsed time per iteration (ms): 5556.29 | learning rate: 3.756098E-05 | global batch size:    32 | lm loss: 1.468981E+00 | ar loss: 1.283056E+00 | dlm loss: 3.693839E+00 | num_tokens_dlm: 2.103950E+03 | grad norm: 0.766 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:18:02] >>  iteration      780/  102500 | consumed samples:      24960 | consumed tokens:  102236160 | elapsed time per iteration (ms): 5559.30 | learning rate: 3.804878E-05 | global batch size:    32 | lm loss: 1.485680E+00 | ar loss: 1.290423E+00 | dlm loss: 3.728288E+00 | num_tokens_dlm: 1.888875E+03 | grad norm: 0.831 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:18:57] >>  iteration      790/  102500 | consumed samples:      25280 | consumed tokens:  103546880 | elapsed time per iteration (ms): 5564.62 | learning rate: 3.853659E-05 | global batch size:    32 | lm loss: 1.497667E+00 | ar loss: 1.306041E+00 | dlm loss: 3.708175E+00 | num_tokens_dlm: 1.957725E+03 | grad norm: 0.731 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:19:53] >>  iteration      800/  102500 | consumed samples:      25600 | consumed tokens:  104857600 | elapsed time per iteration (ms): 5606.32 | learning rate: 3.902439E-05 | global batch size:    32 | lm loss: 1.474423E+00 | ar loss: 1.287946E+00 | dlm loss: 3.659131E+00 | num_tokens_dlm: 1.937450E+03 | grad norm: 0.814 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:20:49] >>  iteration      810/  102500 | consumed samples:      25920 | consumed tokens:  106168320 | elapsed time per iteration (ms): 5559.10 | learning rate: 3.951220E-05 | global batch size:    32 | lm loss: 1.477961E+00 | ar loss: 1.284638E+00 | dlm loss: 3.681822E+00 | num_tokens_dlm: 1.957075E+03 | grad norm: 0.694 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:21:45] >>  iteration      820/  102500 | consumed samples:      26240 | consumed tokens:  107479040 | elapsed time per iteration (ms): 5557.78 | learning rate: 4.000000E-05 | global batch size:    32 | lm loss: 1.465156E+00 | ar loss: 1.279715E+00 | dlm loss: 3.668758E+00 | num_tokens_dlm: 2.381550E+03 | grad norm: 0.733 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:22:40] >>  iteration      830/  102500 | consumed samples:      26560 | consumed tokens:  108789760 | elapsed time per iteration (ms): 5558.80 | learning rate: 4.048780E-05 | global batch size:    32 | lm loss: 1.466822E+00 | ar loss: 1.266866E+00 | dlm loss: 3.626996E+00 | num_tokens_dlm: 1.925100E+03 | grad norm: 0.690 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:23:36] >>  iteration      840/  102500 | consumed samples:      26880 | consumed tokens:  110100480 | elapsed time per iteration (ms): 5563.80 | learning rate: 4.097561E-05 | global batch size:    32 | lm loss: 1.472956E+00 | ar loss: 1.279892E+00 | dlm loss: 3.691924E+00 | num_tokens_dlm: 1.977300E+03 | grad norm: 0.864 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:24:32] >>  iteration      850/  102500 | consumed samples:      27200 | consumed tokens:  111411200 | elapsed time per iteration (ms): 5605.22 | learning rate: 4.146341E-05 | global batch size:    32 | lm loss: 1.471980E+00 | ar loss: 1.279065E+00 | dlm loss: 3.660690E+00 | num_tokens_dlm: 1.728775E+03 | grad norm: 0.882 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:25:27] >>  iteration      860/  102500 | consumed samples:      27520 | consumed tokens:  112721920 | elapsed time per iteration (ms): 5565.56 | learning rate: 4.195122E-05 | global batch size:    32 | lm loss: 1.470577E+00 | ar loss: 1.278123E+00 | dlm loss: 3.649706E+00 | num_tokens_dlm: 1.838375E+03 | grad norm: 0.852 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:26:23] >>  iteration      870/  102500 | consumed samples:      27840 | consumed tokens:  114032640 | elapsed time per iteration (ms): 5556.66 | learning rate: 4.243902E-05 | global batch size:    32 | lm loss: 1.480991E+00 | ar loss: 1.285539E+00 | dlm loss: 3.575504E+00 | num_tokens_dlm: 2.441725E+03 | grad norm: 0.986 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:27:19] >>  iteration      880/  102500 | consumed samples:      28160 | consumed tokens:  115343360 | elapsed time per iteration (ms): 5564.46 | learning rate: 4.292683E-05 | global batch size:    32 | lm loss: 1.520113E+00 | ar loss: 1.320624E+00 | dlm loss: 3.775875E+00 | num_tokens_dlm: 2.088000E+03 | grad norm: 0.836 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:28:14] >>  iteration      890/  102500 | consumed samples:      28480 | consumed tokens:  116654080 | elapsed time per iteration (ms): 5556.83 | learning rate: 4.341463E-05 | global batch size:    32 | lm loss: 1.484680E+00 | ar loss: 1.284124E+00 | dlm loss: 3.623462E+00 | num_tokens_dlm: 2.174425E+03 | grad norm: 0.999 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:29:12] >>  iteration      900/  102500 | consumed samples:      28800 | consumed tokens:  117964800 | elapsed time per iteration (ms): 5727.12 | learning rate: 4.390244E-05 | global batch size:    32 | lm loss: 1.473040E+00 | ar loss: 1.296207E+00 | dlm loss: 3.658669E+00 | num_tokens_dlm: 2.071775E+03 | grad norm: 0.727 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:30:07] >>  iteration      910/  102500 | consumed samples:      29120 | consumed tokens:  119275520 | elapsed time per iteration (ms): 5560.13 | learning rate: 4.439024E-05 | global batch size:    32 | lm loss: 1.522527E+00 | ar loss: 1.329785E+00 | dlm loss: 3.748394E+00 | num_tokens_dlm: 2.262250E+03 | grad norm: 1.279 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:31:03] >>  iteration      920/  102500 | consumed samples:      29440 | consumed tokens:  120586240 | elapsed time per iteration (ms): 5556.22 | learning rate: 4.487805E-05 | global batch size:    32 | lm loss: 1.531904E+00 | ar loss: 1.337654E+00 | dlm loss: 3.815265E+00 | num_tokens_dlm: 1.963400E+03 | grad norm: 0.732 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:31:58] >>  iteration      930/  102500 | consumed samples:      29760 | consumed tokens:  121896960 | elapsed time per iteration (ms): 5563.85 | learning rate: 4.536585E-05 | global batch size:    32 | lm loss: 1.483766E+00 | ar loss: 1.295772E+00 | dlm loss: 3.609071E+00 | num_tokens_dlm: 2.069475E+03 | grad norm: 0.839 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:32:54] >>  iteration      940/  102500 | consumed samples:      30080 | consumed tokens:  123207680 | elapsed time per iteration (ms): 5561.73 | learning rate: 4.585366E-05 | global batch size:    32 | lm loss: 1.488889E+00 | ar loss: 1.307064E+00 | dlm loss: 3.731062E+00 | num_tokens_dlm: 2.139425E+03 | grad norm: 1.991 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:33:50] >>  iteration      950/  102500 | consumed samples:      30400 | consumed tokens:  124518400 | elapsed time per iteration (ms): 5602.35 | learning rate: 4.634146E-05 | global batch size:    32 | lm loss: 1.494161E+00 | ar loss: 1.302071E+00 | dlm loss: 3.632244E+00 | num_tokens_dlm: 2.004975E+03 | grad norm: 0.816 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:34:46] >>  iteration      960/  102500 | consumed samples:      30720 | consumed tokens:  125829120 | elapsed time per iteration (ms): 5567.86 | learning rate: 4.682927E-05 | global batch size:    32 | lm loss: 1.522578E+00 | ar loss: 1.328819E+00 | dlm loss: 3.619684E+00 | num_tokens_dlm: 1.967150E+03 | grad norm: 0.934 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:35:41] >>  iteration      970/  102500 | consumed samples:      31040 | consumed tokens:  127139840 | elapsed time per iteration (ms): 5564.58 | learning rate: 4.731707E-05 | global batch size:    32 | lm loss: 1.473180E+00 | ar loss: 1.286702E+00 | dlm loss: 3.665417E+00 | num_tokens_dlm: 1.985700E+03 | grad norm: 0.758 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:36:37] >>  iteration      980/  102500 | consumed samples:      31360 | consumed tokens:  128450560 | elapsed time per iteration (ms): 5561.83 | learning rate: 4.780488E-05 | global batch size:    32 | lm loss: 1.472280E+00 | ar loss: 1.291453E+00 | dlm loss: 3.678798E+00 | num_tokens_dlm: 2.077675E+03 | grad norm: 0.652 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:37:33] >>  iteration      990/  102500 | consumed samples:      31680 | consumed tokens:  129761280 | elapsed time per iteration (ms): 5562.77 | learning rate: 4.829268E-05 | global batch size:    32 | lm loss: 1.467312E+00 | ar loss: 1.290076E+00 | dlm loss: 3.678159E+00 | num_tokens_dlm: 2.503400E+03 | grad norm: 0.722 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:38:29] >>  iteration     1000/  102500 | consumed samples:      32000 | consumed tokens:  131072000 | elapsed time per iteration (ms): 5601.93 | learning rate: 4.878049E-05 | global batch size:    32 | lm loss: 1.456115E+00 | ar loss: 1.271157E+00 | dlm loss: 3.687882E+00 | num_tokens_dlm: 2.350700E+03 | grad norm: 1.089 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:38:46] >> Saved checkpoint to /share/dataset/x00840191/model_train/ckpt/phase4_cpt_ar_duffision_0910/checkpoints/global_step_1000
+INFO [2026-09-16 03:38:46] >> Distributed checkpoint saved at /share/dataset/x00840191/model_train/ckpt/phase4_cpt_ar_duffision_0910/checkpoints/global_step_1000 successfully!
+INFO [2026-09-16 03:38:46] >> Removing old checkpoint: /share/dataset/x00840191/model_train/ckpt/phase4_cpt_ar_duffision_0910/checkpoints/global_step_8000
+INFO [2026-09-16 03:38:56] >> Huggingface checkpoint saved at /share/dataset/x00840191/model_train/ckpt/phase4_cpt_ar_duffision_0910/models/global_step_1000 successfully!
+INFO [2026-09-16 03:39:53] >>  iteration     1010/  102500 | consumed samples:      32320 | consumed tokens:  132382720 | elapsed time per iteration (ms): 8420.90 | learning rate: 4.926829E-05 | global batch size:    32 | lm loss: 1.451552E+00 | ar loss: 1.271634E+00 | dlm loss: 3.590586E+00 | num_tokens_dlm: 2.026200E+03 | grad norm: 0.715 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:40:48] >>  iteration     1020/  102500 | consumed samples:      32640 | consumed tokens:  133693440 | elapsed time per iteration (ms): 5553.71 | learning rate: 4.975610E-05 | global batch size:    32 | lm loss: 1.459554E+00 | ar loss: 1.287530E+00 | dlm loss: 3.488089E+00 | num_tokens_dlm: 2.333850E+03 | grad norm: 0.720 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:41:44] >>  iteration     1030/  102500 | consumed samples:      32960 | consumed tokens:  135004160 | elapsed time per iteration (ms): 5557.31 | learning rate: 5.000000E-05 | global batch size:    32 | lm loss: 1.431986E+00 | ar loss: 1.254656E+00 | dlm loss: 3.572175E+00 | num_tokens_dlm: 2.208800E+03 | grad norm: 0.684 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:42:39] >>  iteration     1040/  102500 | consumed samples:      33280 | consumed tokens:  136314880 | elapsed time per iteration (ms): 5561.06 | learning rate: 5.000000E-05 | global batch size:    32 | lm loss: 1.496201E+00 | ar loss: 1.299901E+00 | dlm loss: 3.674326E+00 | num_tokens_dlm: 1.709000E+03 | grad norm: 0.869 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:43:35] >>  iteration     1050/  102500 | consumed samples:      33600 | consumed tokens:  137625600 | elapsed time per iteration (ms): 5600.08 | learning rate: 4.999999E-05 | global batch size:    32 | lm loss: 1.506729E+00 | ar loss: 1.319418E+00 | dlm loss: 3.763853E+00 | num_tokens_dlm: 2.082350E+03 | grad norm: 0.887 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:44:31] >>  iteration     1060/  102500 | consumed samples:      33920 | consumed tokens:  138936320 | elapsed time per iteration (ms): 5560.99 | learning rate: 4.999999E-05 | global batch size:    32 | lm loss: 1.452560E+00 | ar loss: 1.272466E+00 | dlm loss: 3.643985E+00 | num_tokens_dlm: 2.076600E+03 | grad norm: 0.685 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:45:27] >>  iteration     1070/  102500 | consumed samples:      34240 | consumed tokens:  140247040 | elapsed time per iteration (ms): 5551.51 | learning rate: 4.999998E-05 | global batch size:    32 | lm loss: 1.499409E+00 | ar loss: 1.303739E+00 | dlm loss: 3.657563E+00 | num_tokens_dlm: 2.266650E+03 | grad norm: 1.104 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:46:22] >>  iteration     1080/  102500 | consumed samples:      34560 | consumed tokens:  141557760 | elapsed time per iteration (ms): 5559.37 | learning rate: 4.999996E-05 | global batch size:    32 | lm loss: 1.480252E+00 | ar loss: 1.287861E+00 | dlm loss: 3.649692E+00 | num_tokens_dlm: 1.789200E+03 | grad norm: 0.825 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:47:18] >>  iteration     1090/  102500 | consumed samples:      34880 | consumed tokens:  142868480 | elapsed time per iteration (ms): 5557.19 | learning rate: 4.999995E-05 | global batch size:    32 | lm loss: 1.500317E+00 | ar loss: 1.306416E+00 | dlm loss: 3.571261E+00 | num_tokens_dlm: 1.902525E+03 | grad norm: 1.166 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:48:14] >>  iteration     1100/  102500 | consumed samples:      35200 | consumed tokens:  144179200 | elapsed time per iteration (ms): 5596.02 | learning rate: 4.999993E-05 | global batch size:    32 | lm loss: 1.447507E+00 | ar loss: 1.264108E+00 | dlm loss: 3.584561E+00 | num_tokens_dlm: 2.117275E+03 | grad norm: 0.826 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:49:09] >>  iteration     1110/  102500 | consumed samples:      35520 | consumed tokens:  145489920 | elapsed time per iteration (ms): 5554.78 | learning rate: 4.999992E-05 | global batch size:    32 | lm loss: 1.507369E+00 | ar loss: 1.313077E+00 | dlm loss: 3.775959E+00 | num_tokens_dlm: 1.790625E+03 | grad norm: 0.874 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:50:05] >>  iteration     1120/  102500 | consumed samples:      35840 | consumed tokens:  146800640 | elapsed time per iteration (ms): 5552.94 | learning rate: 4.999989E-05 | global batch size:    32 | lm loss: 1.443469E+00 | ar loss: 1.265783E+00 | dlm loss: 3.606035E+00 | num_tokens_dlm: 1.894800E+03 | grad norm: 0.927 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:51:00] >>  iteration     1130/  102500 | consumed samples:      36160 | consumed tokens:  148111360 | elapsed time per iteration (ms): 5561.18 | learning rate: 4.999987E-05 | global batch size:    32 | lm loss: 1.477437E+00 | ar loss: 1.297736E+00 | dlm loss: 3.620971E+00 | num_tokens_dlm: 2.114850E+03 | grad norm: 0.679 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:51:56] >>  iteration     1140/  102500 | consumed samples:      36480 | consumed tokens:  149422080 | elapsed time per iteration (ms): 5566.51 | learning rate: 4.999984E-05 | global batch size:    32 | lm loss: 1.503234E+00 | ar loss: 1.323378E+00 | dlm loss: 3.696453E+00 | num_tokens_dlm: 1.875375E+03 | grad norm: 0.648 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:52:52] >>  iteration     1150/  102500 | consumed samples:      36800 | consumed tokens:  150732800 | elapsed time per iteration (ms): 5607.36 | learning rate: 4.999982E-05 | global batch size:    32 | lm loss: 1.462111E+00 | ar loss: 1.283326E+00 | dlm loss: 3.598904E+00 | num_tokens_dlm: 2.050250E+03 | grad norm: 0.741 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:53:48] >>  iteration     1160/  102500 | consumed samples:      37120 | consumed tokens:  152043520 | elapsed time per iteration (ms): 5557.52 | learning rate: 4.999979E-05 | global batch size:    32 | lm loss: 1.459935E+00 | ar loss: 1.282082E+00 | dlm loss: 3.595878E+00 | num_tokens_dlm: 2.381750E+03 | grad norm: 0.928 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:54:43] >>  iteration     1170/  102500 | consumed samples:      37440 | consumed tokens:  153354240 | elapsed time per iteration (ms): 5555.76 | learning rate: 4.999975E-05 | global batch size:    32 | lm loss: 1.468328E+00 | ar loss: 1.281726E+00 | dlm loss: 3.613515E+00 | num_tokens_dlm: 2.017300E+03 | grad norm: 0.728 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:55:39] >>  iteration     1180/  102500 | consumed samples:      37760 | consumed tokens:  154664960 | elapsed time per iteration (ms): 5562.12 | learning rate: 4.999972E-05 | global batch size:    32 | lm loss: 1.478256E+00 | ar loss: 1.299337E+00 | dlm loss: 3.616424E+00 | num_tokens_dlm: 1.652925E+03 | grad norm: 0.660 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:56:34] >>  iteration     1190/  102500 | consumed samples:      38080 | consumed tokens:  155975680 | elapsed time per iteration (ms): 5556.25 | learning rate: 4.999968E-05 | global batch size:    32 | lm loss: 1.438679E+00 | ar loss: 1.260973E+00 | dlm loss: 3.580542E+00 | num_tokens_dlm: 2.038625E+03 | grad norm: 1.052 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:57:31] >>  iteration     1200/  102500 | consumed samples:      38400 | consumed tokens:  157286400 | elapsed time per iteration (ms): 5603.32 | learning rate: 4.999964E-05 | global batch size:    32 | lm loss: 1.479042E+00 | ar loss: 1.293972E+00 | dlm loss: 3.582672E+00 | num_tokens_dlm: 1.945600E+03 | grad norm: 0.776 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:58:26] >>  iteration     1210/  102500 | consumed samples:      38720 | consumed tokens:  158597120 | elapsed time per iteration (ms): 5560.44 | learning rate: 4.999960E-05 | global batch size:    32 | lm loss: 1.440785E+00 | ar loss: 1.262140E+00 | dlm loss: 3.484168E+00 | num_tokens_dlm: 2.022300E+03 | grad norm: 0.921 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 03:59:22] >>  iteration     1220/  102500 | consumed samples:      39040 | consumed tokens:  159907840 | elapsed time per iteration (ms): 5553.93 | learning rate: 4.999955E-05 | global batch size:    32 | lm loss: 1.476582E+00 | ar loss: 1.296152E+00 | dlm loss: 3.691146E+00 | num_tokens_dlm: 2.062475E+03 | grad norm: 0.641 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:00:17] >>  iteration     1230/  102500 | consumed samples:      39360 | consumed tokens:  161218560 | elapsed time per iteration (ms): 5559.20 | learning rate: 4.999951E-05 | global batch size:    32 | lm loss: 1.469251E+00 | ar loss: 1.287789E+00 | dlm loss: 3.678138E+00 | num_tokens_dlm: 1.828425E+03 | grad norm: 0.785 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:01:13] >>  iteration     1240/  102500 | consumed samples:      39680 | consumed tokens:  162529280 | elapsed time per iteration (ms): 5558.54 | learning rate: 4.999946E-05 | global batch size:    32 | lm loss: 1.465585E+00 | ar loss: 1.297093E+00 | dlm loss: 3.630125E+00 | num_tokens_dlm: 1.850050E+03 | grad norm: 0.728 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:02:11] >>  iteration     1250/  102500 | consumed samples:      40000 | consumed tokens:  163840000 | elapsed time per iteration (ms): 5817.48 | learning rate: 4.999941E-05 | global batch size:    32 | lm loss: 1.447738E+00 | ar loss: 1.254539E+00 | dlm loss: 3.501684E+00 | num_tokens_dlm: 2.041650E+03 | grad norm: 0.690 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:03:07] >>  iteration     1260/  102500 | consumed samples:      40320 | consumed tokens:  165150720 | elapsed time per iteration (ms): 5560.27 | learning rate: 4.999935E-05 | global batch size:    32 | lm loss: 1.466493E+00 | ar loss: 1.294075E+00 | dlm loss: 3.575705E+00 | num_tokens_dlm: 2.248100E+03 | grad norm: 0.710 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:04:02] >>  iteration     1270/  102500 | consumed samples:      40640 | consumed tokens:  166461440 | elapsed time per iteration (ms): 5560.95 | learning rate: 4.999930E-05 | global batch size:    32 | lm loss: 1.463916E+00 | ar loss: 1.288155E+00 | dlm loss: 3.529975E+00 | num_tokens_dlm: 1.803250E+03 | grad norm: 0.742 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:04:58] >>  iteration     1280/  102500 | consumed samples:      40960 | consumed tokens:  167772160 | elapsed time per iteration (ms): 5557.58 | learning rate: 4.999924E-05 | global batch size:    32 | lm loss: 1.438308E+00 | ar loss: 1.270747E+00 | dlm loss: 3.486142E+00 | num_tokens_dlm: 2.360225E+03 | grad norm: 0.902 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:05:53] >>  iteration     1290/  102500 | consumed samples:      41280 | consumed tokens:  169082880 | elapsed time per iteration (ms): 5555.64 | learning rate: 4.999918E-05 | global batch size:    32 | lm loss: 1.475977E+00 | ar loss: 1.307222E+00 | dlm loss: 3.614743E+00 | num_tokens_dlm: 1.974225E+03 | grad norm: 0.700 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:06:49] >>  iteration     1300/  102500 | consumed samples:      41600 | consumed tokens:  170393600 | elapsed time per iteration (ms): 5594.73 | learning rate: 4.999911E-05 | global batch size:    32 | lm loss: 1.419111E+00 | ar loss: 1.247294E+00 | dlm loss: 3.545495E+00 | num_tokens_dlm: 1.917675E+03 | grad norm: 0.778 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:07:45] >>  iteration     1310/  102500 | consumed samples:      41920 | consumed tokens:  171704320 | elapsed time per iteration (ms): 5554.77 | learning rate: 4.999905E-05 | global batch size:    32 | lm loss: 1.450863E+00 | ar loss: 1.278156E+00 | dlm loss: 3.512678E+00 | num_tokens_dlm: 2.072850E+03 | grad norm: 0.849 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:08:40] >>  iteration     1320/  102500 | consumed samples:      42240 | consumed tokens:  173015040 | elapsed time per iteration (ms): 5553.21 | learning rate: 4.999898E-05 | global batch size:    32 | lm loss: 1.470631E+00 | ar loss: 1.289823E+00 | dlm loss: 3.551482E+00 | num_tokens_dlm: 1.935100E+03 | grad norm: 0.684 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:09:36] >>  iteration     1330/  102500 | consumed samples:      42560 | consumed tokens:  174325760 | elapsed time per iteration (ms): 5563.43 | learning rate: 4.999891E-05 | global batch size:    32 | lm loss: 1.449060E+00 | ar loss: 1.283378E+00 | dlm loss: 3.537517E+00 | num_tokens_dlm: 1.778525E+03 | grad norm: 0.653 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:10:32] >>  iteration     1340/  102500 | consumed samples:      42880 | consumed tokens:  175636480 | elapsed time per iteration (ms): 5557.26 | learning rate: 4.999883E-05 | global batch size:    32 | lm loss: 1.444573E+00 | ar loss: 1.286330E+00 | dlm loss: 3.486444E+00 | num_tokens_dlm: 1.845500E+03 | grad norm: 0.644 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:11:28] >>  iteration     1350/  102500 | consumed samples:      43200 | consumed tokens:  176947200 | elapsed time per iteration (ms): 5598.82 | learning rate: 4.999876E-05 | global batch size:    32 | lm loss: 1.459261E+00 | ar loss: 1.288108E+00 | dlm loss: 3.518311E+00 | num_tokens_dlm: 2.116525E+03 | grad norm: 0.604 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:12:23] >>  iteration     1360/  102500 | consumed samples:      43520 | consumed tokens:  178257920 | elapsed time per iteration (ms): 5554.40 | learning rate: 4.999868E-05 | global batch size:    32 | lm loss: 1.403958E+00 | ar loss: 1.234131E+00 | dlm loss: 3.404880E+00 | num_tokens_dlm: 1.805850E+03 | grad norm: 0.738 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:13:19] >>  iteration     1370/  102500 | consumed samples:      43840 | consumed tokens:  179568640 | elapsed time per iteration (ms): 5552.33 | learning rate: 4.999860E-05 | global batch size:    32 | lm loss: 1.448674E+00 | ar loss: 1.288568E+00 | dlm loss: 3.664200E+00 | num_tokens_dlm: 2.072975E+03 | grad norm: 0.735 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:14:14] >>  iteration     1380/  102500 | consumed samples:      44160 | consumed tokens:  180879360 | elapsed time per iteration (ms): 5556.96 | learning rate: 4.999852E-05 | global batch size:    32 | lm loss: 1.437432E+00 | ar loss: 1.276711E+00 | dlm loss: 3.519794E+00 | num_tokens_dlm: 2.254725E+03 | grad norm: 0.755 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:15:10] >>  iteration     1390/  102500 | consumed samples:      44480 | consumed tokens:  182190080 | elapsed time per iteration (ms): 5559.71 | learning rate: 4.999844E-05 | global batch size:    32 | lm loss: 1.445283E+00 | ar loss: 1.278952E+00 | dlm loss: 3.459480E+00 | num_tokens_dlm: 1.841400E+03 | grad norm: 0.720 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:16:06] >>  iteration     1400/  102500 | consumed samples:      44800 | consumed tokens:  183500800 | elapsed time per iteration (ms): 5599.61 | learning rate: 4.999835E-05 | global batch size:    32 | lm loss: 1.418834E+00 | ar loss: 1.249215E+00 | dlm loss: 3.431588E+00 | num_tokens_dlm: 2.131725E+03 | grad norm: 1.053 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:17:01] >>  iteration     1410/  102500 | consumed samples:      45120 | consumed tokens:  184811520 | elapsed time per iteration (ms): 5557.05 | learning rate: 4.999826E-05 | global batch size:    32 | lm loss: 1.450073E+00 | ar loss: 1.282962E+00 | dlm loss: 3.518595E+00 | num_tokens_dlm: 2.098975E+03 | grad norm: 0.686 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:17:57] >>  iteration     1420/  102500 | consumed samples:      45440 | consumed tokens:  186122240 | elapsed time per iteration (ms): 5554.04 | learning rate: 4.999817E-05 | global batch size:    32 | lm loss: 1.433904E+00 | ar loss: 1.269992E+00 | dlm loss: 3.520297E+00 | num_tokens_dlm: 2.152800E+03 | grad norm: 0.653 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:18:52] >>  iteration     1430/  102500 | consumed samples:      45760 | consumed tokens:  187432960 | elapsed time per iteration (ms): 5557.29 | learning rate: 4.999807E-05 | global batch size:    32 | lm loss: 1.441493E+00 | ar loss: 1.283558E+00 | dlm loss: 3.495486E+00 | num_tokens_dlm: 2.395500E+03 | grad norm: 0.696 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:19:48] >>  iteration     1440/  102500 | consumed samples:      46080 | consumed tokens:  188743680 | elapsed time per iteration (ms): 5556.67 | learning rate: 4.999798E-05 | global batch size:    32 | lm loss: 1.405929E+00 | ar loss: 1.236530E+00 | dlm loss: 3.393544E+00 | num_tokens_dlm: 2.199050E+03 | grad norm: 0.748 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:20:44] >>  iteration     1450/  102500 | consumed samples:      46400 | consumed tokens:  190054400 | elapsed time per iteration (ms): 5598.54 | learning rate: 4.999788E-05 | global batch size:    32 | lm loss: 1.415893E+00 | ar loss: 1.253476E+00 | dlm loss: 3.421673E+00 | num_tokens_dlm: 1.972325E+03 | grad norm: 0.640 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:21:40] >>  iteration     1460/  102500 | consumed samples:      46720 | consumed tokens:  191365120 | elapsed time per iteration (ms): 5563.59 | learning rate: 4.999778E-05 | global batch size:    32 | lm loss: 1.410720E+00 | ar loss: 1.244783E+00 | dlm loss: 3.419986E+00 | num_tokens_dlm: 2.119125E+03 | grad norm: 0.661 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:22:35] >>  iteration     1470/  102500 | consumed samples:      47040 | consumed tokens:  192675840 | elapsed time per iteration (ms): 5560.80 | learning rate: 4.999767E-05 | global batch size:    32 | lm loss: 1.438072E+00 | ar loss: 1.261204E+00 | dlm loss: 3.407617E+00 | num_tokens_dlm: 2.272850E+03 | grad norm: 0.732 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:23:31] >>  iteration     1480/  102500 | consumed samples:      47360 | consumed tokens:  193986560 | elapsed time per iteration (ms): 5565.57 | learning rate: 4.999757E-05 | global batch size:    32 | lm loss: 1.481617E+00 | ar loss: 1.311317E+00 | dlm loss: 3.624661E+00 | num_tokens_dlm: 2.220250E+03 | grad norm: 2.367 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:24:27] >>  iteration     1490/  102500 | consumed samples:      47680 | consumed tokens:  195297280 | elapsed time per iteration (ms): 5558.38 | learning rate: 4.999746E-05 | global batch size:    32 | lm loss: 1.474415E+00 | ar loss: 1.312602E+00 | dlm loss: 3.612291E+00 | num_tokens_dlm: 2.015600E+03 | grad norm: 0.771 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:25:23] >>  iteration     1500/  102500 | consumed samples:      48000 | consumed tokens:  196608000 | elapsed time per iteration (ms): 5599.69 | learning rate: 4.999735E-05 | global batch size:    32 | lm loss: 1.429139E+00 | ar loss: 1.248093E+00 | dlm loss: 3.470911E+00 | num_tokens_dlm: 2.118025E+03 | grad norm: 0.744 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:25:40] >> Saved checkpoint to /share/dataset/x00840191/model_train/ckpt/phase4_cpt_ar_duffision_0910/checkpoints/global_step_1500
+INFO [2026-09-16 04:25:40] >> Distributed checkpoint saved at /share/dataset/x00840191/model_train/ckpt/phase4_cpt_ar_duffision_0910/checkpoints/global_step_1500 successfully!
+INFO [2026-09-16 04:25:40] >> Removing old checkpoint: /share/dataset/x00840191/model_train/ckpt/phase4_cpt_ar_duffision_0910/checkpoints/global_step_8500
+INFO [2026-09-16 04:25:50] >> Huggingface checkpoint saved at /share/dataset/x00840191/model_train/ckpt/phase4_cpt_ar_duffision_0910/models/global_step_1500 successfully!
+INFO [2026-09-16 04:26:47] >>  iteration     1510/  102500 | consumed samples:      48320 | consumed tokens:  197918720 | elapsed time per iteration (ms): 8399.41 | learning rate: 4.999724E-05 | global batch size:    32 | lm loss: 1.451797E+00 | ar loss: 1.276911E+00 | dlm loss: 3.513138E+00 | num_tokens_dlm: 2.210225E+03 | grad norm: 0.703 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:27:42] >>  iteration     1520/  102500 | consumed samples:      48640 | consumed tokens:  199229440 | elapsed time per iteration (ms): 5552.19 | learning rate: 4.999712E-05 | global batch size:    32 | lm loss: 1.419054E+00 | ar loss: 1.261113E+00 | dlm loss: 3.455063E+00 | num_tokens_dlm: 2.453650E+03 | grad norm: 0.682 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:28:38] >>  iteration     1530/  102500 | consumed samples:      48960 | consumed tokens:  200540160 | elapsed time per iteration (ms): 5563.19 | learning rate: 4.999701E-05 | global batch size:    32 | lm loss: 1.411180E+00 | ar loss: 1.255110E+00 | dlm loss: 3.380219E+00 | num_tokens_dlm: 2.088800E+03 | grad norm: 0.642 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:29:33] >>  iteration     1540/  102500 | consumed samples:      49280 | consumed tokens:  201850880 | elapsed time per iteration (ms): 5564.75 | learning rate: 4.999689E-05 | global batch size:    32 | lm loss: 1.467518E+00 | ar loss: 1.294084E+00 | dlm loss: 3.603338E+00 | num_tokens_dlm: 2.000175E+03 | grad norm: 1.119 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:30:29] >>  iteration     1550/  102500 | consumed samples:      49600 | consumed tokens:  203161600 | elapsed time per iteration (ms): 5609.59 | learning rate: 4.999676E-05 | global batch size:    32 | lm loss: 1.413056E+00 | ar loss: 1.255404E+00 | dlm loss: 3.449816E+00 | num_tokens_dlm: 2.330700E+03 | grad norm: 0.621 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:31:25] >>  iteration     1560/  102500 | consumed samples:      49920 | consumed tokens:  204472320 | elapsed time per iteration (ms): 5563.87 | learning rate: 4.999664E-05 | global batch size:    32 | lm loss: 1.463656E+00 | ar loss: 1.305800E+00 | dlm loss: 3.501245E+00 | num_tokens_dlm: 2.232600E+03 | grad norm: 0.637 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:32:21] >>  iteration     1570/  102500 | consumed samples:      50240 | consumed tokens:  205783040 | elapsed time per iteration (ms): 5555.16 | learning rate: 4.999651E-05 | global batch size:    32 | lm loss: 1.390169E+00 | ar loss: 1.230886E+00 | dlm loss: 3.425171E+00 | num_tokens_dlm: 1.950425E+03 | grad norm: 0.953 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:33:16] >>  iteration     1580/  102500 | consumed samples:      50560 | consumed tokens:  207093760 | elapsed time per iteration (ms): 5561.84 | learning rate: 4.999638E-05 | global batch size:    32 | lm loss: 1.391227E+00 | ar loss: 1.238918E+00 | dlm loss: 3.379359E+00 | num_tokens_dlm: 2.111275E+03 | grad norm: 0.654 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:34:12] >>  iteration     1590/  102500 | consumed samples:      50880 | consumed tokens:  208404480 | elapsed time per iteration (ms): 5560.74 | learning rate: 4.999625E-05 | global batch size:    32 | lm loss: 1.433564E+00 | ar loss: 1.272217E+00 | dlm loss: 3.562557E+00 | num_tokens_dlm: 2.124700E+03 | grad norm: 0.826 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:35:10] >>  iteration     1600/  102500 | consumed samples:      51200 | consumed tokens:  209715200 | elapsed time per iteration (ms): 5799.71 | learning rate: 4.999612E-05 | global batch size:    32 | lm loss: 1.423629E+00 | ar loss: 1.261327E+00 | dlm loss: 3.484625E+00 | num_tokens_dlm: 2.247100E+03 | grad norm: 0.647 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:36:05] >>  iteration     1610/  102500 | consumed samples:      51520 | consumed tokens:  211025920 | elapsed time per iteration (ms): 5560.08 | learning rate: 4.999598E-05 | global batch size:    32 | lm loss: 1.403449E+00 | ar loss: 1.247583E+00 | dlm loss: 3.428957E+00 | num_tokens_dlm: 2.317575E+03 | grad norm: 0.959 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:37:01] >>  iteration     1620/  102500 | consumed samples:      51840 | consumed tokens:  212336640 | elapsed time per iteration (ms): 5552.28 | learning rate: 4.999584E-05 | global batch size:    32 | lm loss: 1.389087E+00 | ar loss: 1.232049E+00 | dlm loss: 3.439970E+00 | num_tokens_dlm: 2.014850E+03 | grad norm: 0.692 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:37:57] >>  iteration     1630/  102500 | consumed samples:      52160 | consumed tokens:  213647360 | elapsed time per iteration (ms): 5562.42 | learning rate: 4.999570E-05 | global batch size:    32 | lm loss: 1.417452E+00 | ar loss: 1.252453E+00 | dlm loss: 3.421637E+00 | num_tokens_dlm: 1.727200E+03 | grad norm: 0.683 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:38:52] >>  iteration     1640/  102500 | consumed samples:      52480 | consumed tokens:  214958080 | elapsed time per iteration (ms): 5565.38 | learning rate: 4.999556E-05 | global batch size:    32 | lm loss: 1.448097E+00 | ar loss: 1.277209E+00 | dlm loss: 3.491057E+00 | num_tokens_dlm: 2.030175E+03 | grad norm: 0.707 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:39:48] >>  iteration     1650/  102500 | consumed samples:      52800 | consumed tokens:  216268800 | elapsed time per iteration (ms): 5611.68 | learning rate: 4.999541E-05 | global batch size:    32 | lm loss: 1.406839E+00 | ar loss: 1.245660E+00 | dlm loss: 3.365596E+00 | num_tokens_dlm: 2.109775E+03 | grad norm: 0.753 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:40:44] >>  iteration     1660/  102500 | consumed samples:      53120 | consumed tokens:  217579520 | elapsed time per iteration (ms): 5558.13 | learning rate: 4.999527E-05 | global batch size:    32 | lm loss: 1.421887E+00 | ar loss: 1.265179E+00 | dlm loss: 3.524559E+00 | num_tokens_dlm: 1.998175E+03 | grad norm: 0.654 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:41:40] >>  iteration     1670/  102500 | consumed samples:      53440 | consumed tokens:  218890240 | elapsed time per iteration (ms): 5558.75 | learning rate: 4.999512E-05 | global batch size:    32 | lm loss: 1.419455E+00 | ar loss: 1.273339E+00 | dlm loss: 3.316819E+00 | num_tokens_dlm: 2.105550E+03 | grad norm: 0.576 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:42:35] >>  iteration     1680/  102500 | consumed samples:      53760 | consumed tokens:  220200960 | elapsed time per iteration (ms): 5560.33 | learning rate: 4.999496E-05 | global batch size:    32 | lm loss: 1.405129E+00 | ar loss: 1.257622E+00 | dlm loss: 3.372220E+00 | num_tokens_dlm: 2.264675E+03 | grad norm: 0.692 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:43:31] >>  iteration     1690/  102500 | consumed samples:      54080 | consumed tokens:  221511680 | elapsed time per iteration (ms): 5558.84 | learning rate: 4.999481E-05 | global batch size:    32 | lm loss: 1.421833E+00 | ar loss: 1.263133E+00 | dlm loss: 3.415170E+00 | num_tokens_dlm: 1.970125E+03 | grad norm: 0.634 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:44:27] >>  iteration     1700/  102500 | consumed samples:      54400 | consumed tokens:  222822400 | elapsed time per iteration (ms): 5601.68 | learning rate: 4.999465E-05 | global batch size:    32 | lm loss: 1.385025E+00 | ar loss: 1.229135E+00 | dlm loss: 3.383655E+00 | num_tokens_dlm: 2.146725E+03 | grad norm: 0.705 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:45:22] >>  iteration     1710/  102500 | consumed samples:      54720 | consumed tokens:  224133120 | elapsed time per iteration (ms): 5564.26 | learning rate: 4.999449E-05 | global batch size:    32 | lm loss: 1.430596E+00 | ar loss: 1.274283E+00 | dlm loss: 3.509968E+00 | num_tokens_dlm: 2.152500E+03 | grad norm: 0.625 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:46:18] >>  iteration     1720/  102500 | consumed samples:      55040 | consumed tokens:  225443840 | elapsed time per iteration (ms): 5553.67 | learning rate: 4.999433E-05 | global batch size:    32 | lm loss: 1.428344E+00 | ar loss: 1.269978E+00 | dlm loss: 3.370149E+00 | num_tokens_dlm: 2.295200E+03 | grad norm: 0.670 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:47:14] >>  iteration     1730/  102500 | consumed samples:      55360 | consumed tokens:  226754560 | elapsed time per iteration (ms): 5561.30 | learning rate: 4.999416E-05 | global batch size:    32 | lm loss: 1.421829E+00 | ar loss: 1.261870E+00 | dlm loss: 3.456350E+00 | num_tokens_dlm: 2.442925E+03 | grad norm: 0.647 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:48:09] >>  iteration     1740/  102500 | consumed samples:      55680 | consumed tokens:  228065280 | elapsed time per iteration (ms): 5558.78 | learning rate: 4.999400E-05 | global batch size:    32 | lm loss: 1.470299E+00 | ar loss: 1.318759E+00 | dlm loss: 3.577975E+00 | num_tokens_dlm: 2.160000E+03 | grad norm: 0.637 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:49:05] >>  iteration     1750/  102500 | consumed samples:      56000 | consumed tokens:  229376000 | elapsed time per iteration (ms): 5598.72 | learning rate: 4.999383E-05 | global batch size:    32 | lm loss: 1.384252E+00 | ar loss: 1.227983E+00 | dlm loss: 3.383058E+00 | num_tokens_dlm: 2.171625E+03 | grad norm: 0.635 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:50:01] >>  iteration     1760/  102500 | consumed samples:      56320 | consumed tokens:  230686720 | elapsed time per iteration (ms): 5562.94 | learning rate: 4.999366E-05 | global batch size:    32 | lm loss: 1.428033E+00 | ar loss: 1.266240E+00 | dlm loss: 3.430920E+00 | num_tokens_dlm: 2.407300E+03 | grad norm: 0.737 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:50:56] >>  iteration     1770/  102500 | consumed samples:      56640 | consumed tokens:  231997440 | elapsed time per iteration (ms): 5553.24 | learning rate: 4.999348E-05 | global batch size:    32 | lm loss: 1.419915E+00 | ar loss: 1.271328E+00 | dlm loss: 3.453090E+00 | num_tokens_dlm: 1.893775E+03 | grad norm: 0.736 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:51:52] >>  iteration     1780/  102500 | consumed samples:      56960 | consumed tokens:  233308160 | elapsed time per iteration (ms): 5553.29 | learning rate: 4.999331E-05 | global batch size:    32 | lm loss: 1.400079E+00 | ar loss: 1.238347E+00 | dlm loss: 3.369073E+00 | num_tokens_dlm: 2.115525E+03 | grad norm: 0.656 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:52:47] >>  iteration     1790/  102500 | consumed samples:      57280 | consumed tokens:  234618880 | elapsed time per iteration (ms): 5556.22 | learning rate: 4.999313E-05 | global batch size:    32 | lm loss: 1.414891E+00 | ar loss: 1.259197E+00 | dlm loss: 3.465632E+00 | num_tokens_dlm: 2.268500E+03 | grad norm: 0.604 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:53:43] >>  iteration     1800/  102500 | consumed samples:      57600 | consumed tokens:  235929600 | elapsed time per iteration (ms): 5605.84 | learning rate: 4.999295E-05 | global batch size:    32 | lm loss: 1.440291E+00 | ar loss: 1.278995E+00 | dlm loss: 3.488433E+00 | num_tokens_dlm: 1.934675E+03 | grad norm: 0.630 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:54:39] >>  iteration     1810/  102500 | consumed samples:      57920 | consumed tokens:  237240320 | elapsed time per iteration (ms): 5562.34 | learning rate: 4.999277E-05 | global batch size:    32 | lm loss: 1.429813E+00 | ar loss: 1.264033E+00 | dlm loss: 3.461200E+00 | num_tokens_dlm: 2.279175E+03 | grad norm: 0.631 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:55:35] >>  iteration     1820/  102500 | consumed samples:      58240 | consumed tokens:  238551040 | elapsed time per iteration (ms): 5556.21 | learning rate: 4.999258E-05 | global batch size:    32 | lm loss: 1.398593E+00 | ar loss: 1.244129E+00 | dlm loss: 3.354023E+00 | num_tokens_dlm: 1.927375E+03 | grad norm: 0.653 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:56:30] >>  iteration     1830/  102500 | consumed samples:      58560 | consumed tokens:  239861760 | elapsed time per iteration (ms): 5564.23 | learning rate: 4.999239E-05 | global batch size:    32 | lm loss: 1.442723E+00 | ar loss: 1.284243E+00 | dlm loss: 3.462618E+00 | num_tokens_dlm: 2.052750E+03 | grad norm: 1.222 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:57:26] >>  iteration     1840/  102500 | consumed samples:      58880 | consumed tokens:  241172480 | elapsed time per iteration (ms): 5561.51 | learning rate: 4.999220E-05 | global batch size:    32 | lm loss: 1.435803E+00 | ar loss: 1.270690E+00 | dlm loss: 3.401330E+00 | num_tokens_dlm: 2.188300E+03 | grad norm: 0.651 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:58:22] >>  iteration     1850/  102500 | consumed samples:      59200 | consumed tokens:  242483200 | elapsed time per iteration (ms): 5602.79 | learning rate: 4.999201E-05 | global batch size:    32 | lm loss: 1.431960E+00 | ar loss: 1.276842E+00 | dlm loss: 3.494039E+00 | num_tokens_dlm: 1.847500E+03 | grad norm: 0.668 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 04:59:17] >>  iteration     1860/  102500 | consumed samples:      59520 | consumed tokens:  243793920 | elapsed time per iteration (ms): 5561.14 | learning rate: 4.999181E-05 | global batch size:    32 | lm loss: 1.454827E+00 | ar loss: 1.284109E+00 | dlm loss: 3.487855E+00 | num_tokens_dlm: 2.200975E+03 | grad norm: 0.705 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:00:13] >>  iteration     1870/  102500 | consumed samples:      59840 | consumed tokens:  245104640 | elapsed time per iteration (ms): 5559.38 | learning rate: 4.999162E-05 | global batch size:    32 | lm loss: 1.443241E+00 | ar loss: 1.282040E+00 | dlm loss: 3.467259E+00 | num_tokens_dlm: 2.185475E+03 | grad norm: 0.633 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:01:09] >>  iteration     1880/  102500 | consumed samples:      60160 | consumed tokens:  246415360 | elapsed time per iteration (ms): 5558.31 | learning rate: 4.999142E-05 | global batch size:    32 | lm loss: 1.417928E+00 | ar loss: 1.262537E+00 | dlm loss: 3.479140E+00 | num_tokens_dlm: 2.067275E+03 | grad norm: 0.769 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:02:04] >>  iteration     1890/  102500 | consumed samples:      60480 | consumed tokens:  247726080 | elapsed time per iteration (ms): 5561.03 | learning rate: 4.999122E-05 | global batch size:    32 | lm loss: 1.387772E+00 | ar loss: 1.235326E+00 | dlm loss: 3.410416E+00 | num_tokens_dlm: 1.895600E+03 | grad norm: 0.771 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:03:00] >>  iteration     1900/  102500 | consumed samples:      60800 | consumed tokens:  249036800 | elapsed time per iteration (ms): 5600.58 | learning rate: 4.999101E-05 | global batch size:    32 | lm loss: 1.448448E+00 | ar loss: 1.284856E+00 | dlm loss: 3.434061E+00 | num_tokens_dlm: 2.083400E+03 | grad norm: 0.644 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:03:56] >>  iteration     1910/  102500 | consumed samples:      61120 | consumed tokens:  250347520 | elapsed time per iteration (ms): 5561.10 | learning rate: 4.999080E-05 | global batch size:    32 | lm loss: 1.415301E+00 | ar loss: 1.269521E+00 | dlm loss: 3.478451E+00 | num_tokens_dlm: 2.086675E+03 | grad norm: 0.607 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:04:51] >>  iteration     1920/  102500 | consumed samples:      61440 | consumed tokens:  251658240 | elapsed time per iteration (ms): 5559.44 | learning rate: 4.999060E-05 | global batch size:    32 | lm loss: 1.412933E+00 | ar loss: 1.251987E+00 | dlm loss: 3.396771E+00 | num_tokens_dlm: 2.113200E+03 | grad norm: 0.609 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:05:47] >>  iteration     1930/  102500 | consumed samples:      61760 | consumed tokens:  252968960 | elapsed time per iteration (ms): 5564.52 | learning rate: 4.999038E-05 | global batch size:    32 | lm loss: 1.374480E+00 | ar loss: 1.224657E+00 | dlm loss: 3.422552E+00 | num_tokens_dlm: 2.020375E+03 | grad norm: 0.668 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:06:43] >>  iteration     1940/  102500 | consumed samples:      62080 | consumed tokens:  254279680 | elapsed time per iteration (ms): 5564.29 | learning rate: 4.999017E-05 | global batch size:    32 | lm loss: 1.397737E+00 | ar loss: 1.245844E+00 | dlm loss: 3.340517E+00 | num_tokens_dlm: 2.134725E+03 | grad norm: 0.598 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:07:40] >>  iteration     1950/  102500 | consumed samples:      62400 | consumed tokens:  255590400 | elapsed time per iteration (ms): 5752.28 | learning rate: 4.998995E-05 | global batch size:    32 | lm loss: 1.431625E+00 | ar loss: 1.271793E+00 | dlm loss: 3.521810E+00 | num_tokens_dlm: 1.749250E+03 | grad norm: 0.755 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:08:36] >>  iteration     1960/  102500 | consumed samples:      62720 | consumed tokens:  256901120 | elapsed time per iteration (ms): 5555.88 | learning rate: 4.998974E-05 | global batch size:    32 | lm loss: 1.408227E+00 | ar loss: 1.246470E+00 | dlm loss: 3.366839E+00 | num_tokens_dlm: 2.150200E+03 | grad norm: 0.801 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:09:31] >>  iteration     1970/  102500 | consumed samples:      63040 | consumed tokens:  258211840 | elapsed time per iteration (ms): 5556.51 | learning rate: 4.998952E-05 | global batch size:    32 | lm loss: 1.421093E+00 | ar loss: 1.268663E+00 | dlm loss: 3.340132E+00 | num_tokens_dlm: 1.749025E+03 | grad norm: 0.747 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:10:27] >>  iteration     1980/  102500 | consumed samples:      63360 | consumed tokens:  259522560 | elapsed time per iteration (ms): 5560.19 | learning rate: 4.998929E-05 | global batch size:    32 | lm loss: 1.402093E+00 | ar loss: 1.250361E+00 | dlm loss: 3.359950E+00 | num_tokens_dlm: 1.697400E+03 | grad norm: 1.097 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:11:23] >>  iteration     1990/  102500 | consumed samples:      63680 | consumed tokens:  260833280 | elapsed time per iteration (ms): 5562.98 | learning rate: 4.998907E-05 | global batch size:    32 | lm loss: 1.455468E+00 | ar loss: 1.303458E+00 | dlm loss: 3.408877E+00 | num_tokens_dlm: 1.909075E+03 | grad norm: 1.046 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:12:19] >>  iteration     2000/  102500 | consumed samples:      64000 | consumed tokens:  262144000 | elapsed time per iteration (ms): 5600.71 | learning rate: 4.998884E-05 | global batch size:    32 | lm loss: 1.380759E+00 | ar loss: 1.224817E+00 | dlm loss: 3.343110E+00 | num_tokens_dlm: 1.976200E+03 | grad norm: 0.792 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:12:35] >> Saved checkpoint to /share/dataset/x00840191/model_train/ckpt/phase4_cpt_ar_duffision_0910/checkpoints/global_step_2000
+INFO [2026-09-16 05:12:35] >> Distributed checkpoint saved at /share/dataset/x00840191/model_train/ckpt/phase4_cpt_ar_duffision_0910/checkpoints/global_step_2000 successfully!
+INFO [2026-09-16 05:12:35] >> Removing old checkpoint: /share/dataset/x00840191/model_train/ckpt/phase4_cpt_ar_duffision_0910/checkpoints/global_step_500
+INFO [2026-09-16 05:12:45] >> Huggingface checkpoint saved at /share/dataset/x00840191/model_train/ckpt/phase4_cpt_ar_duffision_0910/models/global_step_2000 successfully!
+INFO [2026-09-16 05:13:42] >>  iteration     2010/  102500 | consumed samples:      64320 | consumed tokens:  263454720 | elapsed time per iteration (ms): 8306.68 | learning rate: 4.998861E-05 | global batch size:    32 | lm loss: 1.407298E+00 | ar loss: 1.251189E+00 | dlm loss: 3.367949E+00 | num_tokens_dlm: 1.900675E+03 | grad norm: 0.660 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:14:37] >>  iteration     2020/  102500 | consumed samples:      64640 | consumed tokens:  264765440 | elapsed time per iteration (ms): 5548.27 | learning rate: 4.998838E-05 | global batch size:    32 | lm loss: 1.456152E+00 | ar loss: 1.301387E+00 | dlm loss: 3.478915E+00 | num_tokens_dlm: 2.034925E+03 | grad norm: 0.717 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:15:33] >>  iteration     2030/  102500 | consumed samples:      64960 | consumed tokens:  266076160 | elapsed time per iteration (ms): 5557.92 | learning rate: 4.998814E-05 | global batch size:    32 | lm loss: 1.412718E+00 | ar loss: 1.260560E+00 | dlm loss: 3.371557E+00 | num_tokens_dlm: 2.187400E+03 | grad norm: 0.688 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:16:28] >>  iteration     2040/  102500 | consumed samples:      65280 | consumed tokens:  267386880 | elapsed time per iteration (ms): 5555.51 | learning rate: 4.998790E-05 | global batch size:    32 | lm loss: 1.392228E+00 | ar loss: 1.235342E+00 | dlm loss: 3.355960E+00 | num_tokens_dlm: 1.984000E+03 | grad norm: 0.839 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:17:24] >>  iteration     2050/  102500 | consumed samples:      65600 | consumed tokens:  268697600 | elapsed time per iteration (ms): 5607.46 | learning rate: 4.998767E-05 | global batch size:    32 | lm loss: 1.398317E+00 | ar loss: 1.248933E+00 | dlm loss: 3.381963E+00 | num_tokens_dlm: 2.037775E+03 | grad norm: 0.616 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:18:20] >>  iteration     2060/  102500 | consumed samples:      65920 | consumed tokens:  270008320 | elapsed time per iteration (ms): 5560.28 | learning rate: 4.998742E-05 | global batch size:    32 | lm loss: 1.397995E+00 | ar loss: 1.244795E+00 | dlm loss: 3.376264E+00 | num_tokens_dlm: 1.990125E+03 | grad norm: 0.984 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:19:16] >>  iteration     2070/  102500 | consumed samples:      66240 | consumed tokens:  271319040 | elapsed time per iteration (ms): 5548.64 | learning rate: 4.998718E-05 | global batch size:    32 | lm loss: 1.433092E+00 | ar loss: 1.268425E+00 | dlm loss: 3.476719E+00 | num_tokens_dlm: 1.971075E+03 | grad norm: 0.664 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:20:11] >>  iteration     2080/  102500 | consumed samples:      66560 | consumed tokens:  272629760 | elapsed time per iteration (ms): 5557.17 | learning rate: 4.998693E-05 | global batch size:    32 | lm loss: 1.433560E+00 | ar loss: 1.265732E+00 | dlm loss: 3.496342E+00 | num_tokens_dlm: 1.867150E+03 | grad norm: 0.785 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:21:07] >>  iteration     2090/  102500 | consumed samples:      66880 | consumed tokens:  273940480 | elapsed time per iteration (ms): 5556.13 | learning rate: 4.998668E-05 | global batch size:    32 | lm loss: 1.433773E+00 | ar loss: 1.277761E+00 | dlm loss: 3.461942E+00 | num_tokens_dlm: 2.218875E+03 | grad norm: 0.725 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:22:03] >>  iteration     2100/  102500 | consumed samples:      67200 | consumed tokens:  275251200 | elapsed time per iteration (ms): 5602.33 | learning rate: 4.998643E-05 | global batch size:    32 | lm loss: 1.385453E+00 | ar loss: 1.239379E+00 | dlm loss: 3.301983E+00 | num_tokens_dlm: 2.030350E+03 | grad norm: 0.967 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:22:58] >>  iteration     2110/  102500 | consumed samples:      67520 | consumed tokens:  276561920 | elapsed time per iteration (ms): 5558.80 | learning rate: 4.998618E-05 | global batch size:    32 | lm loss: 1.376747E+00 | ar loss: 1.218147E+00 | dlm loss: 3.239505E+00 | num_tokens_dlm: 1.842750E+03 | grad norm: 0.576 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:23:54] >>  iteration     2120/  102500 | consumed samples:      67840 | consumed tokens:  277872640 | elapsed time per iteration (ms): 5552.70 | learning rate: 4.998592E-05 | global batch size:    32 | lm loss: 1.435334E+00 | ar loss: 1.269880E+00 | dlm loss: 3.474350E+00 | num_tokens_dlm: 1.844450E+03 | grad norm: 0.903 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:24:49] >>  iteration     2130/  102500 | consumed samples:      68160 | consumed tokens:  279183360 | elapsed time per iteration (ms): 5559.33 | learning rate: 4.998566E-05 | global batch size:    32 | lm loss: 1.386129E+00 | ar loss: 1.229382E+00 | dlm loss: 3.410258E+00 | num_tokens_dlm: 1.704450E+03 | grad norm: 0.589 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:25:45] >>  iteration     2140/  102500 | consumed samples:      68480 | consumed tokens:  280494080 | elapsed time per iteration (ms): 5558.36 | learning rate: 4.998540E-05 | global batch size:    32 | lm loss: 1.378861E+00 | ar loss: 1.230015E+00 | dlm loss: 3.359452E+00 | num_tokens_dlm: 2.282100E+03 | grad norm: 0.606 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:26:41] >>  iteration     2150/  102500 | consumed samples:      68800 | consumed tokens:  281804800 | elapsed time per iteration (ms): 5600.42 | learning rate: 4.998514E-05 | global batch size:    32 | lm loss: 1.341961E+00 | ar loss: 1.191763E+00 | dlm loss: 3.363272E+00 | num_tokens_dlm: 1.890700E+03 | grad norm: 0.665 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:27:37] >>  iteration     2160/  102500 | consumed samples:      69120 | consumed tokens:  283115520 | elapsed time per iteration (ms): 5564.95 | learning rate: 4.998488E-05 | global batch size:    32 | lm loss: 1.389406E+00 | ar loss: 1.241178E+00 | dlm loss: 3.309757E+00 | num_tokens_dlm: 1.774200E+03 | grad norm: 0.601 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:28:32] >>  iteration     2170/  102500 | consumed samples:      69440 | consumed tokens:  284426240 | elapsed time per iteration (ms): 5550.95 | learning rate: 4.998461E-05 | global batch size:    32 | lm loss: 1.473627E+00 | ar loss: 1.321810E+00 | dlm loss: 3.531555E+00 | num_tokens_dlm: 2.095050E+03 | grad norm: 0.692 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:29:28] >>  iteration     2180/  102500 | consumed samples:      69760 | consumed tokens:  285736960 | elapsed time per iteration (ms): 5555.57 | learning rate: 4.998434E-05 | global batch size:    32 | lm loss: 1.423816E+00 | ar loss: 1.267462E+00 | dlm loss: 3.447729E+00 | num_tokens_dlm: 1.978775E+03 | grad norm: 0.656 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:30:23] >>  iteration     2190/  102500 | consumed samples:      70080 | consumed tokens:  287047680 | elapsed time per iteration (ms): 5551.07 | learning rate: 4.998407E-05 | global batch size:    32 | lm loss: 1.374487E+00 | ar loss: 1.226077E+00 | dlm loss: 3.403540E+00 | num_tokens_dlm: 2.031600E+03 | grad norm: 0.556 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:31:19] >>  iteration     2200/  102500 | consumed samples:      70400 | consumed tokens:  288358400 | elapsed time per iteration (ms): 5605.83 | learning rate: 4.998379E-05 | global batch size:    32 | lm loss: 1.438242E+00 | ar loss: 1.281510E+00 | dlm loss: 3.529279E+00 | num_tokens_dlm: 1.989225E+03 | grad norm: 0.693 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:32:15] >>  iteration     2210/  102500 | consumed samples:      70720 | consumed tokens:  289669120 | elapsed time per iteration (ms): 5556.89 | learning rate: 4.998351E-05 | global batch size:    32 | lm loss: 1.388210E+00 | ar loss: 1.242605E+00 | dlm loss: 3.410761E+00 | num_tokens_dlm: 2.078525E+03 | grad norm: 0.598 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:33:10] >>  iteration     2220/  102500 | consumed samples:      71040 | consumed tokens:  290979840 | elapsed time per iteration (ms): 5558.75 | learning rate: 4.998323E-05 | global batch size:    32 | lm loss: 1.388870E+00 | ar loss: 1.244249E+00 | dlm loss: 3.362223E+00 | num_tokens_dlm: 1.901300E+03 | grad norm: 0.688 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:34:06] >>  iteration     2230/  102500 | consumed samples:      71360 | consumed tokens:  292290560 | elapsed time per iteration (ms): 5554.36 | learning rate: 4.998295E-05 | global batch size:    32 | lm loss: 1.387660E+00 | ar loss: 1.237378E+00 | dlm loss: 3.451918E+00 | num_tokens_dlm: 2.066175E+03 | grad norm: 0.737 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:35:02] >>  iteration     2240/  102500 | consumed samples:      71680 | consumed tokens:  293601280 | elapsed time per iteration (ms): 5556.78 | learning rate: 4.998267E-05 | global batch size:    32 | lm loss: 1.419759E+00 | ar loss: 1.268300E+00 | dlm loss: 3.343004E+00 | num_tokens_dlm: 2.026775E+03 | grad norm: 0.745 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:35:58] >>  iteration     2250/  102500 | consumed samples:      72000 | consumed tokens:  294912000 | elapsed time per iteration (ms): 5599.95 | learning rate: 4.998238E-05 | global batch size:    32 | lm loss: 1.422182E+00 | ar loss: 1.265887E+00 | dlm loss: 3.421768E+00 | num_tokens_dlm: 2.113825E+03 | grad norm: 0.630 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:36:53] >>  iteration     2260/  102500 | consumed samples:      72320 | consumed tokens:  296222720 | elapsed time per iteration (ms): 5557.40 | learning rate: 4.998209E-05 | global batch size:    32 | lm loss: 1.373083E+00 | ar loss: 1.236746E+00 | dlm loss: 3.319173E+00 | num_tokens_dlm: 2.502150E+03 | grad norm: 0.639 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:37:49] >>  iteration     2270/  102500 | consumed samples:      72640 | consumed tokens:  297533440 | elapsed time per iteration (ms): 5553.74 | learning rate: 4.998180E-05 | global batch size:    32 | lm loss: 1.408882E+00 | ar loss: 1.261956E+00 | dlm loss: 3.420652E+00 | num_tokens_dlm: 1.894950E+03 | grad norm: 0.636 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:38:44] >>  iteration     2280/  102500 | consumed samples:      72960 | consumed tokens:  298844160 | elapsed time per iteration (ms): 5557.88 | learning rate: 4.998151E-05 | global batch size:    32 | lm loss: 1.411704E+00 | ar loss: 1.247632E+00 | dlm loss: 3.345136E+00 | num_tokens_dlm: 1.913650E+03 | grad norm: 0.750 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:39:40] >>  iteration     2290/  102500 | consumed samples:      73280 | consumed tokens:  300154880 | elapsed time per iteration (ms): 5560.26 | learning rate: 4.998121E-05 | global batch size:    32 | lm loss: 1.372013E+00 | ar loss: 1.225226E+00 | dlm loss: 3.277543E+00 | num_tokens_dlm: 2.141425E+03 | grad norm: 0.682 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:40:37] >>  iteration     2300/  102500 | consumed samples:      73600 | consumed tokens:  301465600 | elapsed time per iteration (ms): 5763.89 | learning rate: 4.998092E-05 | global batch size:    32 | lm loss: 1.405492E+00 | ar loss: 1.267098E+00 | dlm loss: 3.379313E+00 | num_tokens_dlm: 2.233350E+03 | grad norm: 0.764 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:41:33] >>  iteration     2310/  102500 | consumed samples:      73920 | consumed tokens:  302776320 | elapsed time per iteration (ms): 5561.33 | learning rate: 4.998061E-05 | global batch size:    32 | lm loss: 1.399873E+00 | ar loss: 1.247079E+00 | dlm loss: 3.314371E+00 | num_tokens_dlm: 1.942400E+03 | grad norm: 1.039 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:42:29] >>  iteration     2320/  102500 | consumed samples:      74240 | consumed tokens:  304087040 | elapsed time per iteration (ms): 5548.20 | learning rate: 4.998031E-05 | global batch size:    32 | lm loss: 1.403925E+00 | ar loss: 1.242286E+00 | dlm loss: 3.339697E+00 | num_tokens_dlm: 2.111475E+03 | grad norm: 1.032 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:43:24] >>  iteration     2330/  102500 | consumed samples:      74560 | consumed tokens:  305397760 | elapsed time per iteration (ms): 5560.59 | learning rate: 4.998001E-05 | global batch size:    32 | lm loss: 1.383277E+00 | ar loss: 1.228552E+00 | dlm loss: 3.338089E+00 | num_tokens_dlm: 2.295100E+03 | grad norm: 0.654 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:44:20] >>  iteration     2340/  102500 | consumed samples:      74880 | consumed tokens:  306708480 | elapsed time per iteration (ms): 5554.84 | learning rate: 4.997970E-05 | global batch size:    32 | lm loss: 1.425846E+00 | ar loss: 1.272515E+00 | dlm loss: 3.457650E+00 | num_tokens_dlm: 1.805275E+03 | grad norm: 0.611 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:45:16] >>  iteration     2350/  102500 | consumed samples:      75200 | consumed tokens:  308019200 | elapsed time per iteration (ms): 5600.86 | learning rate: 4.997939E-05 | global batch size:    32 | lm loss: 1.425500E+00 | ar loss: 1.263504E+00 | dlm loss: 3.398081E+00 | num_tokens_dlm: 2.118450E+03 | grad norm: 0.672 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:46:11] >>  iteration     2360/  102500 | consumed samples:      75520 | consumed tokens:  309329920 | elapsed time per iteration (ms): 5557.67 | learning rate: 4.997908E-05 | global batch size:    32 | lm loss: 1.418548E+00 | ar loss: 1.274263E+00 | dlm loss: 3.457653E+00 | num_tokens_dlm: 1.969000E+03 | grad norm: 0.678 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:47:07] >>  iteration     2370/  102500 | consumed samples:      75840 | consumed tokens:  310640640 | elapsed time per iteration (ms): 5552.70 | learning rate: 4.997876E-05 | global batch size:    32 | lm loss: 1.405246E+00 | ar loss: 1.249675E+00 | dlm loss: 3.424325E+00 | num_tokens_dlm: 1.899375E+03 | grad norm: 0.690 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:48:02] >>  iteration     2380/  102500 | consumed samples:      76160 | consumed tokens:  311951360 | elapsed time per iteration (ms): 5548.42 | learning rate: 4.997845E-05 | global batch size:    32 | lm loss: 1.355153E+00 | ar loss: 1.211778E+00 | dlm loss: 3.292904E+00 | num_tokens_dlm: 2.159300E+03 | grad norm: 0.674 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:48:58] >>  iteration     2390/  102500 | consumed samples:      76480 | consumed tokens:  313262080 | elapsed time per iteration (ms): 5555.07 | learning rate: 4.997813E-05 | global batch size:    32 | lm loss: 1.376565E+00 | ar loss: 1.231874E+00 | dlm loss: 3.426297E+00 | num_tokens_dlm: 2.384800E+03 | grad norm: 0.647 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:49:54] >>  iteration     2400/  102500 | consumed samples:      76800 | consumed tokens:  314572800 | elapsed time per iteration (ms): 5600.27 | learning rate: 4.997780E-05 | global batch size:    32 | lm loss: 1.382664E+00 | ar loss: 1.221544E+00 | dlm loss: 3.323357E+00 | num_tokens_dlm: 2.171900E+03 | grad norm: 0.626 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:50:49] >>  iteration     2410/  102500 | consumed samples:      77120 | consumed tokens:  315883520 | elapsed time per iteration (ms): 5555.11 | learning rate: 4.997748E-05 | global batch size:    32 | lm loss: 1.390209E+00 | ar loss: 1.229747E+00 | dlm loss: 3.346638E+00 | num_tokens_dlm: 1.979125E+03 | grad norm: 0.592 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:51:45] >>  iteration     2420/  102500 | consumed samples:      77440 | consumed tokens:  317194240 | elapsed time per iteration (ms): 5554.38 | learning rate: 4.997715E-05 | global batch size:    32 | lm loss: 1.397868E+00 | ar loss: 1.242110E+00 | dlm loss: 3.320114E+00 | num_tokens_dlm: 2.093875E+03 | grad norm: 0.543 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:52:41] >>  iteration     2430/  102500 | consumed samples:      77760 | consumed tokens:  318504960 | elapsed time per iteration (ms): 5559.41 | learning rate: 4.997683E-05 | global batch size:    32 | lm loss: 1.407642E+00 | ar loss: 1.255704E+00 | dlm loss: 3.367165E+00 | num_tokens_dlm: 2.003100E+03 | grad norm: 0.890 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:53:36] >>  iteration     2440/  102500 | consumed samples:      78080 | consumed tokens:  319815680 | elapsed time per iteration (ms): 5556.19 | learning rate: 4.997649E-05 | global batch size:    32 | lm loss: 1.396621E+00 | ar loss: 1.252833E+00 | dlm loss: 3.323015E+00 | num_tokens_dlm: 1.886025E+03 | grad norm: 0.627 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:54:32] >>  iteration     2450/  102500 | consumed samples:      78400 | consumed tokens:  321126400 | elapsed time per iteration (ms): 5600.04 | learning rate: 4.997616E-05 | global batch size:    32 | lm loss: 1.413615E+00 | ar loss: 1.265388E+00 | dlm loss: 3.386224E+00 | num_tokens_dlm: 1.975075E+03 | grad norm: 0.690 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:55:28] >>  iteration     2460/  102500 | consumed samples:      78720 | consumed tokens:  322437120 | elapsed time per iteration (ms): 5559.86 | learning rate: 4.997583E-05 | global batch size:    32 | lm loss: 1.360121E+00 | ar loss: 1.205815E+00 | dlm loss: 3.159041E+00 | num_tokens_dlm: 2.088600E+03 | grad norm: 0.613 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:56:23] >>  iteration     2470/  102500 | consumed samples:      79040 | consumed tokens:  323747840 | elapsed time per iteration (ms): 5550.85 | learning rate: 4.997549E-05 | global batch size:    32 | lm loss: 1.401831E+00 | ar loss: 1.240526E+00 | dlm loss: 3.287910E+00 | num_tokens_dlm: 1.966650E+03 | grad norm: 0.658 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:57:19] >>  iteration     2480/  102500 | consumed samples:      79360 | consumed tokens:  325058560 | elapsed time per iteration (ms): 5549.06 | learning rate: 4.997515E-05 | global batch size:    32 | lm loss: 1.390931E+00 | ar loss: 1.239706E+00 | dlm loss: 3.277889E+00 | num_tokens_dlm: 2.032200E+03 | grad norm: 0.591 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:58:14] >>  iteration     2490/  102500 | consumed samples:      79680 | consumed tokens:  326369280 | elapsed time per iteration (ms): 5553.49 | learning rate: 4.997480E-05 | global batch size:    32 | lm loss: 1.413782E+00 | ar loss: 1.263850E+00 | dlm loss: 3.339952E+00 | num_tokens_dlm: 2.233150E+03 | grad norm: 0.656 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:59:10] >>  iteration     2500/  102500 | consumed samples:      80000 | consumed tokens:  327680000 | elapsed time per iteration (ms): 5600.34 | learning rate: 4.997446E-05 | global batch size:    32 | lm loss: 1.406515E+00 | ar loss: 1.250476E+00 | dlm loss: 3.382441E+00 | num_tokens_dlm: 1.926750E+03 | grad norm: 0.885 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 05:59:27] >> Saved checkpoint to /share/dataset/x00840191/model_train/ckpt/phase4_cpt_ar_duffision_0910/checkpoints/global_step_2500
+INFO [2026-09-16 05:59:27] >> Distributed checkpoint saved at /share/dataset/x00840191/model_train/ckpt/phase4_cpt_ar_duffision_0910/checkpoints/global_step_2500 successfully!
+INFO [2026-09-16 05:59:27] >> Removing old checkpoint: /share/dataset/x00840191/model_train/ckpt/phase4_cpt_ar_duffision_0910/checkpoints/global_step_1000
+INFO [2026-09-16 05:59:37] >> Huggingface checkpoint saved at /share/dataset/x00840191/model_train/ckpt/phase4_cpt_ar_duffision_0910/models/global_step_2500 successfully!
+INFO [2026-09-16 06:00:34] >>  iteration     2510/  102500 | consumed samples:      80320 | consumed tokens:  328990720 | elapsed time per iteration (ms): 8342.42 | learning rate: 4.997411E-05 | global batch size:    32 | lm loss: 1.415813E+00 | ar loss: 1.259623E+00 | dlm loss: 3.437015E+00 | num_tokens_dlm: 2.144725E+03 | grad norm: 0.662 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 06:01:29] >>  iteration     2520/  102500 | consumed samples:      80640 | consumed tokens:  330301440 | elapsed time per iteration (ms): 5552.21 | learning rate: 4.997376E-05 | global batch size:    32 | lm loss: 1.382065E+00 | ar loss: 1.230122E+00 | dlm loss: 3.295510E+00 | num_tokens_dlm: 2.143600E+03 | grad norm: 0.825 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 06:02:25] >>  iteration     2530/  102500 | consumed samples:      80960 | consumed tokens:  331612160 | elapsed time per iteration (ms): 5557.57 | learning rate: 4.997341E-05 | global batch size:    32 | lm loss: 1.412584E+00 | ar loss: 1.255372E+00 | dlm loss: 3.379403E+00 | num_tokens_dlm: 2.096750E+03 | grad norm: 0.667 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 06:03:20] >>  iteration     2540/  102500 | consumed samples:      81280 | consumed tokens:  332922880 | elapsed time per iteration (ms): 5557.25 | learning rate: 4.997306E-05 | global batch size:    32 | lm loss: 1.377655E+00 | ar loss: 1.227463E+00 | dlm loss: 3.218726E+00 | num_tokens_dlm: 1.932725E+03 | grad norm: 0.642 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 06:04:16] >>  iteration     2550/  102500 | consumed samples:      81600 | consumed tokens:  334233600 | elapsed time per iteration (ms): 5600.37 | learning rate: 4.997270E-05 | global batch size:    32 | lm loss: 1.394903E+00 | ar loss: 1.243182E+00 | dlm loss: 3.333149E+00 | num_tokens_dlm: 2.160425E+03 | grad norm: 0.925 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 06:05:12] >>  iteration     2560/  102500 | consumed samples:      81920 | consumed tokens:  335544320 | elapsed time per iteration (ms): 5560.21 | learning rate: 4.997234E-05 | global batch size:    32 | lm loss: 1.408874E+00 | ar loss: 1.249505E+00 | dlm loss: 3.375495E+00 | num_tokens_dlm: 2.097400E+03 | grad norm: 0.570 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 06:06:08] >>  iteration     2570/  102500 | consumed samples:      82240 | consumed tokens:  336855040 | elapsed time per iteration (ms): 5557.86 | learning rate: 4.997198E-05 | global batch size:    32 | lm loss: 1.387928E+00 | ar loss: 1.241204E+00 | dlm loss: 3.308238E+00 | num_tokens_dlm: 2.154225E+03 | grad norm: 0.726 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 06:07:03] >>  iteration     2580/  102500 | consumed samples:      82560 | consumed tokens:  338165760 | elapsed time per iteration (ms): 5558.11 | learning rate: 4.997161E-05 | global batch size:    32 | lm loss: 1.373322E+00 | ar loss: 1.225828E+00 | dlm loss: 3.258332E+00 | num_tokens_dlm: 2.035475E+03 | grad norm: 0.610 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
+INFO [2026-09-16 06:07:59] >>  iteration     2590/  102500 | consumed samples:      82880 | consumed tokens:  339476480 | elapsed time per iteration (ms): 5557.39 | learning rate: 4.997125E-05 | global batch size:    32 | lm loss: 1.405000E+00 | ar loss: 1.257160E+00 | dlm loss: 3.301471E+00 | num_tokens_dlm: 1.987050E+03 | grad norm: 0.548 | max_memory_allocated(GB): 17.23 | max_memory_reserved(GB): 19.36 |
