@@ -1,0 +1,75 @@
+model:
+  # Use exactly the same pretrained starting point as the joint AR+diffusion run.
+  model_name_or_path: /share/model_weights/Qwen3-1.7B-Base
+  model_id: qwen3
+  trust_remote_code: false
+  train_from_scratch: false
+
+data:
+  # Megatron indexed-dataset prefixes: each prefix must have matching .bin/.idx files.
+  dataset:
+    file_name:
+      - /share/dataset/x00840191/comm_math_code/RedStone_QA_oq_part_text_document
+      - /share/dataset/x00840191/comm_math_code/swallow_code_ablation_exp11_scor_text_document
+      - /share/dataset/x00840191/comm_math_code/megamath_qa_llama_3.3_text_document
+      - /share/dataset/x00840191/comm_math_code/megamath_qa_text_document
+      - /share/dataset/x00840191/comm_math_code/MetaMathQA_text_document
+      - /share/dataset/x00840191/comm_math_code/RedStone_QA_mcq_text_document
+      - /share/dataset/x00840191/comm_math_code/swallow_math_text_document
+  template: empty
+  cutoff_len: 4096
+  data_manager_type: mg
+  preprocessing_num_workers: 4
+  overwrite_cache: false
+
+parallel:
+  # One 8-NPU FSDP group. With multiple 8-NPU nodes, each node becomes one DP replica.
+  fsdp_size: 8
+  fsdp_modules:
+    - model.layers.{*}
+    - model.embed_tokens
+    - lm_head
+  tp_size: 1
+  ep_size: 1
+  ep_modules:
+    - model.layers.{*}.mlp.experts
+  ep_fsdp_size: 1
+  ep_fsdp_modules:
+    - model.layers.{*}.mlp.experts
+  ep_dispatcher: eager
+  recompute: true
+  recompute_modules:
+    - model.layers.{*}
+
+training:
+  stage: pt
+  per_device_train_batch_size: 1
+  # On one 8-NPU node: GBS = 1 micro batch * 4 accumulation * 8 DP/FSDP ranks = 32.
+  gradient_accumulation_steps: 4
+  # The current native-AR Trainer path expects scalar CE here. All MG samples
+  # are fixed at 4096 tokens, so this is equivalent to global token averaging.
+  calculate_per_token_loss: false
+  dataloader_num_workers: 4
+  dataloader_drop_last: true
+  seed: 42
+
+  output_dir: /share/dataset/x00840191/model_train/ckpt/qwen3_1.7b_ar_cpt_baseline_0916
+  optimizer: adamw
+  lr: 5e-05
+  weight_decay: 0.01
+  adam_beta1: 0.9
+  adam_beta2: 0.95
+  adam_epsilon: 1e-08
+  max_grad_norm: 1.0
+  lr_scheduler_type: cosine
+  warmup_ratio: 1e-2
+  min_lr: 1e-06
+
+  # Match the joint run: 102500 * GBS 32 * 4096 = 13,434,880,000 training tokens.
+  num_train_epochs: 1.0
+  max_steps: 102500
+  save_steps: 500
+  save_total_limit: 3
+  save_hf_weights: true
+  logging_steps: 10
+  log_per_token_loss: false
