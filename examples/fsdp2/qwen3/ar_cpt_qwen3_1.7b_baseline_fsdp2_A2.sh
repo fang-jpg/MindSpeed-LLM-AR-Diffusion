@@ -17,10 +17,10 @@ MASTER_PORT=6501
 # 4. 路径
 MODEL_PATH=/share/model_weights/Qwen3-1.7B-Base
 
-OUTPUT_DIR=/share/dataset/x00840191/model_train/ckpt/qwen3_1.7b_ar_cpt_baseline_0916
+OUTPUT_DIR=/share/dataset/x00840191/model_train/ckpt/qwen3_1.7b_ar_cpt_baseline_0920
 
 LOG_DIR=/share/f50058111/logs
-LOG_FILE=${LOG_DIR}/qwen3_1.7b_ar_cpt_baseline_0916.log
+LOG_FILE=${LOG_DIR}/qwen3_1.7b_ar_cpt_baseline_0920.log
 
 CONFIG=examples/fsdp2/qwen3/ar_cpt_qwen3_1.7b_baseline_fsdp2_A2.yaml
 

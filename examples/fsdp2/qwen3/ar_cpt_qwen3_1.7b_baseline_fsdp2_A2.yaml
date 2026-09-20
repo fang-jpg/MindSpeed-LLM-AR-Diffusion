@@ -53,7 +53,7 @@ training:
   dataloader_drop_last: true
   seed: 42
 
-  output_dir: /share/dataset/x00840191/model_train/ckpt/qwen3_1.7b_ar_cpt_baseline_0916
+  output_dir: /share/dataset/x00840191/model_train/ckpt/qwen3_1.7b_ar_cpt_baseline_0920
   optimizer: adamw
   lr: 5e-05
   weight_decay: 0.01
