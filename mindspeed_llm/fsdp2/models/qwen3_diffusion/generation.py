@@ -85,6 +85,7 @@ def block_diff_generate(
     prompt_ids: torch.Tensor,
     max_new_tokens: int,
     block_length: int,
+    steps_per_block,
     threshold: Optional[float] = None,
     causal_context: bool = True,
     temperature: float = 0.0,
@@ -121,6 +122,13 @@ def block_diff_generate(
     Returns:
         (output_ids, nfe): output_ids includes prompt, nfe = number of forward evals
     """
+    remaining=max_new_tokens
+    while remaining > 0:
+        cur_block_length = min(block_length , remaining)
+        # 为当前block建MASK
+        # 恰好执行steps_per_block 次去噪
+        # 每一步提交一部分token
+        remaining-=cur_block_length
     if eos_token_id is None:
         eos_token_id = getattr(model.config, "eos_token_id", None)
     mask_id = model.mask_token_id
