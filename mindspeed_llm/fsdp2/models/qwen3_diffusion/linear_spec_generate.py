@@ -10,6 +10,7 @@
 from typing import Optional
 
 import torch
+import torch.nn.functional as F
 from transformers.cache_utils import DynamicCache
 
 from ..qwen3.utils import set_diffusion_lm
@@ -66,6 +67,7 @@ def ar_generate(
     topk: int = 0,
     top_p: float = 0.0,
     eos_token_id: Optional[int] = None,
+    ignore_eos: bool = False,
 ):
     """Autoregressive generation with KV cache.
 
@@ -104,15 +106,11 @@ def ar_generate(
         use_cache=True,
         cache_position=cache_position,
     )
-    print(model)
     past_key_values = enc_out.past_key_values
     # AR 生成使用 lm_head（与 embed_tokens 权重绑定，继承预训练权重），
     # 而非 lm_head（随机初始化，仅 CPT 训练后才有意义）。
     next_logit, _ = model.lm_head(enc_out.last_hidden_state[:, -1:, :])
     next_logit = next_logit.squeeze(1)
-    print(next_logit.shape)
-    
-
     generated_tokens = []
     nfe = 1  # prefill counts as 1 forward
 
@@ -139,11 +137,15 @@ def ar_generate(
                 sorted_indices_to_remove = cumulative_probs > top_p
 
                 # 保留第一个超过 top_p 的 token
-                sorted_indices_to_remove[1:] = sorted_indices_to_remove[:-1].clone()
-                sorted_indices_to_remove[0] = False
+                sorted_indices_to_remove[..., 1:] = (
+                    sorted_indices_to_remove[..., :-1].clone()
+                )
+                sorted_indices_to_remove[..., 0] = False
 
-                indices_to_remove = sorted_indices[sorted_indices_to_remove]
-                next_logit[indices_to_remove] = filter_value
+                remove_mask = torch.zeros_like(
+                    sorted_indices_to_remove, dtype=torch.bool
+                ).scatter(-1, sorted_indices, sorted_indices_to_remove)
+                next_logit = next_logit.masked_fill(remove_mask, -torch.inf)
             probs = torch.softmax(next_logit, dim=-1)
             # print(probs.shape)
             next_token = torch.multinomial(probs, num_samples=1)
@@ -153,7 +155,11 @@ def ar_generate(
         generated_tokens.append(next_token)
         # print(f"eos_token_id:{eos_token_id}")
         # Early stop on EOS
-        if eos_token_id is not None and (next_token == eos_token_id).all():
+        if (
+            not ignore_eos
+            and eos_token_id is not None
+            and (next_token == eos_token_id).all()
+        ):
             break
 
         # Generate next logit using KV cache (single token forward)

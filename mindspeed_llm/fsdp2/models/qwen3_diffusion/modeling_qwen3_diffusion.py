@@ -95,23 +95,19 @@ class Qwen3DiffusionForCausalLM(transformers.Qwen3PreTrainedModel, GenerationMix
 
     @classmethod
     def from_pretrained(cls, *args, **kwargs):
-        """Phase 4: Auto-resize embeddings to accommodate mask_token_id.
+        """Load a checkpoint without overwriting an existing trained head."""
+        return_loading_info = kwargs.pop("output_loading_info", False)
+        model, loading_info = super().from_pretrained(
+            *args, output_loading_info=True, **kwargs
+        )
+        missing_keys = set(loading_info.get("missing_keys", []))
+        head_is_missing = any(key.endswith("lm_head.weight") for key in missing_keys)
+        if head_is_missing:
+            with torch.no_grad():
+                model.lm_head.weight.copy_(model.model.embed_tokens.weight)
 
-        Qwen3-1.7B-Base has no <mask> token in its vocab. After loading,
-        if mask_token_id >= vocab_size, resize embed_tokens + lm_head
-        (handled by resize_token_embeddings) and rebuild diffusion_head
-        (not handled by resize_token_embeddings, since it's not the
-        get_output_embeddings output).
-        """
-        print("---------------pretrain start---------------------")
-        model, loading_info  = super().from_pretrained(*args,output_loading_info=True,**kwargs)
-        # #训练时为了方便强制指定，推理的时候需要注释/删除权重拷贝
-        # with torch.no_grad():
-        #     print("copied")
-        #     model.lm_head.weight.copy_(
-        #         model.model.embed_tokens.weight
-        #     )
-
+        if return_loading_info:
+            return model, loading_info
         return model
 
     def get_input_embeddings(self):

@@ -22,17 +22,17 @@ Diffusion 每次生成一个包含 `B` 个 token 的 block，并用 `S` 次模�
 | 当前训练 block size | `B_train=8` |
 | dtype / device | `bfloat16 / A2` |
 | temperature | `0` |
-| 速度测试 prompt 数 | ` 100 条固定 prompt` |
+| 速度测试 prompt 数 | `从 GSM8K test 固定抽取 100 条，seed=42` |
 | 每条固定生成长度 | `128 tokens` |
 | 速度测试 EOS | `忽略 EOS，AR 和 Diffusion 都生成满 128 tokens` |
 | warmup / repeat | `5 / 20` |
-| 快速性能任务 | `GSM8K，同一套 prompt 和生成答案` |
+| 快速性能任务 | `GSM8K 5-shot，正式结果跑完整 test 1319 条` |
 | 完整性能任务 | `MMLU、GSM8K、HumanEval、BoolQ、BBH` |
 | 随机种子 | `42` |
 
 ## 3. 基准实验：先测 AR
 
-| Exp ID | 模式 | 输出长度 | Decode tok/s | 单条平均耗时 ms | GSM8K | 备注 |
+| Exp ID | 模式 | 输出长度 | Decode tok/s | 单条平均耗时 ms | GSM8K (%) | 备注 |
 |---|---|---:|---:|---:|---:|---|
 | AR-BASE | AR | 128 | — | — | — | 所有加速比都除以这一行的 tok/s |
 
@@ -40,7 +40,7 @@ Diffusion 每次生成一个包含 `B` 个 token 的 block，并用 `S` 次模�
 
 > 理论并行 token/step 只用于帮助理解，最终以真实 `Decode tok/s` 和 `Speedup` 为准。实际实现每个 block 还有 KV refresh，因此真实加速通常低于理论值。
 
-| Exp ID | Block B | 去噪步数 S | 档位 | 理论 B/S | 实际前向次数 | Decode tok/s | Speedup vs AR | GSM8K | ΔGSM8K vs AR | 峰值显存 GB | 结论 |
+| Exp ID | Block B | 去噪步数 S | 档位 | 理论 B/S | 实际前向次数 | Decode tok/s | Speedup vs AR | GSM8K (%) | ΔGSM8K vs AR（百分点） | 峰值显存 GB | 结论 |
 |---|---:|---:|---|---:|---:|---:|---:|---:|---:|---:|---|
 | B04-S01 | 4 | 1 | 快速 | 4.00 | — | — | — | — | — | — | — |
 | B04-S02 | 4 | 2 | 平衡 | 2.00 | — | — | — | — | — | — | — |

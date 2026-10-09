@@ -3,272 +3,227 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>AR-Diffusion 实验执行手册（与实验表同步）</title>
+  <title>AR-Diffusion：Block × Step 实验执行手册</title>
   <style>
-    :root { --blue:#1f56c5; --green:#087f6c; --ink:#172238; --muted:#657187; --line:#d9e1ec; --bg:#f4f7fb; --paper:#fff; --warn:#fff5df; }
-    * { box-sizing:border-box; }
-    html { scroll-behavior:smooth; }
-    body { margin:0; color:var(--ink); background:var(--bg); font-family:"Segoe UI","Microsoft YaHei",sans-serif; line-height:1.7; }
-    header { padding:48px 22px; color:white; background:linear-gradient(120deg,#18376f,var(--blue),var(--green)); }
-    header div, main, nav div { max-width:1080px; margin:auto; }
-    h1 { margin:0 0 10px; font-size:clamp(30px,5vw,48px); }
-    header p { margin:0; max-width:760px; font-size:18px; color:#edf3ff; }
-    nav { position:sticky; top:0; z-index:3; background:rgba(255,255,255,.95); border-bottom:1px solid var(--line); }
-    nav div { display:flex; gap:20px; padding:11px 20px; overflow-x:auto; white-space:nowrap; }
-    nav a, a { color:var(--blue); text-decoration:none; font-weight:650; }
-    main { padding:28px 18px 70px; }
-    section { margin-bottom:20px; padding:25px; background:var(--paper); border:1px solid var(--line); border-radius:15px; box-shadow:0 10px 30px rgba(25,48,86,.08); }
-    h2 { margin:0 0 16px; font-size:26px; }
-    h3 { margin:24px 0 9px; }
-    .hero-grid, .steps { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:13px; }
-    .card { padding:16px; border:1px solid var(--line); border-radius:11px; background:#fbfcfe; }
-    .card strong { color:var(--blue); font-size:18px; }
-    .formula { padding:15px; border-radius:10px; background:#eef4ff; border:1px solid #cbd9f4; font-size:18px; text-align:center; }
-    .callout { padding:14px 16px; margin:15px 0; border-left:5px solid #d18a00; border-radius:8px; background:var(--warn); }
-    .good { border-color:var(--green); background:#eaf9f5; }
-    table { width:100%; border-collapse:collapse; margin:13px 0 20px; font-size:14px; }
-    th,td { border:1px solid var(--line); padding:9px 10px; text-align:left; vertical-align:top; }
-    th { background:#edf2fa; }
-    code { padding:2px 5px; border-radius:5px; background:#edf1f6; font-family:Consolas,monospace; }
-    pre { overflow:auto; padding:16px; border-radius:10px; color:#e9effa; background:#111a2a; line-height:1.55; }
-    pre code { padding:0; background:transparent; }
-    .big { font-size:21px; font-weight:750; color:var(--blue); }
-    .muted { color:var(--muted); }
-    details { margin:10px 0; border:1px solid var(--line); border-radius:10px; }
-    summary { cursor:pointer; padding:12px 14px; font-weight:750; }
-    details div { padding:0 14px 14px; }
-    footer { padding:25px; text-align:center; color:var(--muted); }
-    @media(max-width:700px){ section{padding:18px} }
-    @media print{ nav{display:none} body{background:white} section{box-shadow:none} }
+    :root{--blue:#2457c5;--green:#087e69;--ink:#172238;--muted:#637087;--line:#d8e1ed;--bg:#f4f7fb;--paper:#fff;--warn:#fff5df;--bad:#fff0ef}
+    *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;color:var(--ink);background:var(--bg);font-family:"Segoe UI","Microsoft YaHei",sans-serif;line-height:1.7}
+    header{padding:46px 22px;color:#fff;background:linear-gradient(120deg,#18376f,var(--blue),var(--green))}header div,main,nav div{max-width:1120px;margin:auto}
+    h1{margin:0 0 9px;font-size:clamp(29px,5vw,46px)}header p{margin:0;max-width:880px;color:#edf4ff;font-size:18px}
+    nav{position:sticky;top:0;z-index:3;background:rgba(255,255,255,.96);border-bottom:1px solid var(--line)}nav div{display:flex;gap:20px;padding:11px 20px;overflow:auto;white-space:nowrap}
+    a{color:var(--blue);text-decoration:none;font-weight:650}main{padding:28px 18px 70px}section{margin-bottom:20px;padding:25px;background:var(--paper);border:1px solid var(--line);border-radius:15px;box-shadow:0 10px 30px rgba(25,48,86,.07)}
+    h2{margin:0 0 15px;font-size:26px}h3{margin:24px 0 9px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:13px}.card{padding:16px;border:1px solid var(--line);border-radius:11px;background:#fbfcfe}.card strong{color:var(--blue);font-size:18px}
+    .formula{padding:14px;border:1px solid #cbd9f4;border-radius:10px;background:#eef4ff;text-align:center;font-size:18px}.callout{padding:14px 16px;margin:15px 0;border-left:5px solid #d18a00;border-radius:8px;background:var(--warn)}.good{border-color:var(--green);background:#eaf9f5}.bad{border-color:#c84236;background:var(--bad)}
+    table{width:100%;border-collapse:collapse;margin:13px 0 20px;font-size:14px}th,td{border:1px solid var(--line);padding:9px 10px;text-align:left;vertical-align:top}th{background:#edf2fa}code{padding:2px 5px;border-radius:5px;background:#edf1f6;font-family:Consolas,monospace}pre{overflow:auto;padding:16px;border-radius:10px;color:#e9effa;background:#111a2a;line-height:1.55}pre code{padding:0;background:transparent}.muted{color:var(--muted)}.ok{color:var(--green);font-weight:750}.tag{display:inline-block;padding:2px 8px;border-radius:20px;background:#e8f0ff;color:var(--blue);font-weight:700}
+    details{margin:10px 0;border:1px solid var(--line);border-radius:10px}summary{cursor:pointer;padding:12px 14px;font-weight:750}details div{padding:0 14px 14px}footer{padding:25px;text-align:center;color:var(--muted)}@media(max-width:700px){section{padding:18px}}@media print{nav{display:none}body{background:#fff}section{box-shadow:none}}
   </style>
 </head>
 <body>
 <header><div>
   <h1>AR-Diffusion 实验执行手册</h1>
-  <p>只回答一个问题：block 大小和解码步数变化时，模型到底快了多少，性能又损失了多少？</p>
+  <p>已与仓库中的实际脚本同步：固定一个 step-102500 checkpoint，只改变推理 block 大小 B 和每块去噪步数 S，测真实加速比与完整 GSM8K 性能。</p>
 </div></header>
-
 <nav><div>
-  <a href="#idea">原理</a><a href="#plan">实验表</a><a href="#code">代码改动</a><a href="#run">怎么运行</a><a href="#head">lm_head 问题</a><a href="#report">怎么汇报</a>
+  <a href="#scope">实验口径</a><a href="#data">GSM8K 数据</a><a href="#changes">代码改动</a><a href="#run">运行步骤</a><a href="#outputs">结果文件</a><a href="#head">lm_head</a><a href="#trouble">排错</a>
 </div></nav>
 
 <main>
-  <section id="idea">
-    <h2>1. 先把原理讲明白</h2>
-    <div class="hero-grid">
-      <div class="card"><strong>Block size：B</strong><p>模型每次准备并行生成多少个 token。比如 B=16，就是一次处理 16 个待生成位置。</p></div>
-      <div class="card"><strong>解码步数：S</strong><p>模型用多少次前向计算把这个 block 填完。S 越少，每次要同时确定的 token 越多。</p></div>
-      <div class="card"><strong>加速比</strong><p>Diffusion 的真实 decode tok/s 除以同一 checkpoint 的 AR decode tok/s。</p></div>
-      <div class="card"><strong>模型性能</strong><p>先用 GSM8K 比较 12 个配置，再把三个代表配置放到五个任务上完整评测。</p></div>
+  <section id="scope">
+    <h2>1. 这轮实验只回答什么</h2>
+    <div class="grid">
+      <div class="card"><strong>Block：B</strong><p>一次放入多少个待预测位置。本轮测试 4、8、16、32。</p></div>
+      <div class="card"><strong>去噪步数：S</strong><p>填完一个 block 最多做几次去噪前向。本轮只测快速、平衡、保守三档。</p></div>
+      <div class="card"><strong>真实速度</strong><p>候选配置 tok/s ÷ 同 checkpoint 的 AR tok/s；理论 B/S 只帮助理解。</p></div>
+      <div class="card"><strong>模型性能</strong><p>用相同 5-shot prompt 在完整 GSM8K test（1319 题）上比较答案正确率。</p></div>
     </div>
-    <div class="formula">一个 block 有 B 个 token，用 S 步填完；粗略并行能力约为 B / S</div>
-    <p>例如 B=16、S=4，平均每一步要确定 4 个 token。它通常比 S=16 更快，但也更容易出错。</p>
-    <div class="callout good"><strong>这轮只保留一条主线：</strong>改变 B 和 S，然后同时测 Speedup 与 GSM8K。没有阈值 sweep、SOL、checkpoint 轨迹或训练遗忘分析。</div>
+    <div class="formula">同一 B 下：S 越少通常越快，但一次要确认更多 token，正确率可能更低</div>
+    <table>
+      <thead><tr><th>Block B</th><th>快速</th><th>平衡</th><th>保守</th><th>Exp ID</th></tr></thead>
+      <tbody>
+        <tr><td>4</td><td>S=1</td><td>S=2</td><td>S=4</td><td>B04-S01 / S02 / S04</td></tr>
+        <tr><td>8</td><td>S=2</td><td>S=4</td><td>S=8</td><td>B08-S02 / S04 / S08</td></tr>
+        <tr><td>16</td><td>S=4</td><td>S=8</td><td>S=16</td><td>B16-S04 / S08 / S16</td></tr>
+        <tr><td>32</td><td>S=8</td><td>S=16</td><td>S=32</td><td>B32-S08 / S16 / S32</td></tr>
+      </tbody>
+    </table>
+    <div class="callout good"><strong>本轮不做：</strong>阈值 sweep、SOL sampler、checkpoint 轨迹和重新训练四个 block。这些都不是完成主表所必需的。</div>
+    <p>手工填写用的主表：<a href="ar_diffusion_experiment_table.md">ar_diffusion_experiment_table.md</a>。</p>
   </section>
 
-  <section id="plan">
-    <h2>2. 实验怎么设计</h2>
-    <p>对每个 block 只测三档步数，所以总共 12 组，加 1 个 AR 基准。</p>
-    <h3>你已经确定的实验条件</h3>
+  <section id="data">
+    <h2>2. GSM8K 数据怎么处理</h2>
+    <p><span class="tag">结论</span> 不需要把整个 GSM8K 复制进 MindSpeed-LLM，也不能只拿 100 题报告准确率。</p>
     <table>
+      <thead><tr><th>用途</th><th>数据</th><th>为什么</th></tr></thead>
       <tbody>
-        <tr><th>Checkpoint 根目录</th><td><code>/data2/model_train/ckpt/phase4_cpt_ar_diffusion_0923_resume/</code></td></tr>
-        <tr><th>Checkpoint step</th><td><code>102500</code></td></tr>
-        <tr><th>建议推理模型路径</th><td><code>/data2/model_train/ckpt/phase4_cpt_ar_diffusion_0923_resume/models/global_step_102500/</code>；运行前先确认目录存在</td></tr>
-        <tr><th>训练 block</th><td><code>B_train=8</code></td></tr>
-        <tr><th>设备与精度</th><td><code>A2 / bfloat16</code></td></tr>
-        <tr><th>速度样本</th><td>固定 100 条 prompt；每条生成 128 token</td></tr>
-        <tr><th>速度测试</th><td>忽略 EOS；warmup=5；repeat=20；temperature=0</td></tr>
-        <tr><th>快速性能任务</th><td>GSM8K，seed=42</td></tr>
-        <tr><th>完整任务</th><td>MMLU、GSM8K、HumanEval、BoolQ、BBH</td></tr>
+        <tr><td>速度测试</td><td>从 test 固定随机抽取 100 题，seed=42</td><td>所有 13 个配置使用同一批长短不一的真实 prompt；每题强制生成 128 token</td></tr>
+        <tr><td>正式性能测试</td><td>完整 test，共 1319 题</td><td>100 题波动太大，不能作为正式 GSM8K 分数</td></tr>
+        <tr><td>Few-shot 示例</td><td>从 train 固定抽取 5 题，seed=42</td><td>AR 与 12 个 Diffusion 配置共用完全相同的上下文</td></tr>
       </tbody>
     </table>
-    <table>
-      <thead><tr><th>Block B</th><th>快速：S=B/4</th><th>平衡：S=B/2</th><th>保守：S=B</th></tr></thead>
-      <tbody>
-        <tr><td>4</td><td>S=1</td><td>S=2</td><td>S=4</td></tr>
-        <tr><td>8</td><td>S=2</td><td>S=4</td><td>S=8</td></tr>
-        <tr><td>16</td><td>S=4</td><td>S=8</td><td>S=16</td></tr>
-        <tr><td>32</td><td>S=8</td><td>S=16</td><td>S=32</td></tr>
-      </tbody>
-    </table>
-    <div class="steps">
-      <div class="card"><strong>步骤 1：AR 基准</strong><p>同一 checkpoint，固定生成 128 token，得到 AR tok/s；再测 AR 的 GSM8K。</p></div>
-      <div class="card"><strong>步骤 2：12 组主实验</strong><p>每组记录 Diffusion tok/s、Speedup、GSM8K 和显存。</p></div>
-      <div class="card"><strong>步骤 3：选 3 个点</strong><p>选最快点、性能最好点、速度性能平衡点。</p></div>
-      <div class="card"><strong>步骤 4：五任务</strong><p>只对三个点测 MMLU、GSM8K、HumanEval、BoolQ、BBH。</p></div>
-    </div>
-    <h3>所有实验必须固定</h3>
+    <p>服务器路径按你提供的信息固定为：</p>
+<pre><code>lm-eval-harness: /home/f50058111/lm-eval-harness
+HF 缓存根目录:   /home/f50058111/huggingface_cache
+datasets 缓存:  /home/f50058111/huggingface_cache/datasets</code></pre>
+    <p><a href="../../examples/fsdp2/qwen3_diffusion/prepare_gsm8k_data.py">prepare_gsm8k_data.py</a> 会离线读取 <code>openai/gsm8k</code> 的 train/test cache，生成：</p>
     <ul>
-      <li>同一个 joint checkpoint、tokenizer 和 prompt。</li>
-      <li><code>temperature=0</code>。</li>
-      <li>速度测试时 AR 和 Diffusion 都固定生成 128 token，都忽略 EOS。</li>
-      <li>warmup 5 次，正式重复 20 次，NPU 同步后计时。</li>
-      <li>GSM8K 性能测试允许正常遇 EOS，生成上限使用 512 token，不使用速度测试的 128-token 限制。</li>
-      <li>GSM8K 固定使用仓库默认 direct 模式和同一份 3-shot prompt；若改用 CoT，所有 AR/Diffusion 配置必须一起改，不能混用。</li>
-      <li>性能测试时使用同一批样本、相同答案解析和 seed=42。</li>
+      <li><code>speed_prompts_100.jsonl</code>：100 条固定测速 prompt，不包含标准答案。</li>
+      <li><code>fewshot_examples.json</code>：固定的 5 个示例及训练集索引。</li>
+      <li><code>gsm8k_protocol.json</code>：test/train 指纹、100 个 test 索引、seed 和 prompt SHA-256。</li>
     </ul>
-    <div class="callout"><strong>指标口径已统一：</strong>AR 基准、12 组主实验、选点规则和两张主图都使用 GSM8K；MMLU 只在最后三个候选的五任务完整评测中出现。</div>
-    <p>可填写的完整表格在 <a href="ar_diffusion_experiment_table.md">ar_diffusion_experiment_table.md</a>。</p>
+    <div class="callout"><strong>为什么保存指纹和索引：</strong>以后重跑时可以确认不是“同名数据集但换了版本或换了题”。</div>
   </section>
 
-  <section id="code">
-    <h2>3. 最少需要改哪些代码</h2>
-    <p>只为让 B、S、100 条 prompt 的速度和 GSM8K 可测，第一轮改四处即可。</p>
+  <section id="changes">
+    <h2>3. 已完成的代码改动</h2>
     <table>
-      <thead><tr><th>文件</th><th>现在的问题</th><th>需要改成什么</th></tr></thead>
+      <thead><tr><th>文件</th><th>改动</th><th>实验作用</th></tr></thead>
       <tbody>
-        <tr><td><a href="../../mindspeed_llm/fsdp2/models/qwen3_diffusion/generation.py"><code>generation.py</code></a></td><td><code>steps_per_block = block_length</code> 写死；输出长度必须整除 B</td><td>增加 <code>steps_per_block</code> 参数；最后一个 block 可以短于 B；返回真实前向次数</td></tr>
-        <tr><td><a href="../../examples/fsdp2/qwen3_diffusion/inference_qwen3_diffusion.py"><code>inference_qwen3_diffusion.py</code></a></td><td>没有 S 参数；计时未同步；会把输出长度向上取整</td><td>增加 CLI 参数；删除向上取整；加入 warmup、repeat、NPU 同步与 JSON 输出</td></tr>
-        <tr><td><code>benchmark_decode.py</code>（新建）</td><td>现有 inference 脚本一次只接收一条 prompt，不能直接完成固定 100 条 prompt 的测速</td><td>读取 JSONL prompt 文件，分别运行 AR 或 Diffusion，执行 warmup=5、repeat=20，输出汇总 JSON</td></tr>
-        <tr><td><code>evaluate_suite.py</code>（新建或扩展现有 evaluator）</td><td>当前 <code>evaluate_qwen3_diffusion.py</code> 只支持 MMLU CSV，不支持你选定的 GSM8K</td><td>第一版先接 GSM8K direct 3-shot、数值答案提取和 sample-level JSONL；选出三个配置后再接其余四个任务</td></tr>
+        <tr><td><a href="../../mindspeed_llm/fsdp2/models/qwen3_diffusion/generation.py">generation.py</a></td><td>B 与 S 解耦；支持最后一个短 block；主实验使用全 MASK block；返回 prefill/denoise/refresh NFE；复用并裁剪 KV cache；最后一个 block 不做无用 refresh</td><td>保证 12 组实验真的改变 S，并避免把 KV 深拷贝开销误算成模型慢</td></tr>
+        <tr><td><a href="../../examples/fsdp2/qwen3_diffusion/inference_qwen3_diffusion.py">inference_qwen3_diffusion.py</a></td><td>增加 <code>--steps-per-block</code>、<code>--seed-mode</code>、同步计时、warmup/repeat、显存和 JSON 统计</td><td>单条 prompt 调试入口</td></tr>
+        <tr><td><a href="../../examples/fsdp2/qwen3_diffusion/gsm8k_experiment.py">gsm8k_experiment.py</a></td><td>离线 cache 读取、固定抽样、5-shot prompt、数字答案标准化/抽取</td><td>速度与正确率共用同一数据协议</td></tr>
+        <tr><td><a href="../../examples/fsdp2/qwen3_diffusion/prepare_gsm8k_data.py">prepare_gsm8k_data.py</a></td><td>抽取并冻结 100 条速度数据</td><td>只做一次，后面所有配置复用</td></tr>
+        <tr><td><a href="../../examples/fsdp2/qwen3_diffusion/benchmark_decode.py">benchmark_decode.py</a></td><td>100 prompts × 20 repeat；忽略 EOS；同步 NPU；输出 tok/s、p50/p95、NFE、显存与 speedup</td><td>填写主表中的速度列</td></tr>
+        <tr><td><a href="../../examples/fsdp2/qwen3_diffusion/evaluate_gsm8k_diffusion.py">evaluate_gsm8k_diffusion.py</a></td><td>完整 1319 题、5-shot、允许 EOS、最多 512 token；保存逐题输出</td><td>填写 GSM8K 和 ΔGSM8K</td></tr>
+        <tr><td><a href="../../examples/fsdp2/qwen3_diffusion/run_block_step_experiments.sh">run_block_step_experiments.sh</a></td><td>自动运行 AR 和 12 个 B/S 配置，分 prepare/speed/quality/all 阶段</td><td>避免手写 26 条命令时填错参数</td></tr>
+        <tr><td><a href="../../examples/fsdp2/qwen3_diffusion/summarize_block_step_results.py">summarize_block_step_results.py</a></td><td>合并速度与正确率 JSON，生成 CSV 和 Markdown 汇总</td><td>实验完成后直接抄表</td></tr>
       </tbody>
     </table>
-
-    <h3>3.1 generation.py 的核心修改</h3>
-<pre><code>def block_diff_generate(
-    model,
-    prompt_ids,
-    max_new_tokens,
-    block_length,
-    steps_per_block,       # 新增：不再等于 block_length
-    ...
-):
-    remaining = max_new_tokens
-    while remaining &gt; 0:
-        cur_block_length = min(block_length, remaining)
-        # 为当前 block 建 MASK
-        # 恰好执行 steps_per_block 次去噪
-        # 每一步提交一部分 token
-        remaining -= cur_block_length</code></pre>
-    <p>论文式主实验建议 block 初始全部为 MASK。当前代码会给每个 block 放一个 AR seed；为了直接对照论文，主实验中应关闭这一步，不再额外做 seed 消融。</p>
-
-    <h3>3.2 每次运行只需输出这些数字</h3>
-<pre><code>{
-  "block_size": 16,
-  "steps_per_block": 4,
-  "generated_tokens": 128,
-  "forward_calls": 40,
-  "decode_time_ms": 1234.5,
-  "decode_tokens_per_second": 103.7,
-  "speedup_vs_ar": 2.15,
-  "peak_memory_gb": 21.3,
-  "gsm8k_accuracy": 63.4
-}</code></pre>
-    <p class="muted">forward_calls 要记录真实次数，包括去噪和每个 block 的 KV refresh；加速比最终只使用实测 tok/s。</p>
+    <h3>本轮 Diffusion 的固定实现口径</h3>
+    <ul>
+      <li><code>seed_mode=none</code>：每个 block 初始全部为 MASK，避免一个 AR seed 导致 B 个位置实际只去噪 B−1 个。</li>
+      <li><code>temperature=0</code>、<code>threshold=None</code>：只比较 B/S，不引入额外采样变量。</li>
+      <li>每个非最后 block 还有一次 KV refresh；所以实际 forward 数和理论 B/S 不相等，最终以 tok/s 为准。</li>
+      <li>速度指标从 input IDs 已经在设备上开始计时，到生成结束；包含 prompt prefill，排除模型加载、tokenization 和 host-to-device copy。</li>
+    </ul>
   </section>
 
   <section id="run">
-    <h2>4. 怎么运行实验</h2>
-    <div class="callout">下面的 <code>benchmark_decode.py</code>、<code>evaluate_suite.py</code> 和新参数需要先完成第 3 节代码改动；它们是目标命令模板，不是当前仓库已经可直接运行的命令。</div>
-    <h3>4.1 先确认模型和数据路径</h3>
-<pre><code>CKPT=/data2/model_train/ckpt/phase4_cpt_ar_diffusion_0923_resume/models/global_step_102500
-GSM8K_PATH=/path/to/gsm8k/test.jsonl
-PROMPTS=examples/fsdp2/qwen3_diffusion/data/speed_prompts_100.jsonl
+    <h2>4. 在服务器上怎么运行</h2>
+    <h3>4.1 先进入仓库并确认路径</h3>
+<pre><code>cd /你的路径/MindSpeed-LLM
 
-test -d "$CKPT"
-test -f "$GSM8K_PATH"
-test -f "$PROMPTS"</code></pre>
-    <p><code>speed_prompts_100.jsonl</code> 固定为 100 行，每行至少包含 <code>{"id":"...","prompt":"..."}</code>。所有 13 个配置必须使用完全相同且顺序一致的文件。</p>
+export MODEL_PATH=/data2/model_train/ckpt/phase4_cpt_ar_diffusion_0923_resume/models/global_step_102500
+export LM_EVAL_ROOT=/home/f50058111/lm-eval-harness
+export HF_CACHE_ROOT=/home/f50058111/huggingface_cache
+export OUTPUT_ROOT=$PWD/outputs/ar_diffusion_gsm8k
 
-    <h3>4.2 AR 速度基准：AR-BASE</h3>
-<pre><code>python examples/fsdp2/qwen3_diffusion/benchmark_decode.py \
-  --model-path "$CKPT" --prompts-file "$PROMPTS" \
-  --mode ar --dtype bfloat16 --device npu:0 \
-  --max-new-tokens 128 --temperature 0 --ignore-eos \
-  --warmup 5 --repeats 20 --seed 42 \
-  --output-json results/AR-BASE-speed.json</code></pre>
+test -d "$MODEL_PATH"
+test -d "$HF_CACHE_ROOT"
+test -f examples/fsdp2/qwen3_diffusion/run_block_step_experiments.sh</code></pre>
+    <p>若 step 102500 的导出目录名不同，只改 <code>MODEL_PATH</code>，不要改脚本。应指向包含 <code>config.json</code> 和模型权重的 Hugging Face 目录，不是分布式训练状态目录。</p>
 
-    <h3>4.3 Diffusion 速度示例：B16-S04</h3>
-<pre><code>python examples/fsdp2/qwen3_diffusion/benchmark_decode.py \
-  --model-path "$CKPT" --prompts-file "$PROMPTS" \
-  --mode diffusion --dtype bfloat16 --device npu:0 \
-  --max-new-tokens 128 --block-length 16 --steps-per-block 4 \
-  --temperature 0 --ignore-eos \
-  --warmup 5 --repeats 20 --seed 42 \
-  --output-json results/B16-S04-speed.json</code></pre>
-    <p><strong>Speedup 计算：</strong><code>B16-S04 的 decode_tokens_per_second / AR-BASE 的 decode_tokens_per_second</code>。不要使用理论 <code>B/S</code> 代替。</p>
+    <h3>4.2 确认 Python</h3>
+    <p>脚本优先使用 <code>/home/f50058111/lm-eval-harness/.venv-diffusion/bin/python</code>。先在当前终端显式保存这个变量；若文件不存在，再改成训练/推理环境的 Python：</p>
+<pre><code>export PYTHON_BIN=${PYTHON_BIN:-$LM_EVAL_ROOT/.venv-diffusion/bin/python}
+# 若上面的文件不存在：export PYTHON_BIN=/实际环境/bin/python
+$PYTHON_BIN -c "import torch, torch_npu, transformers, datasets; print('environment ok')"</code></pre>
 
-    <h3>4.4 AR 的 GSM8K 基准</h3>
-<pre><code>python examples/fsdp2/qwen3_diffusion/evaluate_suite.py \
-  --model-path "$CKPT" --task gsm8k --data-path "$GSM8K_PATH" \
-  --mode ar --dtype bfloat16 --device npu:0 \
-  --prompt-template mindspeed_llm/tasks/evaluation/eval_impl/fewshot_template/gsm8k_3shot_template.json \
-  --max-new-tokens 512 --temperature 0 --seed 42 \
-  --output-dir results/AR-BASE-gsm8k</code></pre>
+    <h3>4.3 第一步：抽取并冻结 100 条速度样本</h3>
+<pre><code>PHASE=prepare bash examples/fsdp2/qwen3_diffusion/run_block_step_experiments.sh</code></pre>
+    <p>看到 <code>test_size: 1319</code>、<code>num_speed_prompts: 100</code> 后，再检查：</p>
+<pre><code>wc -l "$OUTPUT_ROOT/data/speed_prompts_100.jsonl"
+cat "$OUTPUT_ROOT/data/gsm8k_protocol.json"</code></pre>
+    <div class="callout bad"><strong>如果这里失败，不要下载到仓库里：</strong>先确认 cache 中确实存在 GSM8K，以及运行 Python 的 <code>datasets</code> 版本能读取该缓存。脚本已开启 offline 模式，不会偷偷联网拿另一个版本。</div>
 
-    <h3>4.5 Diffusion 的 GSM8K 示例：B16-S04</h3>
-<pre><code>python examples/fsdp2/qwen3_diffusion/evaluate_suite.py \
-  --model-path "$CKPT" --task gsm8k --data-path "$GSM8K_PATH" \
-  --mode diffusion --dtype bfloat16 --device npu:0 \
-  --block-length 16 --steps-per-block 4 \
-  --prompt-template mindspeed_llm/tasks/evaluation/eval_impl/fewshot_template/gsm8k_3shot_template.json \
-  --max-new-tokens 512 --temperature 0 --seed 42 \
-  --output-dir results/B16-S04-gsm8k</code></pre>
-    <p>性能运行必须保留 EOS，并保存每道题的 <code>id、标准答案、模型输出、抽取答案、是否正确</code>。正式结果使用完整 GSM8K test；如需先验证流程，可临时加 <code>--max-eval-samples 10</code>，但该数字不能填入正式表格。</p>
+    <h3>4.4 第二步：先做一个 10 题 smoke test</h3>
+<pre><code>$PYTHON_BIN examples/fsdp2/qwen3_diffusion/evaluate_gsm8k_diffusion.py \
+  --model-path "$MODEL_PATH" \
+  --cache-dir "$HF_CACHE_ROOT" \
+  --fewshot-file "$OUTPUT_ROOT/data/fewshot_examples.json" \
+  --data-protocol "$OUTPUT_ROOT/data/gsm8k_protocol.json" \
+  --output-dir "$OUTPUT_ROOT/smoke/B08-S04" \
+  --mode diffusion --block-length 8 --steps-per-block 4 \
+  --seed-mode none --num-fewshot 5 --max-new-tokens 512 \
+  --temperature 0 --seed 42 --max-eval-samples 10</code></pre>
+    <p>检查 <code>samples.jsonl</code> 中生成内容、抽取答案和 <code>correct</code> 是否合理。<strong>10 题分数不能填进正式实验表。</strong></p>
 
-    <h3>4.6 推荐执行顺序</h3>
-    <ol>
-      <li>先确认 step 102500 的模型目录、GSM8K 数据和 100 条测速 prompt。</li>
-      <li>跑 AR-BASE 的速度与 GSM8K，得到所有比较的分母和性能基准。</li>
-      <li>按 B=4、8、16、32 的顺序跑 12 组速度。</li>
-      <li>再按相同顺序跑 12 组 GSM8K。</li>
-      <li>把数字填入 Markdown 主表。</li>
-      <li>选三个代表配置，再做五任务；不要一开始就跑所有任务。</li>
-    </ol>
+    <h3>4.5 第三步：跑速度</h3>
+<pre><code>PHASE=speed bash examples/fsdp2/qwen3_diffusion/run_block_step_experiments.sh</code></pre>
+    <p>执行顺序是 AR-BASE → 12 个 Diffusion 配置。每个配置先 warmup 5 次，再对固定 100 条 prompt 重复 20 轮，共 2000 次正式生成；每次无视 EOS 并严格生成 128 token。</p>
+    <p>如某次中断，直接重新执行：已有 JSON 会跳过。确定要重跑并覆盖全部已有结果时才加 <code>OVERWRITE=1</code>。</p>
+
+    <h3>4.6 第四步：跑完整 GSM8K</h3>
+<pre><code>PHASE=quality bash examples/fsdp2/qwen3_diffusion/run_block_step_experiments.sh</code></pre>
+    <p>这一步运行 AR + 12 个配置 × 1319 题，耗时会明显长于测速。每 10 题打印一次当前 accuracy 和 parse rate，每题立即写入 JSONL。任务中断后重新执行同一命令会校验 <code>run_protocol.json</code> 并从已有题数继续；B/S、模型或数据指纹不一致时会拒绝续跑。</p>
+
+    <h3>4.7 汇总结果</h3>
+<pre><code>PHASE=summarize bash examples/fsdp2/qwen3_diffusion/run_block_step_experiments.sh</code></pre>
+    <p>如果想从头到尾一次执行，可使用 <code>PHASE=all</code>；默认不写 PHASE 时只执行安全的 prepare 阶段，避免误启动长时间实验。</p>
+  </section>
+
+  <section id="outputs">
+    <h2>5. 结果在哪里、怎么填表</h2>
+<pre><code>outputs/ar_diffusion_gsm8k/
+├── data/
+│   ├── speed_prompts_100.jsonl
+│   ├── fewshot_examples.json
+│   └── gsm8k_protocol.json
+├── speed/
+│   ├── AR-BASE.json
+│   └── B04-S01.json ... B32-S32.json
+├── gsm8k/
+│   ├── AR-BASE/{summary.json,samples.jsonl,run_protocol.json}
+│   └── B04-S01/... B32-S32/...
+├── experiment_summary.csv
+└── experiment_summary.md</code></pre>
+    <table>
+      <thead><tr><th>Markdown 主表列</th><th>结果 JSON 字段</th></tr></thead>
+      <tbody>
+        <tr><td>实际前向次数</td><td><code>speed/*.json → mean_total_nfe</code></td></tr>
+        <tr><td>Decode tok/s</td><td><code>speed/*.json → decode_tokens_per_second</code></td></tr>
+        <tr><td>Speedup vs AR</td><td><code>speed/*.json → speedup_vs_ar</code></td></tr>
+        <tr><td>GSM8K</td><td><code>gsm8k/*/summary.json → accuracy_percent</code>；例如 60.88 表示 60.88%</td></tr>
+        <tr><td>ΔGSM8K vs AR</td><td><code>候选 accuracy_percent − AR accuracy_percent</code>，单位为百分点；汇总脚本自动计算</td></tr>
+        <tr><td>峰值显存 GB</td><td><code>speed/*.json → peak_memory_gib</code></td></tr>
+      </tbody>
+    </table>
+    <div class="callout good"><strong>正式分数检查：</strong><code>formal_full_test</code> 必须是 <code>true</code>，<code>evaluated_samples</code> 必须是 1319。否则只能当 smoke test。</div>
+    <p>挑三个配置时按固定规则：最快点；GSM8K 相对 AR 下降不超过 1 个百分点时的最快点；Diffusion 中 GSM8K 最高点。三者可能重合，重合时说明清楚即可。</p>
   </section>
 
   <section id="head">
-    <h2>5. 关于 embedding 拷贝到 lm_head</h2>
-    <p class="big">结论：初始化 Base 模型时可以是对的；加载训练后的 joint checkpoint 时，不一定对。</p>
-    <p>当前模型里的 <code>lm_head</code> 是一个独立参数，训练中会更新。现在的 <code>from_pretrained</code> 流程是：</p>
-    <ol>
-      <li>先从 checkpoint 加载 <code>lm_head.weight</code>。</li>
-      <li>加载完成后，无条件用 <code>embed_tokens.weight</code> 覆盖它。</li>
-    </ol>
-    <p>如果加载的是原始 Base，或者 checkpoint 根本没有 head，这个复制可以用来初始化。但如果加载的是已经训练好的 joint checkpoint，head 已经学过 diffusion/AR 目标，再覆盖就会丢掉训练后的 head。</p>
-    <div class="callout good"><strong>最简单的判断：</strong>检查 joint checkpoint 是否包含 <code>lm_head.weight</code>。若包含，就应该保留；只有缺失时才从 embedding 复制。</div>
-<pre><code>if "lm_head.weight" in loading_info["missing_keys"]:
+    <h2>6. embedding 拷贝到 lm_head 到底对不对</h2>
+    <p><strong>你说的“用于初始化”是对的；问题只在于不能覆盖 checkpoint 中已经训练好的 head。</strong></p>
+    <p><a href="../../mindspeed_llm/fsdp2/models/qwen3_diffusion/modeling_qwen3_diffusion.py">modeling_qwen3_diffusion.py</a> 现在的逻辑是：</p>
+<pre><code>head_is_missing = any(key.endswith("lm_head.weight") for key in missing_keys)
+if head_is_missing:
     model.lm_head.weight.copy_(model.model.embed_tokens.weight)</code></pre>
-    <p>如果你的设计要求 embedding 和 head 永远相同，则应该在训练阶段真正共享同一个 Parameter，而不是只在加载后复制一次。这个确认不作为实验，不会放进 12 组主表。</p>
-  </section>
-
-  <section id="optional">
-    <h2>6. 什么时候才需要重新训练不同 block</h2>
-    <p>第一轮先用现有 <code>B_train=8</code> checkpoint 完成 12 组解码实验。这回答的是“推理时 B 和 S 如何影响速度与性能”。</p>
-    <p>如果 mentor 进一步问“训练时 block size 是否影响最终模型”，再从同一个 AR checkpoint 训练 B_train=4/8/16/32 四个模型。四个 run 只能改变 block size，其他训练条件保持一致。</p>
-    <table>
-      <thead><tr><th>阶段</th><th>回答的问题</th><th>模型数量</th><th>是否第一轮必做</th></tr></thead>
-      <tbody>
-        <tr><td>当前 12 组</td><td>推理解码 B/S 的影响</td><td>1 个现有 checkpoint</td><td>是</td></tr>
-        <tr><td>训练 block 对照</td><td>B_train 对最终性能的影响</td><td>4 个同起点模型</td><td>否</td></tr>
-      </tbody>
-    </table>
-  </section>
-
-  <section id="report">
-    <h2>7. 最后怎么向 mentor 讲</h2>
-    <ol>
-      <li><strong>先讲设置：</strong>我们测试 B=4/8/16/32，每个 B 测快速、平衡、保守三档 S。</li>
-      <li><strong>再讲速度：</strong>哪个配置真实 Speedup 最高，不用理论值代替实测值。</li>
-      <li><strong>再讲性能：</strong>减少 S 或增大 B 后，GSM8K 和五任务平均下降多少。</li>
-      <li><strong>最后给推荐：</strong>最快配置、性能最好配置、推荐平衡配置各一个。</li>
-    </ol>
-    <p>只画两张图：</p>
     <ul>
-      <li><strong>Speedup - GSM8K 散点图：</strong>越靠右越快，越靠上性能越好。</li>
-      <li><strong>S - 性能/速度曲线：</strong>展示增加解码步数如何恢复性能、牺牲速度。</li>
+      <li>Base checkpoint 没有独立 <code>lm_head.weight</code>：复制 embedding 作为初始化，正确。</li>
+      <li>joint CPT checkpoint 已保存训练后的 <code>lm_head.weight</code>：直接保留，不再复制。</li>
     </ul>
-    <div class="callout good"><strong>推荐点定义：</strong>在五任务平均下降不超过 1 个百分点的配置中，选择 Speedup 最大的配置。</div>
+    <p>因此这不是一项需要 sweep 的实验，只是一次加载正确性修复。</p>
+  </section>
+
+  <section id="trouble">
+    <h2>7. 常见报错</h2>
+    <details><summary>找不到 GSM8K cache</summary><div>
+      确认 <code>HF_CACHE_ROOT=/home/f50058111/huggingface_cache</code>。如果实际只保存了 Arrow cache，目录下通常会有 <code>datasets/openai___gsm8k</code> 或类似名称。不要把 Windows 的 <code>E:\...</code> 路径传到服务器。
+    </div></details>
+    <details><summary>找不到 torch_npu</summary><div>
+      当前选择的是 lm-eval-harness 的 Python，但该环境没有继承服务器 NPU 包。把 <code>PYTHON_BIN</code> 指向训练/推理时使用的 Python，并确保里面同时有 <code>torch_npu</code>、<code>transformers</code>、<code>datasets</code>。
+    </div></details>
+    <details><summary>模型目录不存在</summary><div>
+      脚本默认推断为 <code>.../models/global_step_102500</code>。如果导出目录命名不同，只设置 <code>MODEL_PATH</code>；目录内应能看到 Hugging Face 的 config、tokenizer 和权重文件。
+    </div></details>
+    <details><summary>某个 block 仍包含 MASK</summary><div>
+      正式矩阵中 S≤B 且 threshold 关闭，理论上每步固定提交一部分 token，不应出现。若出现，保留报错和对应 B/S，不要把不完整输出计入结果。
+    </div></details>
+    <details><summary>parse_rate 很低</summary><div>
+      先查看 <code>samples.jsonl</code>。若模型给出了答案但格式没有被识别，应统一修改答案提取器并重跑 AR 和所有 Diffusion 配置，不能只为一个配置改规则。
+    </div></details>
   </section>
 
   <section>
-    <h2>8. 与论文的关系</h2>
-    <p>论文比较了 block length 4、8、16、32，并显示 block 变大后可接受长度增加，但平均任务性能不是单调上升。我们的 12 组实验就是用当前 1.7B checkpoint 检查同样的速度—性能趋势。</p>
-    <p>论文的 learned SOL sampler 需要额外训练；当前仓库没有对应 sampler，所以本轮不做 SOL，只研究最容易解释的 B 和 S。</p>
-    <p>本地论文：<a href="../../Nemotron_Diffusion_Tech_Report.pdf">Nemotron Diffusion Tech Report</a></p>
+    <h2>8. 验证状态</h2>
+    <ul>
+      <li class="ok">Python 文件已通过语法编译。</li>
+      <li class="ok">GSM8K 数据协议与 B/S 解耦生成逻辑共有 11 个单元测试通过。</li>
+      <li>本机没有 Atlas A2、服务器 checkpoint 和服务器 Hugging Face cache，因此尚未执行真实 NPU 速度与 1319 题结果。</li>
+      <li>第一次上服务器务必先跑 prepare 和 10 题 smoke test，再启动 13 组正式实验。</li>
+    </ul>
   </section>
 </main>
-<footer>Simple Block × Step Experiment Plan · Verification Status: UNVERIFIED</footer>
+<footer>Block × Step Experiment Guide · Code-synchronized · NPU results pending</footer>
 </body>
 </html>
