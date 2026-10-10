@@ -1,7 +1,7 @@
 model:
-  # Same Qwen3-1.7B-Base used by the existing Nemotron_Diffusion experiment.
-  # Its config.json must already contain the diffusion fields documented in
-  # examples/fsdp2/qwen3_diffusion/config_diffusion.json.
+  # Load the original Qwen3-1.7B-Base weights into Qwen3DiffusionForCausalLM.
+  # model_id=qwen3_diffusion replaces each causal attention module with the
+  # diffusion-toggle attention while preserving the Base model parameters.
   model_name_or_path: /data2/model_weights/Qwen3-1.7B-Base
   model_id: qwen3_diffusion
   trust_remote_code: false
@@ -84,10 +84,12 @@ optimization:
   chunk_loss_size: 0
 
 dopd:
+  # The teacher loads the same Base checkpoint as an unchanged causal AR model;
+  # the student above loads it through the diffusion model class.
   teacher_model_name_or_path: /data2/model_weights/Qwen3-1.7B-Base
-  # Existing Nemotron_Diffusion FSDP2 checkpoint. Update if a later checkpoint
-  # from the same experiment should be the student initialization.
-  student_checkpoint: /data2/model_train/ckpt/phase4_cpt_ar_diffusion_0916/checkpoints/global_step_10500
+  # No Nemotron CPT warm-start: d-OPD starts directly from the attention-adapted
+  # Qwen3-1.7B-Base student. Set this only for an explicit warm-start ablation.
+  student_checkpoint: null
   mask_token_id: 151669
   prompt_tokens: 2000
   min_response_tokens: 100

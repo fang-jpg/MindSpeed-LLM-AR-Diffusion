@@ -2,8 +2,8 @@
 
 This directory is an isolated reproduction of **d-OPD: Future-Aware On-Policy
 Distillation for Block Diffusion Language Models**.  It reuses the existing
-MindSpeed FSDP2 Qwen3 diffusion student and the seven Megatron-format datasets,
-without modifying any Nemotron_Diffusion source or experiment file.
+MindSpeed FSDP2 Qwen3 diffusion architecture and the seven Megatron-format
+datasets, without modifying any Nemotron_Diffusion source or experiment file.
 
 ## What is reproduced
 
@@ -49,13 +49,17 @@ The callable receives `prompt_ids`, `response_ids`, `reference_ids`, and
 
 Confirm these paths in `dopd_qwen3_1.7b_fsdp2_A2.yaml` first:
 
-1. `model.model_name_or_path` and `dopd.teacher_model_name_or_path` point to the
-   original Qwen3-1.7B AR checkpoint.
-2. `dopd.student_checkpoint` points to the desired existing
-   Nemotron_Diffusion FSDP2 checkpoint.
+1. Both `model.model_name_or_path` and `dopd.teacher_model_name_or_path` point
+   to the original Qwen3-1.7B-Base checkpoint. They do not create identical
+   models: `model.model_id: qwen3_diffusion` constructs the student as
+   `Qwen3DiffusionForCausalLM` and swaps in diffusion-toggle attention, while
+   the teacher remains the unchanged causal AR model.
+2. Keep `dopd.student_checkpoint: null` for the direct Base-to-d-OPD experiment.
+   A Nemotron CPT checkpoint (for example the final `global_step_102500`
+   export) is a separate warm-start ablation, not the default student.
 3. All seven dataset prefixes exist as `.bin/.idx` pairs.
-4. The Qwen3 config contains the diffusion fields and mask id used by the
-   existing experiment.
+4. `dopd.mask_token_id` matches the reserved mask-token embedding in the Qwen3
+   vocabulary.
 
 Then run from the MindSpeed-LLM repository root:
 
