@@ -11,6 +11,21 @@ import torch
 import torch.distributed as dist
 
 
+def _native_collective(function):
+    """Return the underlying torch collective below MindSpeed wrappers.
+
+    MindSpeed registers high-availability wrappers around selected
+    ``torch.distributed`` functions.  Those wrappers call Megatron ``get_args``
+    and therefore cannot be used by these small standalone experiment entry
+    points, which deliberately do not initialize Megatron.  The wrappers use
+    ``functools.wraps``, so following ``__wrapped__`` reaches the original
+    HCCL-backed torch function without changing the process group.
+    """
+    while hasattr(function, "__wrapped__"):
+        function = function.__wrapped__
+    return function
+
+
 @dataclass(frozen=True)
 class DistributedContext:
     rank: int
@@ -28,13 +43,13 @@ class DistributedContext:
 
     def barrier(self) -> None:
         if self.enabled:
-            dist.barrier()
+            _native_collective(dist.barrier)()
 
     def all_gather_object(self, value):
         if not self.enabled:
             return [value]
         gathered = [None] * self.world_size
-        dist.all_gather_object(gathered, value)
+        _native_collective(dist.all_gather_object)(gathered, value)
         return gathered
 
     def close(self) -> None:

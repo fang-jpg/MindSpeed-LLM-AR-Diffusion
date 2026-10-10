@@ -19,6 +19,7 @@ os.environ["TRANSFORMERS_OFFLINE"] = "1"
 
 DATASET_NAME = "openai/gsm8k"
 DATASET_CONFIG = "main"
+GSM8K_STOP_SEQUENCES = ("Question:", "</s>", "<|im_end|>")
 
 _NUMBER_RE = re.compile(
     r"[-+]?(?:[$£€]\s*)?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?"
@@ -114,6 +115,19 @@ def build_gsm8k_prompt(
         )
     sections.append(f"Question: {question.strip()}\nAnswer:")
     return "\n\n".join(sections)
+
+
+def truncate_at_stop_sequence(
+    prediction: str,
+    stop_sequences: Sequence[str] = GSM8K_STOP_SEQUENCES,
+) -> str:
+    """Apply lm-eval GSM8K's generate-until strings after custom decoding."""
+    stop_positions = [
+        position
+        for stop in stop_sequences
+        if (position := prediction.find(stop)) >= 0
+    ]
+    return prediction[: min(stop_positions)] if stop_positions else prediction
 
 
 def normalize_numeric_answer(value: str | None) -> str | None:

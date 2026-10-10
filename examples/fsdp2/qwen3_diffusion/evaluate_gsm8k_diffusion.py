@@ -23,6 +23,7 @@ from distributed_experiment import initialize_distributed, shard_sequence
 from gsm8k_experiment import (
     DATASET_CONFIG,
     DATASET_NAME,
+    GSM8K_STOP_SEQUENCES,
     build_gsm8k_prompt,
     choose_fewshot_examples,
     dataset_fingerprint,
@@ -30,6 +31,7 @@ from gsm8k_experiment import (
     extract_reference_answer,
     iter_jsonl,
     load_gsm8k,
+    truncate_at_stop_sequence,
 )
 from inference_qwen3_diffusion import (
     DTYPE_MAP,
@@ -195,6 +197,9 @@ def main():
         "seed": args.seed,
         "sample_seed_rule": "base_seed_plus_dataset_index",
         "distributed_world_size": context.world_size,
+        "prompt_format": "lm-eval gsm8k v3 Question/Answer",
+        "generation_stop_sequences": list(GSM8K_STOP_SEQUENCES),
+        "answer_filter": "strict-marker-then-flexible-last-number",
     }
 
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -275,7 +280,10 @@ def main():
             torch.manual_seed(args.seed + dataset_index)
             output_ids, stats = generate_once(model, tokenizer, input_ids, args)
             generated_ids = output_ids[0, input_ids.shape[1] :]
-            prediction = tokenizer.decode(generated_ids, skip_special_tokens=True)
+            raw_prediction = tokenizer.decode(
+                generated_ids, skip_special_tokens=True
+            )
+            prediction = truncate_at_stop_sequence(raw_prediction)
             predicted_answer = extract_prediction_answer(prediction)
             reference_answer = extract_reference_answer(sample["answer"])
             is_correct = (
@@ -290,6 +298,7 @@ def main():
                 "question": sample["question"],
                 "reference_answer": reference_answer,
                 "prediction": prediction,
+                "raw_prediction": raw_prediction,
                 "predicted_answer": predicted_answer,
                 "correct": is_correct,
                 "generated_tokens": int(generated_ids.numel()),
@@ -369,6 +378,9 @@ def main():
         "seed_mode": args.seed_mode if args.mode == "diffusion" else None,
         "temperature": args.temperature,
         "max_new_tokens": args.max_new_tokens,
+        "prompt_format": protocol["prompt_format"],
+        "generation_stop_sequences": protocol["generation_stop_sequences"],
+        "answer_filter": protocol["answer_filter"],
         "distributed_world_size": context.world_size,
         "accuracy": correct / evaluation_count,
         "accuracy_percent": 100.0 * correct / evaluation_count,

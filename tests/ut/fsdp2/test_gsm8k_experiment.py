@@ -58,3 +58,10 @@ def test_prompt_uses_lm_eval_question_answer_shape():
         "Question: What is 1 + 1?\nAnswer: 2 #### 2\n\n"
         "Question: What is 2 + 2?\nAnswer:"
     )
+
+
+def test_prediction_uses_lm_eval_stop_sequences():
+    prediction = "The answer is 4.\nQuestion: an unwanted next problem"
+    assert gsm8k.truncate_at_stop_sequence(prediction) == "The answer is 4.\n"
+    assert gsm8k.truncate_at_stop_sequence("answer 4<|im_end|>ignored") == "answer 4"
+    assert gsm8k.truncate_at_stop_sequence("answer 4") == "answer 4"
