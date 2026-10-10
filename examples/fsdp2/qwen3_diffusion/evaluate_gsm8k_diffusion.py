@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import torch
+from distributed_experiment import initialize_distributed, shard_sequence
 from gsm8k_experiment import (
     DATASET_CONFIG,
     DATASET_NAME,
@@ -68,6 +69,13 @@ def parse_args():
         help="smoke test only; omit for the formal full 1319-example run",
     )
     parser.add_argument("--device", default=None)
+    parser.add_argument(
+        "--local-rank",
+        "--local_rank",
+        type=int,
+        default=None,
+        help=argparse.SUPPRESS,
+    )
     parser.add_argument("--dtype", choices=DTYPE_MAP, default="bfloat16")
     parser.add_argument("--config-diffusion", default=None)
     parser.add_argument("--overwrite", action="store_true")
@@ -82,17 +90,24 @@ def parse_args():
 
 def main():
     args = parse_args()
+    context = initialize_distributed(args.device)
     output_dir = Path(args.output_dir)
-    samples_path = output_dir / "samples.jsonl"
+    combined_samples_path = output_dir / "samples.jsonl"
+    samples_path = (
+        combined_samples_path
+        if not context.enabled
+        else output_dir / f"samples.rank{context.rank:02d}.jsonl"
+    )
     summary_path = output_dir / "summary.json"
     protocol_path = output_dir / "run_protocol.json"
     if summary_path.exists() and not args.overwrite:
         raise FileExistsError(
             f"Completed result already exists: {summary_path}; pass --overwrite to replace"
         )
-    if samples_path.exists() and not (args.overwrite or args.resume):
+    existing_sample_files = list(output_dir.glob("samples*.jsonl"))
+    if existing_sample_files and not (args.overwrite or args.resume):
         raise FileExistsError(
-            f"Partial samples exist: {samples_path}; pass --resume or --overwrite"
+            f"Partial samples exist in {output_dir}; pass --resume or --overwrite"
         )
     if args.max_eval_samples is not None and args.max_eval_samples <= 0:
         raise ValueError("max-eval-samples must be positive")
@@ -169,11 +184,13 @@ def main():
         "seed_mode": args.seed_mode if args.mode == "diffusion" else None,
         "temperature": args.temperature,
         "max_new_tokens": args.max_new_tokens,
+        "seed": args.seed,
+        "sample_seed_rule": "base_seed_plus_dataset_index",
+        "distributed_world_size": context.world_size,
     }
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    previous_rows = []
-    if args.resume and samples_path.exists() and not args.overwrite:
+    if args.resume and existing_sample_files and not args.overwrite:
         if not protocol_path.is_file():
             raise FileNotFoundError(
                 f"Cannot validate partial run because {protocol_path} is missing"
@@ -184,44 +201,70 @@ def main():
                 "Partial result protocol does not match this command. Use a new "
                 "output directory or --overwrite."
             )
-        previous_rows = list(iter_jsonl(samples_path))
-        expected_indices = list(range(len(previous_rows)))
-        actual_indices = [row.get("dataset_index") for row in previous_rows]
-        if actual_indices != expected_indices:
-            raise ValueError(
-                "Partial samples must contain consecutive dataset_index values from 0"
-            )
-        if len(previous_rows) > evaluation_count:
-            raise ValueError("Partial result is longer than this evaluation request")
-        print(f"> Resuming {output_dir} from sample {len(previous_rows)}")
-    else:
+    elif context.is_main:
         protocol_path.write_text(
             json.dumps(protocol, indent=2, ensure_ascii=False) + "\n",
             encoding="utf-8",
         )
+    context.barrier()
 
-    device = args.device or detect_device()
-    torch.manual_seed(args.seed)
-    print(f"> Loading {args.model_path} on {device} ({args.dtype})")
+    stored_protocol = json.loads(protocol_path.read_text(encoding="utf-8"))
+    if stored_protocol != protocol:
+        raise ValueError(
+            "Run protocol does not match this command. Use a new output directory "
+            "or --overwrite."
+        )
+
+    assigned_indices = shard_sequence(
+        list(range(evaluation_count)), context.rank, context.world_size
+    )
+    previous_rows = []
+    if args.resume and samples_path.exists() and not args.overwrite:
+        previous_rows = list(iter_jsonl(samples_path))
+        expected_indices = assigned_indices[: len(previous_rows)]
+        actual_indices = [row.get("dataset_index") for row in previous_rows]
+        if actual_indices != expected_indices:
+            raise ValueError(
+                f"Partial samples for rank {context.rank} are not the expected "
+                "ordered shard prefix"
+            )
+        if len(previous_rows) > len(assigned_indices):
+            raise ValueError(
+                f"Partial result for rank {context.rank} is longer than its shard"
+            )
+        print(
+            f"> [rank {context.rank}/{context.world_size}] Resuming from "
+            f"{len(previous_rows)}/{len(assigned_indices)} local samples",
+            flush=True,
+        )
+
+    device = context.device or detect_device()
+    torch.manual_seed(args.seed + context.rank)
+    print(
+        f"> [rank {context.rank}/{context.world_size}] Loading {args.model_path} "
+        f"on {device} ({args.dtype}); samples={len(assigned_indices)}",
+        flush=True,
+    )
     model = load_model(
         args.model_path, device, DTYPE_MAP[args.dtype], args.config_diffusion
     )
     tokenizer = load_tokenizer(args.model_path)
     args.ignore_eos = False
 
-    correct = sum(int(row["correct"]) for row in previous_rows)
-    parsed = sum(int(row.get("predicted_answer") is not None) for row in previous_rows)
-    generated_tokens = sum(int(row["generated_tokens"]) for row in previous_rows)
-    total_nfe = sum(
-        float(row.get("generation_stats", {}).get("total_nfe", 0))
-        for row in previous_rows
+    local_correct = sum(int(row["correct"]) for row in previous_rows)
+    local_parsed = sum(
+        int(row.get("predicted_answer") is not None) for row in previous_rows
     )
     open_mode = "a" if previous_rows else "w"
     with samples_path.open(open_mode, encoding="utf-8") as stream:
-        for dataset_index in range(len(previous_rows), evaluation_count):
+        remaining_indices = assigned_indices[len(previous_rows) :]
+        for local_offset, dataset_index in enumerate(
+            remaining_indices, start=len(previous_rows) + 1
+        ):
             sample = test[dataset_index]
             prompt = build_gsm8k_prompt(sample["question"], fewshot_examples)
             input_ids = tokenizer.encode(prompt, return_tensors="pt").to(device)
+            torch.manual_seed(args.seed + dataset_index)
             output_ids, stats = generate_once(model, tokenizer, input_ids, args)
             generated_ids = output_ids[0, input_ids.shape[1] :]
             prediction = tokenizer.decode(generated_ids, skip_special_tokens=True)
@@ -232,10 +275,8 @@ def main():
                 and reference_answer is not None
                 and predicted_answer == reference_answer
             )
-            correct += int(is_correct)
-            parsed += int(predicted_answer is not None)
-            generated_tokens += int(generated_ids.numel())
-            total_nfe += float(stats.get("total_nfe", 0))
+            local_correct += int(is_correct)
+            local_parsed += int(predicted_answer is not None)
             row = {
                 "dataset_index": dataset_index,
                 "question": sample["question"],
@@ -248,14 +289,56 @@ def main():
             }
             stream.write(json.dumps(row, ensure_ascii=False) + "\n")
             stream.flush()
-            if (dataset_index + 1) % 10 == 0 or dataset_index + 1 == evaluation_count:
+            if local_offset % 10 == 0 or local_offset == len(assigned_indices):
                 print(
-                    f"[{dataset_index + 1}/{evaluation_count}] "
-                    f"accuracy={correct / (dataset_index + 1):.4f} "
-                    f"parse_rate={parsed / (dataset_index + 1):.4f}",
+                    f"[rank {context.rank}: {local_offset}/"
+                    f"{len(assigned_indices)}] "
+                    f"local_accuracy={local_correct / local_offset:.4f} "
+                    f"local_parse_rate={local_parsed / local_offset:.4f}",
                     flush=True,
                 )
 
+    resumed_counts = context.all_gather_object(len(previous_rows))
+    context.barrier()
+    if not context.is_main:
+        context.barrier()
+        context.close()
+        return 0
+
+    rank_sample_paths = (
+        [combined_samples_path]
+        if not context.enabled
+        else [
+            output_dir / f"samples.rank{rank:02d}.jsonl"
+            for rank in range(context.world_size)
+        ]
+    )
+    all_rows = [
+        row
+        for rank_path in rank_sample_paths
+        for row in iter_jsonl(rank_path)
+    ]
+    all_rows.sort(key=lambda row: row["dataset_index"])
+    actual_indices = [row.get("dataset_index") for row in all_rows]
+    if actual_indices != list(range(evaluation_count)):
+        raise RuntimeError(
+            "Distributed GSM8K shards are incomplete or duplicated; refusing to "
+            "write a summary"
+        )
+    if context.enabled:
+        with combined_samples_path.open("w", encoding="utf-8") as stream:
+            for row in all_rows:
+                stream.write(json.dumps(row, ensure_ascii=False) + "\n")
+
+    correct = sum(int(row["correct"]) for row in all_rows)
+    parsed = sum(
+        int(row.get("predicted_answer") is not None) for row in all_rows
+    )
+    generated_tokens = sum(int(row["generated_tokens"]) for row in all_rows)
+    total_nfe = sum(
+        float(row.get("generation_stats", {}).get("total_nfe", 0))
+        for row in all_rows
+    )
     summary = {
         "schema_version": 1,
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
@@ -278,6 +361,7 @@ def main():
         "seed_mode": args.seed_mode if args.mode == "diffusion" else None,
         "temperature": args.temperature,
         "max_new_tokens": args.max_new_tokens,
+        "distributed_world_size": context.world_size,
         "accuracy": correct / evaluation_count,
         "accuracy_percent": 100.0 * correct / evaluation_count,
         "correct": correct,
@@ -286,14 +370,17 @@ def main():
         "parsed": parsed,
         "mean_generated_tokens": generated_tokens / evaluation_count,
         "mean_total_nfe": total_nfe / evaluation_count,
-        "samples_file": samples_path.name,
+        "samples_file": combined_samples_path.name,
+        "rank_sample_files": [path.name for path in rank_sample_paths],
         "run_protocol_file": protocol_path.name,
-        "resumed_from_samples": len(previous_rows),
+        "resumed_from_samples": sum(resumed_counts),
     }
     summary_path.write_text(
         json.dumps(summary, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
     print(json.dumps(summary, indent=2, ensure_ascii=False))
+    context.barrier()
+    context.close()
     return 0
 
 

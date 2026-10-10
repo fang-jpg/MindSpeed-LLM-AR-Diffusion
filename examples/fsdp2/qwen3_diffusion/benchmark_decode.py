@@ -12,6 +12,7 @@ import time
 from pathlib import Path
 
 import torch
+from distributed_experiment import initialize_distributed, shard_sequence
 from gsm8k_experiment import iter_jsonl
 from inference_qwen3_diffusion import (
     DTYPE_MAP,
@@ -49,6 +50,13 @@ def parse_args():
     parser.add_argument("--repeats", type=int, default=20)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--device", default=None)
+    parser.add_argument(
+        "--local-rank",
+        "--local_rank",
+        type=int,
+        default=None,
+        help=argparse.SUPPRESS,
+    )
     parser.add_argument("--dtype", choices=DTYPE_MAP, default="bfloat16")
     parser.add_argument("--config-diffusion", default=None)
     parser.add_argument(
@@ -66,9 +74,10 @@ def parse_args():
     return parser.parse_args()
 
 
-def mean_metric(records: list[dict], key: str) -> float:
-    values = [record[key] for record in records if record.get(key) is not None]
-    return statistics.fmean(values) if values else 0.0
+def distributed_mean_metric(rank_payloads: list[dict], key: str) -> float:
+    total = sum(payload["metric_sums"][key] for payload in rank_payloads)
+    count = sum(payload["metric_counts"][key] for payload in rank_payloads)
+    return total / count if count else 0.0
 
 
 def sha256_file(path: str | Path) -> str:
@@ -91,6 +100,7 @@ def validate_baseline(current: dict, baseline: dict) -> None:
         "ignore_eos": current["ignore_eos"],
         "seed": current["seed"],
         "dtype": current["dtype"],
+        "distributed_world_size": current["distributed_world_size"],
     }
     mismatches = {
         key: (baseline.get(key), value)
@@ -103,6 +113,7 @@ def validate_baseline(current: dict, baseline: dict) -> None:
 
 def main():
     args = parse_args()
+    context = initialize_distributed(args.device)
     if args.warmup < 0 or args.repeats <= 0:
         raise ValueError("warmup must be non-negative and repeats must be positive")
     if args.max_new_tokens <= 0:
@@ -116,9 +127,20 @@ def main():
     if any("prompt" not in row for row in rows):
         raise ValueError("Every JSONL row must contain a 'prompt' field")
 
-    device = args.device or detect_device()
-    torch.manual_seed(args.seed)
-    print(f"> Loading {args.model_path} on {device} ({args.dtype})")
+    indexed_rows = list(enumerate(rows))
+    local_rows = shard_sequence(indexed_rows, context.rank, context.world_size)
+    if not local_rows:
+        raise ValueError(
+            f"Rank {context.rank} received no prompts; reduce distributed world size"
+        )
+
+    device = context.device or detect_device()
+    torch.manual_seed(args.seed + context.rank)
+    print(
+        f"> [rank {context.rank}/{context.world_size}] Loading {args.model_path} "
+        f"on {device} ({args.dtype}); prompts={len(local_rows)}",
+        flush=True,
+    )
     model = load_model(
         args.model_path, device, DTYPE_MAP[args.dtype], args.config_diffusion
     )
@@ -126,8 +148,11 @@ def main():
 
     # Tokenization and host-to-device copies are deliberately outside timing.
     prompts = [
-        tokenizer.encode(row["prompt"], return_tensors="pt").to(device)
-        for row in rows
+        (
+            prompt_index,
+            tokenizer.encode(row["prompt"], return_tensors="pt").to(device),
+        )
+        for prompt_index, row in local_rows
     ]
     args.ignore_eos = True
 
@@ -135,17 +160,19 @@ def main():
         generate_once(
             model,
             tokenizer,
-            prompts[warmup_index % len(prompts)],
+            prompts[warmup_index % len(prompts)][1],
             args,
         )
     synchronize(device)
     reset_peak_memory(device)
+    context.barrier()
 
     timings_ms: list[float] = []
     generation_stats: list[dict] = []
     generated_token_total = 0
+    measurement_started = time.perf_counter()
     for repeat_index in range(args.repeats):
-        for prompt_index, input_ids in enumerate(prompts):
+        for prompt_index, input_ids in prompts:
             synchronize(device)
             started = time.perf_counter()
             output_ids, stats = generate_once(model, tokenizer, input_ids, args)
@@ -161,8 +188,50 @@ def main():
             generated_token_total += generated
             generation_stats.append(stats)
 
+    synchronize(device)
+    local_wall_seconds = time.perf_counter() - measurement_started
+    local_payload = {
+        "rank": context.rank,
+        "prompt_count": len(prompts),
+        "timings_ms": timings_ms,
+        "metric_sums": {
+            key: sum(
+                float(record[key])
+                for record in generation_stats
+                if record.get(key) is not None
+            )
+            for key in ("total_nfe", "decode_nfe", "real_tpf")
+        },
+        "metric_counts": {
+            key: sum(record.get(key) is not None for record in generation_stats)
+            for key in ("total_nfe", "decode_nfe", "real_tpf")
+        },
+        "generated_tokens": generated_token_total,
+        "parallel_wall_seconds": local_wall_seconds,
+        "peak_memory_bytes": peak_memory_bytes(device),
+    }
+    rank_payloads = context.all_gather_object(local_payload)
+    if not context.is_main:
+        context.barrier()
+        context.close()
+        return 0
+
+    timings_ms = [
+        value
+        for payload in rank_payloads
+        for value in payload["timings_ms"]
+    ]
+    generated_token_total = sum(
+        payload["generated_tokens"] for payload in rank_payloads
+    )
+    parallel_wall_seconds = max(
+        payload["parallel_wall_seconds"] for payload in rank_payloads
+    )
+    peak_memory = max(payload["peak_memory_bytes"] for payload in rank_payloads)
+
     total_seconds = sum(timings_ms) / 1000.0
     throughput = generated_token_total / total_seconds
+    aggregate_throughput = generated_token_total / parallel_wall_seconds
     summary = {
         "schema_version": 1,
         "model_path": str(Path(args.model_path).resolve()),
@@ -176,38 +245,51 @@ def main():
         "seed_mode": args.seed_mode if args.mode == "diffusion" else None,
         "temperature": args.temperature,
         "seed": args.seed,
-        "device": str(device),
+        "device": "data_parallel_npu" if context.enabled else str(device),
         "dtype": args.dtype,
+        "distributed_world_size": context.world_size,
+        "local_prompt_counts": [
+            payload["prompt_count"] for payload in rank_payloads
+        ],
         "max_new_tokens": args.max_new_tokens,
         "ignore_eos": True,
-        "prompt_count": len(prompts),
+        "prompt_count": len(rows),
         "warmup": args.warmup,
         "repeats": args.repeats,
         "measurement_count": len(timings_ms),
         "measurement_scope": (
-            "synchronized prompt prefill plus generation; excludes model load, "
-            "tokenization, and host-to-device prompt copy"
+            "decode_tokens_per_second is per-request-equivalent throughput from "
+            "summed synchronized sample times; aggregate_tokens_per_second uses "
+            "multi-NPU wall time. Both include prompt prefill and generation, and "
+            "exclude model load, tokenization, and host-to-device prompt copy"
         ),
         "generated_tokens_total": generated_token_total,
         "measured_seconds_total": total_seconds,
         "decode_tokens_per_second": throughput,
+        "parallel_wall_seconds": parallel_wall_seconds,
+        "aggregate_tokens_per_second": aggregate_throughput,
         "mean_ms_per_prompt": statistics.fmean(timings_ms),
         "p50_ms_per_prompt": percentile(timings_ms, 0.50),
         "p95_ms_per_prompt": percentile(timings_ms, 0.95),
-        "peak_memory_bytes": peak_memory_bytes(device),
-        "peak_memory_gib": peak_memory_bytes(device) / (1024**3),
-        "mean_total_nfe": mean_metric(generation_stats, "total_nfe"),
-        "mean_decode_nfe": mean_metric(generation_stats, "decode_nfe"),
-        "mean_real_tpf": mean_metric(generation_stats, "real_tpf"),
+        "peak_memory_bytes": peak_memory,
+        "peak_memory_gib": peak_memory / (1024**3),
+        "mean_total_nfe": distributed_mean_metric(rank_payloads, "total_nfe"),
+        "mean_decode_nfe": distributed_mean_metric(rank_payloads, "decode_nfe"),
+        "mean_real_tpf": distributed_mean_metric(rank_payloads, "real_tpf"),
         "speedup_vs_ar": 1.0 if args.mode == "ar" else None,
+        "aggregate_speedup_vs_ar": 1.0 if args.mode == "ar" else None,
     }
 
     if args.ar_baseline_json:
         baseline = json.loads(Path(args.ar_baseline_json).read_text(encoding="utf-8"))
         validate_baseline(summary, baseline)
         baseline_throughput = float(baseline["decode_tokens_per_second"])
+        baseline_aggregate = float(baseline["aggregate_tokens_per_second"])
         summary["ar_baseline_json"] = str(Path(args.ar_baseline_json))
         summary["speedup_vs_ar"] = throughput / baseline_throughput
+        summary["aggregate_speedup_vs_ar"] = (
+            aggregate_throughput / baseline_aggregate
+        )
 
     output_path = Path(args.output_json)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -215,6 +297,8 @@ def main():
         json.dumps(summary, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
     print(json.dumps(summary, indent=2, ensure_ascii=False))
+    context.barrier()
+    context.close()
     return 0
 
 

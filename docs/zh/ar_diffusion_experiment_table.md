@@ -20,7 +20,7 @@ Diffusion 每次生成一个包含 `B` 个 token 的 block，并用 `S` 次模�
 | Joint checkpoint | `/data2/model_train/ckpt/phase4_cpt_ar_diffusion_0923_resume/` |
 | Checkpoint step | `102500` |
 | 当前训练 block size | `B_train=8` |
-| dtype / device | `bfloat16 / A2` |
+| dtype / device | `bfloat16 / 8× Atlas A2（数据并行，每卡一份完整模型）` |
 | temperature | `0` |
 | 速度测试 prompt 数 | `从 GSM8K test 固定抽取 100 条，seed=42` |
 | 每条固定生成长度 | `128 tokens` |
@@ -29,6 +29,8 @@ Diffusion 每次生成一个包含 `B` 个 token 的 block，并用 `S` 次模�
 | 快速性能任务 | `GSM8K 5-shot，正式结果跑完整 test 1319 条` |
 | 完整性能任务 | `MMLU、GSM8K、HumanEval、BoolQ、BBH` |
 | 随机种子 | `42` |
+
+> 8 卡用于把不同 prompt/题目并行处理，缩短整批实验时间。表中的 `Decode tok/s` 和 `Speedup` 仍填写单请求等价指标 `decode_tokens_per_second` / `speedup_vs_ar`；不要填 8 卡聚合吞吐 `aggregate_tokens_per_second`。
 
 ## 3. 基准实验：先测 AR
 

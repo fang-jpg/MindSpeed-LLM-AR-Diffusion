@@ -20,7 +20,7 @@
 <body>
 <header><div>
   <h1>AR-Diffusion 实验执行手册</h1>
-  <p>已与仓库中的实际脚本同步：固定一个 step-102500 checkpoint，只改变推理 block 大小 B 和每块去噪步数 S，测真实加速比与完整 GSM8K 性能。</p>
+  <p>已与仓库中的实际脚本同步：固定一个 step-102500 checkpoint，用 8 张 NPU 做数据并行，只改变推理 block 大小 B 和每块去噪步数 S，测真实加速比与完整 GSM8K 性能。</p>
 </div></header>
 <nav><div>
   <a href="#scope">实验口径</a><a href="#data">GSM8K 数据</a><a href="#changes">代码改动</a><a href="#run">运行步骤</a><a href="#outputs">结果文件</a><a href="#head">lm_head</a><a href="#trouble">排错</a>
@@ -32,7 +32,7 @@
     <div class="grid">
       <div class="card"><strong>Block：B</strong><p>一次放入多少个待预测位置。本轮测试 4、8、16、32。</p></div>
       <div class="card"><strong>去噪步数：S</strong><p>填完一个 block 最多做几次去噪前向。本轮只测快速、平衡、保守三档。</p></div>
-      <div class="card"><strong>真实速度</strong><p>候选配置 tok/s ÷ 同 checkpoint 的 AR tok/s；理论 B/S 只帮助理解。</p></div>
+      <div class="card"><strong>真实速度</strong><p>主表仍填单请求等价 tok/s 及其相对 AR 加速比；8 卡总吞吐另存，不能混为算法加速。</p></div>
       <div class="card"><strong>模型性能</strong><p>用相同 5-shot prompt 在完整 GSM8K test（1319 题）上比较答案正确率。</p></div>
     </div>
     <div class="formula">同一 B 下：S 越少通常越快，但一次要确认更多 token，正确率可能更低</div>
@@ -82,9 +82,10 @@ datasets 缓存:  /home/f50058111/huggingface_cache/datasets</code></pre>
         <tr><td><a href="../../examples/fsdp2/qwen3_diffusion/inference_qwen3_diffusion.py">inference_qwen3_diffusion.py</a></td><td>增加 <code>--steps-per-block</code>、<code>--seed-mode</code>、同步计时、warmup/repeat、显存和 JSON 统计</td><td>单条 prompt 调试入口</td></tr>
         <tr><td><a href="../../examples/fsdp2/qwen3_diffusion/gsm8k_experiment.py">gsm8k_experiment.py</a></td><td>离线 cache 读取、固定抽样、5-shot prompt、数字答案标准化/抽取</td><td>速度与正确率共用同一数据协议</td></tr>
         <tr><td><a href="../../examples/fsdp2/qwen3_diffusion/prepare_gsm8k_data.py">prepare_gsm8k_data.py</a></td><td>抽取并冻结 100 条速度数据</td><td>只做一次，后面所有配置复用</td></tr>
-        <tr><td><a href="../../examples/fsdp2/qwen3_diffusion/benchmark_decode.py">benchmark_decode.py</a></td><td>100 prompts × 20 repeat；忽略 EOS；同步 NPU；输出 tok/s、p50/p95、NFE、显存与 speedup</td><td>填写主表中的速度列</td></tr>
-        <tr><td><a href="../../examples/fsdp2/qwen3_diffusion/evaluate_gsm8k_diffusion.py">evaluate_gsm8k_diffusion.py</a></td><td>完整 1319 题、5-shot、允许 EOS、最多 512 token；保存逐题输出</td><td>填写 GSM8K 和 ΔGSM8K</td></tr>
-        <tr><td><a href="../../examples/fsdp2/qwen3_diffusion/run_block_step_experiments.sh">run_block_step_experiments.sh</a></td><td>自动运行 AR 和 12 个 B/S 配置，分 prepare/speed/quality/all 阶段</td><td>避免手写 26 条命令时填错参数</td></tr>
+        <tr><td><a href="../../examples/fsdp2/qwen3_diffusion/distributed_experiment.py">distributed_experiment.py</a></td><td>按 <code>LOCAL_RANK</code> 绑定 NPU、初始化 HCCL、确定性分片并汇总各进程结果</td><td>让 8 张卡同时处理互不重复的请求</td></tr>
+        <tr><td><a href="../../examples/fsdp2/qwen3_diffusion/benchmark_decode.py">benchmark_decode.py</a></td><td>100 prompts × 20 repeat 分到 8 卡；忽略 EOS；输出单请求等价 tok/s、8 卡总吞吐、p50/p95、NFE、显存与 speedup</td><td>主表填写可与单卡口径比较的速度</td></tr>
+        <tr><td><a href="../../examples/fsdp2/qwen3_diffusion/evaluate_gsm8k_diffusion.py">evaluate_gsm8k_diffusion.py</a></td><td>完整 1319 题按 rank 分片；各 rank 可断点续跑，rank 0 校验并合并逐题输出</td><td>缩短 GSM8K 总耗时，分数口径不变</td></tr>
+        <tr><td><a href="../../examples/fsdp2/qwen3_diffusion/run_block_step_experiments.sh">run_block_step_experiments.sh</a></td><td>默认 <code>NUM_NPUS=8</code>，用 torchrun 自动运行 AR 和 12 个 B/S 配置</td><td>启动 8 个进程并避免手写命令</td></tr>
         <tr><td><a href="../../examples/fsdp2/qwen3_diffusion/summarize_block_step_results.py">summarize_block_step_results.py</a></td><td>合并速度与正确率 JSON，生成 CSV 和 Markdown 汇总</td><td>实验完成后直接抄表</td></tr>
       </tbody>
     </table>
@@ -94,6 +95,8 @@ datasets 缓存:  /home/f50058111/huggingface_cache/datasets</code></pre>
       <li><code>temperature=0</code>、<code>threshold=None</code>：只比较 B/S，不引入额外采样变量。</li>
       <li>每个非最后 block 还有一次 KV refresh；所以实际 forward 数和理论 B/S 不相等，最终以 tok/s 为准。</li>
       <li>速度指标从 input IDs 已经在设备上开始计时，到生成结束；包含 prompt prefill，排除模型加载、tokenization 和 host-to-device copy。</li>
+      <li>这是<strong>数据并行评测</strong>：每张 NPU 放一份完整模型，各自处理不同 prompt/题目；它提升整批实验吞吐，不会把单条请求拆到 8 张卡上。</li>
+      <li><code>decode_tokens_per_second</code> 用所有样本设备耗时之和计算，是主表采用的单请求等价速度；<code>aggregate_tokens_per_second</code> 用最慢 rank 的墙钟时间计算，只表示 8 卡总处理能力。</li>
     </ul>
   </section>
 
@@ -106,6 +109,7 @@ export MODEL_PATH=/data2/model_train/ckpt/phase4_cpt_ar_diffusion_0923_resume/mo
 export LM_EVAL_ROOT=/home/f50058111/lm-eval-harness
 export HF_CACHE_ROOT=/home/f50058111/huggingface_cache
 export OUTPUT_ROOT=$PWD/outputs/ar_diffusion_gsm8k
+export NUM_NPUS=8
 
 test -d "$MODEL_PATH"
 test -d "$HF_CACHE_ROOT"
@@ -125,8 +129,10 @@ $PYTHON_BIN -c "import torch, torch_npu, transformers, datasets; print('environm
 cat "$OUTPUT_ROOT/data/gsm8k_protocol.json"</code></pre>
     <div class="callout bad"><strong>如果这里失败，不要下载到仓库里：</strong>先确认 cache 中确实存在 GSM8K，以及运行 Python 的 <code>datasets</code> 版本能读取该缓存。脚本已开启 offline 模式，不会偷偷联网拿另一个版本。</div>
 
-    <h3>4.4 第二步：先做一个 10 题 smoke test</h3>
-<pre><code>$PYTHON_BIN examples/fsdp2/qwen3_diffusion/evaluate_gsm8k_diffusion.py \
+    <h3>4.4 第二步：先做一个 16 题、8 卡 smoke test</h3>
+<pre><code>$PYTHON_BIN -m torch.distributed.run \
+  --standalone --nnodes=1 --nproc_per_node=8 \
+  examples/fsdp2/qwen3_diffusion/evaluate_gsm8k_diffusion.py \
   --model-path "$MODEL_PATH" \
   --cache-dir "$HF_CACHE_ROOT" \
   --fewshot-file "$OUTPUT_ROOT/data/fewshot_examples.json" \
@@ -134,17 +140,18 @@ cat "$OUTPUT_ROOT/data/gsm8k_protocol.json"</code></pre>
   --output-dir "$OUTPUT_ROOT/smoke/B08-S04" \
   --mode diffusion --block-length 8 --steps-per-block 4 \
   --seed-mode none --num-fewshot 5 --max-new-tokens 512 \
-  --temperature 0 --seed 42 --max-eval-samples 10</code></pre>
-    <p>检查 <code>samples.jsonl</code> 中生成内容、抽取答案和 <code>correct</code> 是否合理。<strong>10 题分数不能填进正式实验表。</strong></p>
+  --temperature 0 --seed 42 --max-eval-samples 16 --resume</code></pre>
+    <p>16 题会让每张卡正好处理 2 题。先用 <code>npu-smi info</code> 确认 8 张卡均有显存和利用率，再检查合并后的 <code>samples.jsonl</code>。<strong>smoke test 分数不能填进正式实验表。</strong></p>
 
     <h3>4.5 第三步：跑速度</h3>
-<pre><code>PHASE=speed bash examples/fsdp2/qwen3_diffusion/run_block_step_experiments.sh</code></pre>
-    <p>执行顺序是 AR-BASE → 12 个 Diffusion 配置。每个配置先 warmup 5 次，再对固定 100 条 prompt 重复 20 轮，共 2000 次正式生成；每次无视 EOS 并严格生成 128 token。</p>
+<pre><code>NUM_NPUS=8 PHASE=speed bash examples/fsdp2/qwen3_diffusion/run_block_step_experiments.sh</code></pre>
+    <p>执行顺序是 AR-BASE → 12 个 Diffusion 配置。每个配置的 100 条 prompt 按 <code>index % 8</code> 分给 8 张卡（每卡 12 或 13 条），每个 rank warmup 5 次，再重复 20 轮；全局仍是 2000 次正式生成，每次无视 EOS 并严格生成 128 token。</p>
     <p>如某次中断，直接重新执行：已有 JSON 会跳过。确定要重跑并覆盖全部已有结果时才加 <code>OVERWRITE=1</code>。</p>
 
     <h3>4.6 第四步：跑完整 GSM8K</h3>
-<pre><code>PHASE=quality bash examples/fsdp2/qwen3_diffusion/run_block_step_experiments.sh</code></pre>
-    <p>这一步运行 AR + 12 个配置 × 1319 题，耗时会明显长于测速。每 10 题打印一次当前 accuracy 和 parse rate，每题立即写入 JSONL。任务中断后重新执行同一命令会校验 <code>run_protocol.json</code> 并从已有题数继续；B/S、模型或数据指纹不一致时会拒绝续跑。</p>
+<pre><code>NUM_NPUS=8 PHASE=quality bash examples/fsdp2/qwen3_diffusion/run_block_step_experiments.sh</code></pre>
+    <p>这一步运行 AR + 12 个配置 × 1319 题。每张卡处理约 165 题，每 10 个本地样本打印一次进度，并立即写入自己的 rank JSONL。中断后重跑会校验 <code>run_protocol.json</code> 并让各 rank 从自己的已有题数继续；全部结束后 rank 0 检查 0–1318 是否完整且无重复，再合并结果。</p>
+    <div class="callout"><strong>已有单卡残留结果时：</strong>单卡和 8 卡的断点文件协议不同，不能混续。请换一个新的 <code>OUTPUT_ROOT</code>；若确认旧结果不要了，才使用 <code>OVERWRITE=1</code>。</div>
 
     <h3>4.7 汇总结果</h3>
 <pre><code>PHASE=summarize bash examples/fsdp2/qwen3_diffusion/run_block_step_experiments.sh</code></pre>
@@ -162,7 +169,8 @@ cat "$OUTPUT_ROOT/data/gsm8k_protocol.json"</code></pre>
 │   ├── AR-BASE.json
 │   └── B04-S01.json ... B32-S32.json
 ├── gsm8k/
-│   ├── AR-BASE/{summary.json,samples.jsonl,run_protocol.json}
+│   ├── AR-BASE/{summary.json,samples.jsonl,run_protocol.json,
+│   │           samples.rank00.jsonl ... samples.rank07.jsonl}
 │   └── B04-S01/... B32-S32/...
 ├── experiment_summary.csv
 └── experiment_summary.md</code></pre>
@@ -172,6 +180,7 @@ cat "$OUTPUT_ROOT/data/gsm8k_protocol.json"</code></pre>
         <tr><td>实际前向次数</td><td><code>speed/*.json → mean_total_nfe</code></td></tr>
         <tr><td>Decode tok/s</td><td><code>speed/*.json → decode_tokens_per_second</code></td></tr>
         <tr><td>Speedup vs AR</td><td><code>speed/*.json → speedup_vs_ar</code></td></tr>
+        <tr><td>8 卡总吞吐（只做运行诊断）</td><td><code>speed/*.json → aggregate_tokens_per_second</code>；不要填进主表的 Decode tok/s</td></tr>
         <tr><td>GSM8K</td><td><code>gsm8k/*/summary.json → accuracy_percent</code>；例如 60.88 表示 60.88%</td></tr>
         <tr><td>ΔGSM8K vs AR</td><td><code>候选 accuracy_percent − AR accuracy_percent</code>，单位为百分点；汇总脚本自动计算</td></tr>
         <tr><td>峰值显存 GB</td><td><code>speed/*.json → peak_memory_gib</code></td></tr>
@@ -203,6 +212,12 @@ if head_is_missing:
     <details><summary>找不到 torch_npu</summary><div>
       当前选择的是 lm-eval-harness 的 Python，但该环境没有继承服务器 NPU 包。把 <code>PYTHON_BIN</code> 指向训练/推理时使用的 Python，并确保里面同时有 <code>torch_npu</code>、<code>transformers</code>、<code>datasets</code>。
     </div></details>
+    <details><summary>还是只有一张 NPU 在工作</summary><div>
+      确认命令前有 <code>NUM_NPUS=8</code>，日志应同时出现 rank 0–7，速度 JSON 中 <code>distributed_world_size</code> 应为 8。若手工直接执行 <code>python benchmark_decode.py</code>，它就是单进程，只会使用一张卡；请使用本手册的 torchrun 命令或统一启动脚本。
+    </div></details>
+    <details><summary>8 卡启动后显存不足</summary><div>
+      数据并行会在每张卡各加载一份完整模型，因此要求单张 NPU 能放下模型。如果单卡本来就放不下，才需要 FSDP/张量并行；本轮 1.7B 模型优先使用更简单、结果也更容易解释的数据并行。
+    </div></details>
     <details><summary>模型目录不存在</summary><div>
       脚本默认推断为 <code>.../models/global_step_102500</code>。如果导出目录命名不同，只设置 <code>MODEL_PATH</code>；目录内应能看到 Hugging Face 的 config、tokenizer 和权重文件。
     </div></details>
@@ -217,10 +232,9 @@ if head_is_missing:
   <section>
     <h2>8. 验证状态</h2>
     <ul>
-      <li class="ok">Python 文件已通过语法编译。</li>
-      <li class="ok">GSM8K 数据协议与 B/S 解耦生成逻辑共有 11 个单元测试通过。</li>
-      <li>本机没有 Atlas A2、服务器 checkpoint 和服务器 Hugging Face cache，因此尚未执行真实 NPU 速度与 1319 题结果。</li>
-      <li>第一次上服务器务必先跑 prepare 和 10 题 smoke test，再启动 13 组正式实验。</li>
+      <li class="ok">Python 文件已通过语法编译；此前 GSM8K 数据协议与 B/S 解耦生成逻辑的 11 个单元测试通过。</li>
+      <li>新增了 2 个确定性分片/单进程回退测试；当前 Windows 环境没有 torch、pytest，也没有 Atlas A2，因此 8 卡 HCCL 路径必须在服务器用 16 题 smoke test 验证。</li>
+      <li>第一次上服务器务必先跑 prepare 和 16 题分布式 smoke test，再启动 13 组正式实验。</li>
     </ul>
   </section>
 </main>

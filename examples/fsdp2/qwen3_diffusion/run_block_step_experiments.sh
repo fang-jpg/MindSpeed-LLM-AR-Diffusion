@@ -11,6 +11,12 @@ MODEL_PATH=${MODEL_PATH:-/data2/model_train/ckpt/phase4_cpt_ar_diffusion_0923_re
 OUTPUT_ROOT=${OUTPUT_ROOT:-$REPO_ROOT/outputs/ar_diffusion_gsm8k}
 PHASE=${PHASE:-prepare}
 OVERWRITE=${OVERWRITE:-0}
+NUM_NPUS=${NUM_NPUS:-8}
+
+if ! [[ "$NUM_NPUS" =~ ^[1-9][0-9]*$ ]]; then
+  echo "NUM_NPUS must be a positive integer, got: $NUM_NPUS" >&2
+  exit 2
+fi
 
 if [[ -x "$LM_EVAL_ROOT/.venv-diffusion/bin/python" ]]; then
   PYTHON_BIN=${PYTHON_BIN:-$LM_EVAL_ROOT/.venv-diffusion/bin/python}
@@ -48,6 +54,21 @@ CONFIGS=(
   "B32-S32:32:32"
 )
 
+run_experiment_python() {
+  local script=$1
+  shift
+  echo "> Launching $(basename "$script") with $NUM_NPUS process(es)"
+  if (( NUM_NPUS > 1 )); then
+    "$PYTHON_BIN" -m torch.distributed.run \
+      --standalone \
+      --nnodes=1 \
+      --nproc_per_node="$NUM_NPUS" \
+      "$script" "$@"
+  else
+    "$PYTHON_BIN" "$script" "$@"
+  fi
+}
+
 prepare_data() {
   local overwrite_args=()
   if [[ "$OVERWRITE" == "1" ]]; then
@@ -79,7 +100,7 @@ run_speed() {
   mkdir -p "$SPEED_DIR"
   local ar_json="$SPEED_DIR/AR-BASE.json"
   if [[ "$OVERWRITE" == "1" || ! -f "$ar_json" ]]; then
-    "$PYTHON_BIN" "$SCRIPT_DIR/benchmark_decode.py" \
+    run_experiment_python "$SCRIPT_DIR/benchmark_decode.py" \
       --model-path "$MODEL_PATH" \
       --prompts-file "$PROMPTS_FILE" \
       --output-json "$ar_json" \
@@ -101,7 +122,7 @@ run_speed() {
       echo "> Skipping existing speed result: $output_json"
       continue
     fi
-    "$PYTHON_BIN" "$SCRIPT_DIR/benchmark_decode.py" \
+    run_experiment_python "$SCRIPT_DIR/benchmark_decode.py" \
       --model-path "$MODEL_PATH" \
       --prompts-file "$PROMPTS_FILE" \
       --output-json "$output_json" \
@@ -140,7 +161,7 @@ run_quality_case() {
       --seed-mode none
     )
   fi
-  "$PYTHON_BIN" "$SCRIPT_DIR/evaluate_gsm8k_diffusion.py" \
+  run_experiment_python "$SCRIPT_DIR/evaluate_gsm8k_diffusion.py" \
     --model-path "$MODEL_PATH" \
     --cache-dir "$HF_CACHE_ROOT" \
     --fewshot-file "$FEWSHOT_FILE" \
