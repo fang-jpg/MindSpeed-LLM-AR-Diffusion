@@ -251,69 +251,83 @@ def main():
             flush=True,
         )
 
-    device = context.device or detect_device()
-    torch.manual_seed(args.seed + context.rank)
-    print(
-        f"> [rank {context.rank}/{context.world_size}] Loading {args.model_path} "
-        f"on {device} ({args.dtype}); samples={len(assigned_indices)}",
-        flush=True,
-    )
-    model = load_model(
-        args.model_path, device, DTYPE_MAP[args.dtype], args.config_diffusion
-    )
-    tokenizer = load_tokenizer(args.model_path)
-    args.ignore_eos = False
-
     local_correct = sum(int(row["correct"]) for row in previous_rows)
     local_parsed = sum(
         int(row.get("predicted_answer") is not None) for row in previous_rows
     )
-    open_mode = "a" if previous_rows else "w"
-    with samples_path.open(open_mode, encoding="utf-8") as stream:
-        remaining_indices = assigned_indices[len(previous_rows) :]
-        for local_offset, dataset_index in enumerate(
-            remaining_indices, start=len(previous_rows) + 1
-        ):
-            sample = test[dataset_index]
-            prompt = build_gsm8k_prompt(sample["question"], fewshot_examples)
-            input_ids = tokenizer.encode(prompt, return_tensors="pt").to(device)
-            torch.manual_seed(args.seed + dataset_index)
-            output_ids, stats = generate_once(model, tokenizer, input_ids, args)
-            generated_ids = output_ids[0, input_ids.shape[1] :]
-            raw_prediction = tokenizer.decode(
-                generated_ids, skip_special_tokens=True
-            )
-            prediction = truncate_at_stop_sequence(raw_prediction)
-            predicted_answer = extract_prediction_answer(prediction)
-            reference_answer = extract_reference_answer(sample["answer"])
-            is_correct = (
-                predicted_answer is not None
-                and reference_answer is not None
-                and predicted_answer == reference_answer
-            )
-            local_correct += int(is_correct)
-            local_parsed += int(predicted_answer is not None)
-            row = {
-                "dataset_index": dataset_index,
-                "question": sample["question"],
-                "reference_answer": reference_answer,
-                "prediction": prediction,
-                "raw_prediction": raw_prediction,
-                "predicted_answer": predicted_answer,
-                "correct": is_correct,
-                "generated_tokens": int(generated_ids.numel()),
-                "generation_stats": stats,
-            }
-            stream.write(json.dumps(row, ensure_ascii=False) + "\n")
-            stream.flush()
-            if local_offset % 10 == 0 or local_offset == len(assigned_indices):
-                print(
-                    f"[rank {context.rank}: {local_offset}/"
-                    f"{len(assigned_indices)}] "
-                    f"local_accuracy={local_correct / local_offset:.4f} "
-                    f"local_parse_rate={local_parsed / local_offset:.4f}",
-                    flush=True,
+    remaining_indices = assigned_indices[len(previous_rows) :]
+    if remaining_indices:
+        device = context.device or detect_device()
+        torch.manual_seed(args.seed + context.rank)
+        print(
+            f"> [rank {context.rank}/{context.world_size}] Loading "
+            f"{args.model_path} on {device} ({args.dtype}); "
+            f"remaining_samples={len(remaining_indices)}",
+            flush=True,
+        )
+        model = load_model(
+            args.model_path, device, DTYPE_MAP[args.dtype], args.config_diffusion
+        )
+        tokenizer = load_tokenizer(args.model_path)
+        args.ignore_eos = False
+        open_mode = "a" if previous_rows else "w"
+        stream = samples_path.open(open_mode, encoding="utf-8")
+        try:
+            for local_offset, dataset_index in enumerate(
+                remaining_indices, start=len(previous_rows) + 1
+            ):
+                sample = test[dataset_index]
+                prompt = build_gsm8k_prompt(sample["question"], fewshot_examples)
+                input_ids = tokenizer.encode(prompt, return_tensors="pt").to(device)
+                torch.manual_seed(args.seed + dataset_index)
+                output_ids, stats = generate_once(model, tokenizer, input_ids, args)
+                generated_ids = output_ids[0, input_ids.shape[1] :]
+                raw_prediction = tokenizer.decode(
+                    generated_ids, skip_special_tokens=True
                 )
+                prediction = truncate_at_stop_sequence(raw_prediction)
+                predicted_answer = extract_prediction_answer(prediction)
+                reference_answer = extract_reference_answer(sample["answer"])
+                is_correct = (
+                    predicted_answer is not None
+                    and reference_answer is not None
+                    and predicted_answer == reference_answer
+                )
+                local_correct += int(is_correct)
+                local_parsed += int(predicted_answer is not None)
+                row = {
+                    "dataset_index": dataset_index,
+                    "question": sample["question"],
+                    "reference_answer": reference_answer,
+                    "prediction": prediction,
+                    "raw_prediction": raw_prediction,
+                    "predicted_answer": predicted_answer,
+                    "correct": is_correct,
+                    "generated_tokens": int(generated_ids.numel()),
+                    "generation_stats": stats,
+                }
+                stream.write(json.dumps(row, ensure_ascii=False) + "\n")
+                stream.flush()
+                if (
+                    local_offset % 10 == 0
+                    or local_offset == len(assigned_indices)
+                ):
+                    print(
+                        f"[rank {context.rank}: {local_offset}/"
+                        f"{len(assigned_indices)}] "
+                        f"local_accuracy={local_correct / local_offset:.4f} "
+                        f"local_parse_rate={local_parsed / local_offset:.4f}",
+                        flush=True,
+                    )
+        finally:
+            stream.close()
+    else:
+        print(
+            f"> [rank {context.rank}/{context.world_size}] Local shard already "
+            f"complete ({len(previous_rows)}/{len(assigned_indices)}); "
+            "skipping model load",
+            flush=True,
+        )
 
     resumed_counts = context.all_gather_object(len(previous_rows))
     context.barrier()

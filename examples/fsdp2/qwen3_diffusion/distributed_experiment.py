@@ -26,6 +26,32 @@ def _native_collective(function):
     return function
 
 
+def _native_all_gather_object(output, value) -> None:
+    """Run PyTorch object gathering without MindSpeed's nested wrapper.
+
+    Unwrapping ``dist.all_gather_object`` alone is insufficient: PyTorch's
+    Python implementation then looks up ``all_gather`` in its module globals,
+    and MindSpeed patches that inner function separately.  Temporarily expose
+    the unwrapped inner collective to this process-local call and restore it
+    immediately afterwards.  Experiment entry points are single-threaded, so
+    no other local collective can observe this short-lived substitution.
+    """
+    object_collective = _native_collective(dist.all_gather_object)
+    function_globals = getattr(object_collective, "__globals__", None)
+    wrapped_all_gather = (
+        function_globals.get("all_gather") if function_globals else None
+    )
+    if wrapped_all_gather is None:
+        object_collective(output, value)
+        return
+
+    function_globals["all_gather"] = _native_collective(wrapped_all_gather)
+    try:
+        object_collective(output, value)
+    finally:
+        function_globals["all_gather"] = wrapped_all_gather
+
+
 @dataclass(frozen=True)
 class DistributedContext:
     rank: int
@@ -49,7 +75,7 @@ class DistributedContext:
         if not self.enabled:
             return [value]
         gathered = [None] * self.world_size
-        _native_collective(dist.all_gather_object)(gathered, value)
+        _native_all_gather_object(gathered, value)
         return gathered
 
     def close(self) -> None:
