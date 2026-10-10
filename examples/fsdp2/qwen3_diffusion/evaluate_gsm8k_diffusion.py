@@ -7,8 +7,16 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
+
+# These flags must be set before torch/transformers imports. In the NPU image,
+# torch_npu can import huggingface_hub early, which otherwise caches online mode
+# before load_gsm8k() gets a chance to select the local dataset cache.
+os.environ["HF_HUB_OFFLINE"] = "1"
+os.environ["HF_DATASETS_OFFLINE"] = "1"
+os.environ["TRANSFORMERS_OFFLINE"] = "1"
 
 import torch
 from distributed_experiment import initialize_distributed, shard_sequence

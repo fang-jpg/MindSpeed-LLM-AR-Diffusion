@@ -139,6 +139,37 @@ run_speed() {
   done
 }
 
+run_smoke() {
+  check_model
+  prepare_data
+  local result_dir="$OUTPUT_ROOT/smoke/B08-S04"
+  local overwrite_args=()
+  if [[ "$OVERWRITE" == "1" ]]; then
+    overwrite_args+=(--overwrite)
+  elif [[ -f "$result_dir/summary.json" ]]; then
+    echo "> Skipping existing smoke result: $result_dir/summary.json"
+    return
+  fi
+
+  run_experiment_python "$SCRIPT_DIR/evaluate_gsm8k_diffusion.py" \
+    --model-path "$MODEL_PATH" \
+    --cache-dir "$HF_CACHE_ROOT" \
+    --fewshot-file "$FEWSHOT_FILE" \
+    --data-protocol "$PROTOCOL_FILE" \
+    --output-dir "$result_dir" \
+    --mode diffusion \
+    --block-length 8 \
+    --steps-per-block 4 \
+    --seed-mode none \
+    --num-fewshot 5 \
+    --max-new-tokens 512 \
+    --temperature 0 \
+    --seed 42 \
+    --max-eval-samples 16 \
+    --resume \
+    "${overwrite_args[@]}"
+}
+
 run_quality_case() {
   local exp_id=$1
   local mode=$2
@@ -197,6 +228,9 @@ case "$PHASE" in
   prepare)
     prepare_data
     ;;
+  smoke)
+    run_smoke
+    ;;
   speed)
     run_speed
     ;;
@@ -212,7 +246,7 @@ case "$PHASE" in
     summarize_results
     ;;
   *)
-    echo "Unknown PHASE=$PHASE; use prepare, speed, quality, summarize, or all." >&2
+    echo "Unknown PHASE=$PHASE; use prepare, smoke, speed, quality, summarize, or all." >&2
     exit 2
     ;;
 esac

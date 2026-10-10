@@ -85,7 +85,7 @@ datasets 缓存:  /home/f50058111/huggingface_cache/datasets</code></pre>
         <tr><td><a href="../../examples/fsdp2/qwen3_diffusion/distributed_experiment.py">distributed_experiment.py</a></td><td>按 <code>LOCAL_RANK</code> 绑定 NPU、初始化 HCCL、确定性分片并汇总各进程结果</td><td>让 8 张卡同时处理互不重复的请求</td></tr>
         <tr><td><a href="../../examples/fsdp2/qwen3_diffusion/benchmark_decode.py">benchmark_decode.py</a></td><td>100 prompts × 20 repeat 分到 8 卡；忽略 EOS；输出单请求等价 tok/s、8 卡总吞吐、p50/p95、NFE、显存与 speedup</td><td>主表填写可与单卡口径比较的速度</td></tr>
         <tr><td><a href="../../examples/fsdp2/qwen3_diffusion/evaluate_gsm8k_diffusion.py">evaluate_gsm8k_diffusion.py</a></td><td>完整 1319 题按 rank 分片；各 rank 可断点续跑，rank 0 校验并合并逐题输出</td><td>缩短 GSM8K 总耗时，分数口径不变</td></tr>
-        <tr><td><a href="../../examples/fsdp2/qwen3_diffusion/run_block_step_experiments.sh">run_block_step_experiments.sh</a></td><td>默认 <code>NUM_NPUS=8</code>，用 torchrun 自动运行 AR 和 12 个 B/S 配置</td><td>启动 8 个进程并避免手写命令</td></tr>
+        <tr><td><a href="../../examples/fsdp2/qwen3_diffusion/run_block_step_experiments.sh">run_block_step_experiments.sh</a></td><td>默认 <code>NUM_NPUS=8</code>；提供 prepare、smoke、speed、quality、summarize 阶段</td><td>统一设置离线缓存并启动 8 个进程，避免手写命令</td></tr>
         <tr><td><a href="../../examples/fsdp2/qwen3_diffusion/summarize_block_step_results.py">summarize_block_step_results.py</a></td><td>合并速度与正确率 JSON，生成 CSV 和 Markdown 汇总</td><td>实验完成后直接抄表</td></tr>
       </tbody>
     </table>
@@ -110,6 +110,11 @@ export LM_EVAL_ROOT=/home/f50058111/lm-eval-harness
 export HF_CACHE_ROOT=/home/f50058111/huggingface_cache
 export OUTPUT_ROOT=$PWD/outputs/ar_diffusion_gsm8k
 export NUM_NPUS=8
+export HF_HOME=$HF_CACHE_ROOT
+export HF_DATASETS_CACHE=$HF_CACHE_ROOT/datasets
+export HF_HUB_OFFLINE=1
+export HF_DATASETS_OFFLINE=1
+export TRANSFORMERS_OFFLINE=1
 
 test -d "$MODEL_PATH"
 test -d "$HF_CACHE_ROOT"
@@ -130,17 +135,8 @@ cat "$OUTPUT_ROOT/data/gsm8k_protocol.json"</code></pre>
     <div class="callout bad"><strong>如果这里失败，不要下载到仓库里：</strong>先确认 cache 中确实存在 GSM8K，以及运行 Python 的 <code>datasets</code> 版本能读取该缓存。脚本已开启 offline 模式，不会偷偷联网拿另一个版本。</div>
 
     <h3>4.4 第二步：先做一个 16 题、8 卡 smoke test</h3>
-<pre><code>$PYTHON_BIN -m torch.distributed.run \
-  --standalone --nnodes=1 --nproc_per_node=8 \
-  examples/fsdp2/qwen3_diffusion/evaluate_gsm8k_diffusion.py \
-  --model-path "$MODEL_PATH" \
-  --cache-dir "$HF_CACHE_ROOT" \
-  --fewshot-file "$OUTPUT_ROOT/data/fewshot_examples.json" \
-  --data-protocol "$OUTPUT_ROOT/data/gsm8k_protocol.json" \
-  --output-dir "$OUTPUT_ROOT/smoke/B08-S04" \
-  --mode diffusion --block-length 8 --steps-per-block 4 \
-  --seed-mode none --num-fewshot 5 --max-new-tokens 512 \
-  --temperature 0 --seed 42 --max-eval-samples 16 --resume</code></pre>
+<pre><code>NUM_NPUS=8 PHASE=smoke bash examples/fsdp2/qwen3_diffusion/run_block_step_experiments.sh</code></pre>
+    <p>请优先使用这一行，不要手工拼 torchrun 参数。启动脚本会在 Python 启动前设置 Hugging Face 离线变量，避免 8 个 rank 同时访问 <code>huggingface.co</code>。</p>
     <p>16 题会让每张卡正好处理 2 题。先用 <code>npu-smi info</code> 确认 8 张卡均有显存和利用率，再检查合并后的 <code>samples.jsonl</code>。<strong>smoke test 分数不能填进正式实验表。</strong></p>
 
     <h3>4.5 第三步：跑速度</h3>
@@ -207,7 +203,7 @@ if head_is_missing:
   <section id="trouble">
     <h2>7. 常见报错</h2>
     <details><summary>找不到 GSM8K cache</summary><div>
-      确认 <code>HF_CACHE_ROOT=/home/f50058111/huggingface_cache</code>。如果实际只保存了 Arrow cache，目录下通常会有 <code>datasets/openai___gsm8k</code> 或类似名称。不要把 Windows 的 <code>E:\...</code> 路径传到服务器。
+      确认 <code>HF_CACHE_ROOT=/home/f50058111/huggingface_cache</code>。如果日志反复出现 <code>Failed to resolve huggingface.co</code>，说明手工命令没有在 Hugging Face Hub 初始化前进入离线模式；先中止该进程，执行 4.1 中的五个 HF 环境变量，再重跑。新版评测脚本也会在导入 torch/transformers 前强制启用离线模式。如果实际只保存了 Arrow cache，目录下通常会有 <code>datasets/openai___gsm8k</code> 或类似名称。不要把 Windows 的 <code>E:\...</code> 路径传到服务器。
     </div></details>
     <details><summary>找不到 torch_npu</summary><div>
       当前选择的是 lm-eval-harness 的 Python，但该环境没有继承服务器 NPU 包。把 <code>PYTHON_BIN</code> 指向训练/推理时使用的 Python，并确保里面同时有 <code>torch_npu</code>、<code>transformers</code>、<code>datasets</code>。

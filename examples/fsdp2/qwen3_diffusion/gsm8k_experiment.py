@@ -11,6 +11,12 @@ from collections.abc import Iterable, Mapping, Sequence
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
+# This module is intentionally cache-only. Set offline mode at import time so
+# callers that later import transformers cannot trigger Hugging Face Hub probes.
+os.environ["HF_HUB_OFFLINE"] = "1"
+os.environ["HF_DATASETS_OFFLINE"] = "1"
+os.environ["TRANSFORMERS_OFFLINE"] = "1"
+
 DATASET_NAME = "openai/gsm8k"
 DATASET_CONFIG = "main"
 
