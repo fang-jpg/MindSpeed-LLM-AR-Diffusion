@@ -83,6 +83,15 @@ def parse_args():
         default=3600.0,
         help="maximum wait for slower ranks to publish benchmark JSON files",
     )
+    parser.add_argument(
+        "--progress-interval-seconds",
+        type=float,
+        default=60.0,
+        help=(
+            "print per-rank measurement progress after this many seconds; "
+            "set to 0 to disable"
+        ),
+    )
     return parser.parse_args()
 
 
@@ -135,6 +144,8 @@ def main():
         raise ValueError("max-new-tokens must be positive")
     if args.rank_file_timeout_seconds <= 0:
         raise ValueError("rank-file-timeout-seconds must be positive")
+    if args.progress_interval_seconds < 0:
+        raise ValueError("progress-interval-seconds must be non-negative")
     rows = list(iter_jsonl(args.prompts_file))
     if len(rows) != args.expected_prompts:
         raise ValueError(
@@ -182,6 +193,11 @@ def main():
         )
     synchronize(device)
     reset_peak_memory(device)
+    print(
+        f"> [rank {context.rank}/{context.world_size}] Warmup complete; "
+        "entering measurement start barrier",
+        flush=True,
+    )
     if context.is_main:
         run_id = uuid.uuid4().hex
         rank_payload_dir = (
@@ -203,6 +219,10 @@ def main():
             },
         )
     context.barrier()
+    print(
+        f"> [rank {context.rank}/{context.world_size}] Start barrier complete",
+        flush=True,
+    )
     run_manifest = json.loads(run_manifest_path.read_text(encoding="utf-8"))
     expected_manifest = {
         "world_size": context.world_size,
@@ -223,7 +243,17 @@ def main():
     timings_ms: list[float] = []
     generation_stats: list[dict] = []
     generated_token_total = 0
+    total_local_measurements = len(prompts) * args.repeats
+    print(
+        f"> [rank {context.rank}/{context.world_size}] Starting timed "
+        f"measurement; samples={total_local_measurements}, "
+        f"max_new_tokens={args.max_new_tokens}, "
+        f"progress_interval={args.progress_interval_seconds:g}s",
+        flush=True,
+    )
     measurement_started = time.perf_counter()
+    progress_output_seconds = 0.0
+    next_progress_at = args.progress_interval_seconds
     for repeat_index in range(args.repeats):
         for prompt_index, input_ids in prompts:
             synchronize(device)
@@ -241,8 +271,39 @@ def main():
             generated_token_total += generated
             generation_stats.append(stats)
 
+            completed = len(timings_ms)
+            now = time.perf_counter()
+            active_elapsed = now - measurement_started - progress_output_seconds
+            if (
+                args.progress_interval_seconds > 0
+                and active_elapsed >= next_progress_at
+                and completed < total_local_measurements
+            ):
+                eta_seconds = (
+                    active_elapsed / completed
+                    * (total_local_measurements - completed)
+                )
+                progress_started = time.perf_counter()
+                print(
+                    f"> [rank {context.rank}/{context.world_size}] Speed "
+                    f"progress {completed}/{total_local_measurements} "
+                    f"({completed / total_local_measurements:.1%}); "
+                    f"repeat={repeat_index + 1}/{args.repeats}, "
+                    f"prompt_index={prompt_index}, "
+                    f"elapsed={active_elapsed:.0f}s, eta={eta_seconds:.0f}s",
+                    flush=True,
+                )
+                progress_output_seconds += (
+                    time.perf_counter() - progress_started
+                )
+                next_progress_at = (
+                    active_elapsed + args.progress_interval_seconds
+                )
+
     synchronize(device)
-    local_wall_seconds = time.perf_counter() - measurement_started
+    local_wall_seconds = (
+        time.perf_counter() - measurement_started - progress_output_seconds
+    )
     print(
         f"> [rank {context.rank}/{context.world_size}] Measurement complete; "
         f"samples={len(timings_ms)}, wall_seconds={local_wall_seconds:.2f}",
@@ -266,6 +327,7 @@ def main():
         },
         "generated_tokens": generated_token_total,
         "parallel_wall_seconds": local_wall_seconds,
+        "progress_output_seconds": progress_output_seconds,
         "peak_memory_bytes": peak_memory_bytes(device),
     }
     rank_payloads = context.all_gather_json_files(
@@ -316,6 +378,10 @@ def main():
             f"rank{rank:02d}.json" for rank in range(context.world_size)
         ],
         "rank_file_timeout_seconds": args.rank_file_timeout_seconds,
+        "progress_interval_seconds": args.progress_interval_seconds,
+        "rank_progress_output_seconds": [
+            payload["progress_output_seconds"] for payload in rank_payloads
+        ],
         "local_prompt_counts": [
             payload["prompt_count"] for payload in rank_payloads
         ],

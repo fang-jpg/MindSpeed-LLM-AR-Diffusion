@@ -1,0 +1,115 @@
+model:
+  # Same Qwen3-1.7B-Base used by the existing Nemotron_Diffusion experiment.
+  # Its config.json must already contain the diffusion fields documented in
+  # examples/fsdp2/qwen3_diffusion/config_diffusion.json.
+  model_name_or_path: /data2/model_weights/Qwen3-1.7B-Base
+  model_id: qwen3_diffusion
+  trust_remote_code: false
+  train_from_scratch: false
+  init_model_with_meta_device: false
+
+data:
+  dataset:
+    file_name:
+      - /data2/comm_math_code/RedStone_QA_oq_part_text_document
+      - /data2/comm_math_code/swallow_code_ablation_exp11_scor_text_document
+      - /data2/comm_math_code/megamath_qa_llama_3.3_text_document
+      - /data2/comm_math_code/megamath_qa_text_document
+      - /data2/comm_math_code/MetaMathQA_text_document
+      - /data2/comm_math_code/RedStone_QA_mcq_text_document
+      - /data2/comm_math_code/swallow_math_text_document
+  template: empty
+  cutoff_len: 4096
+  max_samples: 100000
+  overwrite_cache: true
+  preprocessing_num_workers: 4
+  data_manager_type: mg
+
+parallel:
+  fsdp_size: 8
+  fsdp_modules:
+    - model.layers.{*}
+    - model.embed_tokens
+    - lm_head
+  tp_size: 1
+  ep_size: 1
+  ep_modules:
+    - model.layers.{*}.mlp.experts
+  ep_fsdp_size: 1
+  ep_fsdp_modules:
+    - model.layers.{*}.mlp.experts
+  ep_dispatcher: eager
+  recompute: true
+  recompute_modules:
+    - model.layers.{*}
+  param_dtype: bf16
+  reduce_dtype: bf16
+
+training:
+  stage: pt
+  per_device_train_batch_size: 1
+  # The official loop trains global batch 8 over the 128-rollout pool, yielding
+  # 16 optimizer steps per on-policy iteration.
+  gradient_accumulation_steps: 1
+  dataloader_num_workers: 4
+  dataloader_drop_last: true
+  seed: 10086
+  output_dir: /data2/model_train/ckpt/qwen3_1.7b_dopd/
+  # Set this only when resuming a d-OPD run. Student initialization is below.
+  resume_from_checkpoint: null
+  optimizer: adamw
+  lr: 1.0e-5
+  weight_decay: 0.0
+  adam_beta1: 0.9
+  adam_beta2: 0.999
+  adam_epsilon: 1.0e-8
+  max_grad_norm: 1.0
+  lr_scheduler_type: cosine
+  # Five warmup iterations out of the paper's 483 total iterations.
+  warmup_ratio: 0.0103519669
+  min_lr: 1.0e-6
+  num_train_epochs: 1.0
+  # Outer on-policy rollout iterations; each contains 16 optimizer steps.
+  max_steps: 483
+  save_steps: 10
+  save_total_limit: 2
+  save_only_model: false
+  save_async: false
+  logging_steps: 1
+  calculate_per_token_loss: false
+
+optimization:
+  use_fused_rmsnorm: false
+  use_fused_rotary_pos_emb: false
+  chunk_loss_size: 0
+
+dopd:
+  teacher_model_name_or_path: /data2/model_weights/Qwen3-1.7B-Base
+  # Existing Nemotron_Diffusion FSDP2 checkpoint. Update if a later checkpoint
+  # from the same experiment should be the student initialization.
+  student_checkpoint: /data2/model_train/ckpt/phase4_cpt_ar_diffusion_0916/checkpoints/global_step_10500
+  mask_token_id: 151669
+  prompt_tokens: 2000
+  min_response_tokens: 100
+  max_response_tokens: 4000
+  response_schedule_steps: 100
+  prompts_per_iteration: 128
+  block_size: 4
+  denoise_steps: 4
+  temperature: 1.0
+  top_k: 0
+  top_p: 1.0
+  remasking_strategy: low_confidence_dynamic
+  dynamic_threshold: 0.9
+  correction_strength: 0.5
+  candidate_top_k: 16
+  loss_top_k: 16
+  require_visible_future: true
+  # The current Megatron CPT mixture has no task answer/verifier. This therefore
+  # reproduces the paper's gate-off ablation unless a verifier is supplied.
+  correctness_gate: false
+  verifier: null
+  exclude_eos_from_loss: true
+  score_chunk_size: 16
+  teacher_cache_max_bytes: 17179869184
+

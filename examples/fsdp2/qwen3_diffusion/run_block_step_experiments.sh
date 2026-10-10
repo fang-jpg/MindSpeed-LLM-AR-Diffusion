@@ -13,6 +13,10 @@ PHASE=${PHASE:-prepare}
 OVERWRITE=${OVERWRITE:-0}
 NUM_NPUS=${NUM_NPUS:-8}
 RANK_FILE_TIMEOUT_SECONDS=${RANK_FILE_TIMEOUT_SECONDS:-3600}
+SPEED_MAX_NEW_TOKENS=${SPEED_MAX_NEW_TOKENS:-128}
+SPEED_WARMUP=${SPEED_WARMUP:-5}
+SPEED_REPEATS=${SPEED_REPEATS:-20}
+SPEED_PROGRESS_INTERVAL_SECONDS=${SPEED_PROGRESS_INTERVAL_SECONDS:-60}
 
 if ! [[ "$NUM_NPUS" =~ ^[1-9][0-9]*$ ]]; then
   echo "NUM_NPUS must be a positive integer, got: $NUM_NPUS" >&2
@@ -106,10 +110,11 @@ run_speed() {
       --prompts-file "$PROMPTS_FILE" \
       --output-json "$ar_json" \
       --mode ar \
-      --max-new-tokens 128 \
+      --max-new-tokens "$SPEED_MAX_NEW_TOKENS" \
       --temperature 0 \
-      --warmup 5 \
-      --repeats 20 \
+      --warmup "$SPEED_WARMUP" \
+      --repeats "$SPEED_REPEATS" \
+      --progress-interval-seconds "$SPEED_PROGRESS_INTERVAL_SECONDS" \
       --rank-file-timeout-seconds "$RANK_FILE_TIMEOUT_SECONDS" \
       --seed 42
   else
@@ -133,10 +138,11 @@ run_speed() {
       --block-length "$block_length" \
       --steps-per-block "$steps" \
       --seed-mode none \
-      --max-new-tokens 128 \
+      --max-new-tokens "$SPEED_MAX_NEW_TOKENS" \
       --temperature 0 \
-      --warmup 5 \
-      --repeats 20 \
+      --warmup "$SPEED_WARMUP" \
+      --repeats "$SPEED_REPEATS" \
+      --progress-interval-seconds "$SPEED_PROGRESS_INTERVAL_SECONDS" \
       --rank-file-timeout-seconds "$RANK_FILE_TIMEOUT_SECONDS" \
       --seed 42
   done

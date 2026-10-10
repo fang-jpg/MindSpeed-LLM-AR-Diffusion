@@ -83,9 +83,9 @@ datasets 缓存:  /home/f50058111/huggingface_cache/datasets</code></pre>
         <tr><td><a href="../../examples/fsdp2/qwen3_diffusion/gsm8k_experiment.py">gsm8k_experiment.py</a></td><td>离线 cache 读取、固定抽样、5-shot prompt、lm-eval 停止符截断、数字答案标准化/抽取</td><td>速度与正确率共用同一数据协议，并对齐标准 GSM8K 评测口径</td></tr>
         <tr><td><a href="../../examples/fsdp2/qwen3_diffusion/prepare_gsm8k_data.py">prepare_gsm8k_data.py</a></td><td>抽取并冻结 100 条速度数据</td><td>只做一次，后面所有配置复用</td></tr>
         <tr><td><a href="../../examples/fsdp2/qwen3_diffusion/distributed_experiment.py">distributed_experiment.py</a></td><td>按 <code>LOCAL_RANK</code> 绑定 NPU、初始化 HCCL、确定性分片；正确率评测可绕过高可用包装层，长时间测速可通过原子 JSON 文件交换结果</td><td>让 8 张卡同时处理互不重复的请求，并避免快卡等待慢卡时触发 HCCL 汇总超时</td></tr>
-        <tr><td><a href="../../examples/fsdp2/qwen3_diffusion/benchmark_decode.py">benchmark_decode.py</a></td><td>100 prompts × 20 repeat 分到 8 卡；忽略 EOS；每卡写独立 rank JSON，全部就绪后汇总 tok/s、8 卡总吞吐、p50/p95、NFE、显存与 speedup</td><td>主表填写可与单卡口径比较的速度，测速结束后不再调用 HCCL <code>all_gather_object</code></td></tr>
+        <tr><td><a href="../../examples/fsdp2/qwen3_diffusion/benchmark_decode.py">benchmark_decode.py</a></td><td>100 prompts × 20 repeat 分到 8 卡；忽略 EOS；打印 barrier 阶段及每个 rank 的定时进度/ETA；每卡写独立 rank JSON，全部就绪后汇总 tok/s、8 卡总吞吐、p50/p95、NFE、显存与 speedup</td><td>主表填写可与单卡口径比较的速度，测速结束后不再调用 HCCL <code>all_gather_object</code>；进度打印耗时不计入 8 卡墙钟吞吐</td></tr>
         <tr><td><a href="../../examples/fsdp2/qwen3_diffusion/evaluate_gsm8k_diffusion.py">evaluate_gsm8k_diffusion.py</a></td><td>完整 1319 题按 rank 分片；按 lm-eval 的 <code>Question:</code>、<code>&lt;/s&gt;</code>、<code>&lt;|im_end|&gt;</code> 截断预测；各 rank 可断点续跑，rank 0 校验并合并</td><td>缩短 GSM8K 总耗时，且避免模型继续生成下一题后误提取答案</td></tr>
-        <tr><td><a href="../../examples/fsdp2/qwen3_diffusion/run_block_step_experiments.sh">run_block_step_experiments.sh</a></td><td>默认 <code>NUM_NPUS=8</code>；提供 prepare、smoke、speed、quality、summarize 阶段；可用 <code>RANK_FILE_TIMEOUT_SECONDS</code> 调整速度结果文件等待上限</td><td>统一设置离线缓存并启动 8 个进程，避免手写命令</td></tr>
+        <tr><td><a href="../../examples/fsdp2/qwen3_diffusion/run_block_step_experiments.sh">run_block_step_experiments.sh</a></td><td>默认 <code>NUM_NPUS=8</code>；提供 prepare、smoke、speed、quality、summarize 阶段；可用 <code>SPEED_PROGRESS_INTERVAL_SECONDS</code> 调整进度间隔，用 <code>RANK_FILE_TIMEOUT_SECONDS</code> 调整速度结果文件等待上限</td><td>统一设置离线缓存并启动 8 个进程，避免手写命令</td></tr>
         <tr><td><a href="../../examples/fsdp2/qwen3_diffusion/summarize_block_step_results.py">summarize_block_step_results.py</a></td><td>合并速度与正确率 JSON，生成 CSV 和 Markdown 汇总</td><td>实验完成后直接抄表</td></tr>
       </tbody>
     </table>
@@ -144,7 +144,13 @@ cat "$OUTPUT_ROOT/data/gsm8k_protocol.json"</code></pre>
     <h3>4.5 第三步：跑速度</h3>
 <pre><code>NUM_NPUS=8 PHASE=speed bash examples/fsdp2/qwen3_diffusion/run_block_step_experiments.sh</code></pre>
     <p>执行顺序是 AR-BASE → 12 个 Diffusion 配置。每个配置的 100 条 prompt 按 <code>index % 8</code> 分给 8 张卡（每卡 12 或 13 条），每个 rank warmup 5 次，再重复 20 轮；全局仍是 2000 次正式生成，每次无视 EOS 并严格生成 128 token。</p>
-    <p>每张卡完成后会打印 <code>Measurement complete</code>，并在 <code>speed/.rank_payloads/实验名/本次run-id/</code> 写自己的小型 JSON。rank 0 每 60 秒报告一次尚未完成的 rank；默认最多等待 3600 秒。这个等待发生在文件系统中，不使用 HCCL，不会影响已记录的单请求计时。</p>
+    <p>新版会先为每个 rank 打印 <code>Warmup complete</code>、<code>Start barrier complete</code> 和 <code>Starting timed measurement</code>，正式生成期间默认每 60 秒（在当前单条生成结束后）打印 <code>Speed progress 已完成/总数、elapsed、eta</code>。打印发生在两次样本计时之间，其耗时还会从 8 卡墙钟吞吐中扣除。每张卡完成后打印 <code>Measurement complete</code>，并在 <code>speed/.rank_payloads/实验名/本次run-id/</code> 写自己的小型 JSON。rank 0 在文件汇总阶段每 60 秒报告一次尚未完成的 rank；默认最多等待 3600 秒。这个等待发生在文件系统中，不使用 HCCL，不会影响已记录的单请求计时。</p>
+    <div class="callout"><strong>为什么 AR-BASE 可能一小时还没有旧版输出：</strong>正式 workload 是全局 <code>100 × 20 = 2000</code> 次生成，每次固定生成 128 token；8 卡数据并行后，每张卡仍需串行完成 240 或 260 次请求，而 AR 的 128 个 token 又是逐 token 解码。旧版只在某个 rank 全部完成后打印，所以“日志沉默”不等于死锁。先用 <code>watch -n 2 npu-smi info</code> 查看 8 卡利用率：若持续有计算，说明仍在测速；若所有卡连续数分钟为 0，再按第 7 节排查。</div>
+    <p>正式表必须保持默认的 <code>128 token / warmup 5 / repeat 20</code>。如只想验证流程，可换一个临时输出目录并缩短参数（结果不能填主表）：</p>
+<pre><code>OUTPUT_ROOT="$PWD/outputs/ar_diffusion_gsm8k_speed_debug" \
+SPEED_MAX_NEW_TOKENS=16 SPEED_WARMUP=1 SPEED_REPEATS=1 \
+NUM_NPUS=8 PHASE=speed \
+bash examples/fsdp2/qwen3_diffusion/run_block_step_experiments.sh</code></pre>
     <p>如某次中断，直接重新执行：完整的速度 JSON 会跳过；未生成最终 JSON 的配置会用新的 run ID 从头重跑，旧 rank 文件不会被混入。确定要重跑并覆盖全部已有结果时才加 <code>OVERWRITE=1</code>。</p>
 
     <h3>4.6 第四步：跑完整 GSM8K</h3>
@@ -220,6 +226,9 @@ if head_is_missing:
     <details><summary><code>HcclAllgather</code> / <code>Communication_Error_Get_Socket(EI0006)</code> 出现在速度实验末尾</summary><div>
       如果所有 rank 已加载模型，而某个较快 rank 在 <code>benchmark_decode.py</code> 的结果汇总处连接其他 rank 超时，通常是 100 条不同长度 prompt 分片后，各卡完成 20 轮生成的时间差超过了 HCCL collective 的等待窗口。新版速度脚本不再在正式生成后调用 <code>all_gather_object</code>：各 rank 改为原子写 <code>.rank_payloads</code>，文件齐全后自行读取，rank 0 再生成最终速度 JSON。同步新版后直接重新执行 <code>NUM_NPUS=8 PHASE=speed ...</code>；失败运行没有写出最终 <code>AR-BASE.json</code>，因此不需要 <code>OVERWRITE=1</code>。如果某个 rank 真正崩溃，等待超时会明确列出缺失的 rank 和 payload 目录，便于继续定位。
     </div></details>
+    <details><summary><code>No device id is provided ... barrier</code> 后长时间没有输出</summary><div>
+      这条是 PyTorch 在进入一次起点 barrier 时给出的警告，不是异常。若日志中 rank 0–7 都已显示各自加载 12/13 条 prompt，旧版接下来会直接执行每卡 240/260 次正式生成，直到某张卡全部完成才有新日志。运行 <code>watch -n 2 npu-smi info</code>：8 卡持续有利用率表示仍在计算，不应仅因没有日志就中断；全部卡连续数分钟为 0，再检查 <code>ps -ef | grep '[b]enchmark_decode.py'</code> 和 HCCL 错误。同步新版后，<code>Start barrier complete</code> 能明确证明越过 barrier，<code>Speed progress</code> 会持续报告进度和 ETA。
+    </div></details>
     <details><summary>还是只有一张 NPU 在工作</summary><div>
       确认命令前有 <code>NUM_NPUS=8</code>，日志应同时出现 rank 0–7，速度 JSON 中 <code>distributed_world_size</code> 应为 8。若手工直接执行 <code>python benchmark_decode.py</code>，它就是单进程，只会使用一张卡；请使用本手册的 torchrun 命令或统一启动脚本。
     </div></details>
@@ -240,7 +249,8 @@ if head_is_missing:
   <section>
     <h2>8. 验证状态</h2>
     <ul>
-      <li class="ok">Python 文件已通过语法编译；此前 GSM8K 数据协议与 B/S 解耦生成逻辑的 11 个单元测试通过。</li>
+      <li class="ok">Python AST、Git Bash 语法、HTML 解析和 <code>git diff --check</code> 已通过；此前 GSM8K 数据协议与 B/S 解耦生成逻辑的 11 个单元测试通过。</li>
+      <li>本次 Windows Python 环境没有安装 <code>pytest</code>，因此新增进度输出只完成静态验证；它位于两次样本计时之间，并单独扣除了打印耗时。</li>
       <li>新增了确定性分片、单进程回退、高可用通信包装绕过、共享 JSON rank 汇总和 lm-eval 停止符测试；当前 Windows 环境没有完整 NPU 软件栈，因此真实 8 卡速度路径仍需在服务器验证。</li>
       <li>第一次上服务器务必先跑 prepare 和 16 题分布式 smoke test，再启动 13 组正式实验。</li>
     </ul>
