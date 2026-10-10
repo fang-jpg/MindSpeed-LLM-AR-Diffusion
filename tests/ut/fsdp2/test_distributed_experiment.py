@@ -1,5 +1,6 @@
 import importlib.util
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from functools import wraps
 from pathlib import Path
 
@@ -95,4 +96,40 @@ def test_context_bypasses_megatron_dependent_collective_wrappers(monkeypatch):
         native_all_gather_object.__globals__["all_gather"]
         is mindspeed_inner_all_gather_wrapper
     )
+
+
+def test_rank_payloads_can_be_gathered_through_shared_json_files(tmp_path):
+    contexts = [
+        distributed.DistributedContext(
+            rank=rank,
+            local_rank=rank,
+            world_size=2,
+            device=f"npu:{rank}",
+        )
+        for rank in range(2)
+    ]
+    exchange_dir = tmp_path / "rank_payloads" / "run-123"
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futures = [
+            executor.submit(
+                context.all_gather_json_files,
+                {"rank": context.rank, "value": context.rank + 10},
+                exchange_dir,
+                2.0,
+                0.01,
+            )
+            for context in contexts
+        ]
+        results = [future.result() for future in futures]
+
+    expected = [
+        {"rank": 0, "value": 10},
+        {"rank": 1, "value": 11},
+    ]
+    assert results == [expected, expected]
+    assert sorted(path.name for path in exchange_dir.glob("rank*.json")) == [
+        "rank00.json",
+        "rank01.json",
+    ]
 

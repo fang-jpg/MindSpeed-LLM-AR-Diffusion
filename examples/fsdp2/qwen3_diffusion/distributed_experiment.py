@@ -4,11 +4,32 @@
 
 from __future__ import annotations
 
+import json
 import os
+import time
 from dataclasses import dataclass
+from pathlib import Path
 
 import torch
 import torch.distributed as dist
+
+
+def atomic_write_json(path: str | Path, value) -> None:
+    """Publish JSON atomically so other ranks never observe a partial file."""
+    destination = Path(path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary = destination.with_name(
+        f".{destination.name}.pid{os.getpid()}.tmp"
+    )
+    try:
+        temporary.write_text(
+            json.dumps(value, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        os.replace(temporary, destination)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
 
 
 def _native_collective(function):
@@ -76,6 +97,86 @@ class DistributedContext:
             return [value]
         gathered = [None] * self.world_size
         _native_all_gather_object(gathered, value)
+        return gathered
+
+    def all_gather_json_files(
+        self,
+        value,
+        exchange_dir: str | Path,
+        timeout_seconds: float = 3600.0,
+        poll_interval_seconds: float = 1.0,
+    ):
+        """Exchange JSON payloads through shared files instead of HCCL.
+
+        This is intended for post-benchmark result collection, where ranks can
+        finish far apart in time.  Avoiding a collective here prevents a fast
+        rank from hitting an HCCL connection timeout while slower ranks are
+        still decoding.
+        """
+        if timeout_seconds <= 0:
+            raise ValueError("timeout_seconds must be positive")
+        if poll_interval_seconds <= 0:
+            raise ValueError("poll_interval_seconds must be positive")
+
+        directory = Path(exchange_dir)
+        directory.mkdir(parents=True, exist_ok=True)
+        rank_path = directory / f"rank{self.rank:02d}.json"
+        atomic_write_json(
+            rank_path,
+            {
+                "schema_version": 1,
+                "rank": self.rank,
+                "world_size": self.world_size,
+                "value": value,
+            },
+        )
+
+        expected_paths = [
+            directory / f"rank{rank:02d}.json"
+            for rank in range(self.world_size)
+        ]
+        started = time.monotonic()
+        next_progress_report = 60.0
+        while True:
+            missing_ranks = [
+                rank
+                for rank, path in enumerate(expected_paths)
+                if not path.is_file()
+            ]
+            if not missing_ranks:
+                break
+
+            elapsed = time.monotonic() - started
+            if elapsed >= timeout_seconds:
+                raise TimeoutError(
+                    f"Timed out after {elapsed:.1f}s waiting for rank JSON "
+                    f"files in {directory}; missing ranks: {missing_ranks}"
+                )
+            if self.is_main and elapsed >= next_progress_report:
+                print(
+                    f"> Waiting for benchmark rank files; elapsed={elapsed:.0f}s, "
+                    f"missing_ranks={missing_ranks}",
+                    flush=True,
+                )
+                next_progress_report += 60.0
+            time.sleep(
+                min(poll_interval_seconds, timeout_seconds - elapsed)
+            )
+
+        gathered = []
+        for expected_rank, path in enumerate(expected_paths):
+            envelope = json.loads(path.read_text(encoding="utf-8"))
+            if envelope.get("rank") != expected_rank:
+                raise ValueError(
+                    f"Rank payload identity mismatch in {path}: "
+                    f"expected {expected_rank}, got {envelope.get('rank')}"
+                )
+            if envelope.get("world_size") != self.world_size:
+                raise ValueError(
+                    f"Rank payload world size mismatch in {path}: expected "
+                    f"{self.world_size}, got {envelope.get('world_size')}"
+                )
+            gathered.append(envelope["value"])
         return gathered
 
     def close(self) -> None:

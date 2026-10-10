@@ -9,10 +9,16 @@ import hashlib
 import json
 import statistics
 import time
+import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 
 import torch
-from distributed_experiment import initialize_distributed, shard_sequence
+from distributed_experiment import (
+    atomic_write_json,
+    initialize_distributed,
+    shard_sequence,
+)
 from gsm8k_experiment import iter_jsonl
 from inference_qwen3_diffusion import (
     DTYPE_MAP,
@@ -71,6 +77,12 @@ def parse_args():
         help="fail if the frozen subset does not contain this many prompts",
     )
     parser.add_argument("--debug", action="store_true")
+    parser.add_argument(
+        "--rank-file-timeout-seconds",
+        type=float,
+        default=3600.0,
+        help="maximum wait for slower ranks to publish benchmark JSON files",
+    )
     return parser.parse_args()
 
 
@@ -114,10 +126,15 @@ def validate_baseline(current: dict, baseline: dict) -> None:
 def main():
     args = parse_args()
     context = initialize_distributed(args.device)
+    output_path = Path(args.output_json)
+    output_path_resolved = output_path.resolve()
+    run_manifest_path = output_path.with_name(f"{output_path.stem}.run.json")
     if args.warmup < 0 or args.repeats <= 0:
         raise ValueError("warmup must be non-negative and repeats must be positive")
     if args.max_new_tokens <= 0:
         raise ValueError("max-new-tokens must be positive")
+    if args.rank_file_timeout_seconds <= 0:
+        raise ValueError("rank-file-timeout-seconds must be positive")
     rows = list(iter_jsonl(args.prompts_file))
     if len(rows) != args.expected_prompts:
         raise ValueError(
@@ -165,7 +182,43 @@ def main():
         )
     synchronize(device)
     reset_peak_memory(device)
+    if context.is_main:
+        run_id = uuid.uuid4().hex
+        rank_payload_dir = (
+            output_path.parent
+            / ".rank_payloads"
+            / output_path.stem
+            / run_id
+        ).resolve()
+        atomic_write_json(
+            run_manifest_path,
+            {
+                "schema_version": 1,
+                "status": "running",
+                "created_at_utc": datetime.now(timezone.utc).isoformat(),
+                "run_id": run_id,
+                "world_size": context.world_size,
+                "output_json": str(output_path_resolved),
+                "rank_payload_dir": str(rank_payload_dir),
+            },
+        )
     context.barrier()
+    run_manifest = json.loads(run_manifest_path.read_text(encoding="utf-8"))
+    expected_manifest = {
+        "world_size": context.world_size,
+        "output_json": str(output_path_resolved),
+    }
+    manifest_mismatches = {
+        key: (run_manifest.get(key), expected)
+        for key, expected in expected_manifest.items()
+        if run_manifest.get(key) != expected
+    }
+    if manifest_mismatches:
+        raise ValueError(
+            f"Benchmark run manifest does not match this process: "
+            f"{manifest_mismatches}"
+        )
+    rank_payload_dir = Path(run_manifest["rank_payload_dir"])
 
     timings_ms: list[float] = []
     generation_stats: list[dict] = []
@@ -190,6 +243,11 @@ def main():
 
     synchronize(device)
     local_wall_seconds = time.perf_counter() - measurement_started
+    print(
+        f"> [rank {context.rank}/{context.world_size}] Measurement complete; "
+        f"samples={len(timings_ms)}, wall_seconds={local_wall_seconds:.2f}",
+        flush=True,
+    )
     local_payload = {
         "rank": context.rank,
         "prompt_count": len(prompts),
@@ -210,9 +268,12 @@ def main():
         "parallel_wall_seconds": local_wall_seconds,
         "peak_memory_bytes": peak_memory_bytes(device),
     }
-    rank_payloads = context.all_gather_object(local_payload)
+    rank_payloads = context.all_gather_json_files(
+        local_payload,
+        rank_payload_dir,
+        timeout_seconds=args.rank_file_timeout_seconds,
+    )
     if not context.is_main:
-        context.barrier()
         context.close()
         return 0
 
@@ -248,6 +309,13 @@ def main():
         "device": "data_parallel_npu" if context.enabled else str(device),
         "dtype": args.dtype,
         "distributed_world_size": context.world_size,
+        "rank_result_exchange": "shared_json_files",
+        "rank_run_manifest": str(run_manifest_path.resolve()),
+        "rank_payload_dir": str(rank_payload_dir),
+        "rank_payload_files": [
+            f"rank{rank:02d}.json" for rank in range(context.world_size)
+        ],
+        "rank_file_timeout_seconds": args.rank_file_timeout_seconds,
         "local_prompt_counts": [
             payload["prompt_count"] for payload in rank_payloads
         ],
@@ -291,13 +359,17 @@ def main():
             aggregate_throughput / baseline_aggregate
         )
 
-    output_path = Path(args.output_json)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(
-        json.dumps(summary, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    atomic_write_json(output_path, summary)
+    atomic_write_json(
+        run_manifest_path,
+        {
+            **run_manifest,
+            "status": "complete",
+            "completed_at_utc": datetime.now(timezone.utc).isoformat(),
+            "summary_json": str(output_path_resolved),
+        },
     )
     print(json.dumps(summary, indent=2, ensure_ascii=False))
-    context.barrier()
     context.close()
     return 0
 

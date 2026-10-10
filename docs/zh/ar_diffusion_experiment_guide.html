@@ -82,10 +82,10 @@ datasets 缓存:  /home/f50058111/huggingface_cache/datasets</code></pre>
         <tr><td><a href="../../examples/fsdp2/qwen3_diffusion/inference_qwen3_diffusion.py">inference_qwen3_diffusion.py</a></td><td>增加 <code>--steps-per-block</code>、<code>--seed-mode</code>、同步计时、warmup/repeat、显存和 JSON 统计</td><td>单条 prompt 调试入口</td></tr>
         <tr><td><a href="../../examples/fsdp2/qwen3_diffusion/gsm8k_experiment.py">gsm8k_experiment.py</a></td><td>离线 cache 读取、固定抽样、5-shot prompt、lm-eval 停止符截断、数字答案标准化/抽取</td><td>速度与正确率共用同一数据协议，并对齐标准 GSM8K 评测口径</td></tr>
         <tr><td><a href="../../examples/fsdp2/qwen3_diffusion/prepare_gsm8k_data.py">prepare_gsm8k_data.py</a></td><td>抽取并冻结 100 条速度数据</td><td>只做一次，后面所有配置复用</td></tr>
-        <tr><td><a href="../../examples/fsdp2/qwen3_diffusion/distributed_experiment.py">distributed_experiment.py</a></td><td>按 <code>LOCAL_RANK</code> 绑定 NPU、初始化 HCCL、确定性分片并汇总；同时绕过对象汇总外层及其内部 <code>all_gather</code> 的高可用包装层</td><td>让 8 张卡同时处理互不重复的请求，并支持不初始化 Megatron 的独立评测入口</td></tr>
-        <tr><td><a href="../../examples/fsdp2/qwen3_diffusion/benchmark_decode.py">benchmark_decode.py</a></td><td>100 prompts × 20 repeat 分到 8 卡；忽略 EOS；输出单请求等价 tok/s、8 卡总吞吐、p50/p95、NFE、显存与 speedup</td><td>主表填写可与单卡口径比较的速度</td></tr>
+        <tr><td><a href="../../examples/fsdp2/qwen3_diffusion/distributed_experiment.py">distributed_experiment.py</a></td><td>按 <code>LOCAL_RANK</code> 绑定 NPU、初始化 HCCL、确定性分片；正确率评测可绕过高可用包装层，长时间测速可通过原子 JSON 文件交换结果</td><td>让 8 张卡同时处理互不重复的请求，并避免快卡等待慢卡时触发 HCCL 汇总超时</td></tr>
+        <tr><td><a href="../../examples/fsdp2/qwen3_diffusion/benchmark_decode.py">benchmark_decode.py</a></td><td>100 prompts × 20 repeat 分到 8 卡；忽略 EOS；每卡写独立 rank JSON，全部就绪后汇总 tok/s、8 卡总吞吐、p50/p95、NFE、显存与 speedup</td><td>主表填写可与单卡口径比较的速度，测速结束后不再调用 HCCL <code>all_gather_object</code></td></tr>
         <tr><td><a href="../../examples/fsdp2/qwen3_diffusion/evaluate_gsm8k_diffusion.py">evaluate_gsm8k_diffusion.py</a></td><td>完整 1319 题按 rank 分片；按 lm-eval 的 <code>Question:</code>、<code>&lt;/s&gt;</code>、<code>&lt;|im_end|&gt;</code> 截断预测；各 rank 可断点续跑，rank 0 校验并合并</td><td>缩短 GSM8K 总耗时，且避免模型继续生成下一题后误提取答案</td></tr>
-        <tr><td><a href="../../examples/fsdp2/qwen3_diffusion/run_block_step_experiments.sh">run_block_step_experiments.sh</a></td><td>默认 <code>NUM_NPUS=8</code>；提供 prepare、smoke、speed、quality、summarize 阶段</td><td>统一设置离线缓存并启动 8 个进程，避免手写命令</td></tr>
+        <tr><td><a href="../../examples/fsdp2/qwen3_diffusion/run_block_step_experiments.sh">run_block_step_experiments.sh</a></td><td>默认 <code>NUM_NPUS=8</code>；提供 prepare、smoke、speed、quality、summarize 阶段；可用 <code>RANK_FILE_TIMEOUT_SECONDS</code> 调整速度结果文件等待上限</td><td>统一设置离线缓存并启动 8 个进程，避免手写命令</td></tr>
         <tr><td><a href="../../examples/fsdp2/qwen3_diffusion/summarize_block_step_results.py">summarize_block_step_results.py</a></td><td>合并速度与正确率 JSON，生成 CSV 和 Markdown 汇总</td><td>实验完成后直接抄表</td></tr>
       </tbody>
     </table>
@@ -97,6 +97,7 @@ datasets 缓存:  /home/f50058111/huggingface_cache/datasets</code></pre>
       <li>速度指标从 input IDs 已经在设备上开始计时，到生成结束；包含 prompt prefill，排除模型加载、tokenization 和 host-to-device copy。</li>
       <li>这是<strong>数据并行评测</strong>：每张 NPU 放一份完整模型，各自处理不同 prompt/题目；它提升整批实验吞吐，不会把单条请求拆到 8 张卡上。</li>
       <li><code>decode_tokens_per_second</code> 用所有样本设备耗时之和计算，是主表采用的单请求等价速度；<code>aggregate_tokens_per_second</code> 用最慢 rank 的墙钟时间计算，只表示 8 卡总处理能力。</li>
+      <li>速度实验只在 warmup 后用一次 barrier 对齐起点；长时间正式生成结束后，每个 rank 原子写入独立 JSON，并通过共享目录等待文件齐全，不再要求快慢不同的 8 个 rank 同时进入 HCCL collective。</li>
     </ul>
     <div class="callout"><strong>与 lm-evaluation-harness 的关系：</strong>本地 <code>lm_eval/tasks/gsm8k/gsm8k.yaml</code> 定义的是 <code>openai/gsm8k/main</code>、5-shot、<code>Question/Answer</code> 模板、greedy（temperature=0）以及三个停止串；当前脚本复用了这些评测约定。由于 AR-Diffusion 必须调用仓库自己的 <code>generate_once()</code>，不能直接换成 lm-eval 的普通 Hugging Face 模型适配器。</div>
   </section>
@@ -143,7 +144,8 @@ cat "$OUTPUT_ROOT/data/gsm8k_protocol.json"</code></pre>
     <h3>4.5 第三步：跑速度</h3>
 <pre><code>NUM_NPUS=8 PHASE=speed bash examples/fsdp2/qwen3_diffusion/run_block_step_experiments.sh</code></pre>
     <p>执行顺序是 AR-BASE → 12 个 Diffusion 配置。每个配置的 100 条 prompt 按 <code>index % 8</code> 分给 8 张卡（每卡 12 或 13 条），每个 rank warmup 5 次，再重复 20 轮；全局仍是 2000 次正式生成，每次无视 EOS 并严格生成 128 token。</p>
-    <p>如某次中断，直接重新执行：已有 JSON 会跳过。确定要重跑并覆盖全部已有结果时才加 <code>OVERWRITE=1</code>。</p>
+    <p>每张卡完成后会打印 <code>Measurement complete</code>，并在 <code>speed/.rank_payloads/实验名/本次run-id/</code> 写自己的小型 JSON。rank 0 每 60 秒报告一次尚未完成的 rank；默认最多等待 3600 秒。这个等待发生在文件系统中，不使用 HCCL，不会影响已记录的单请求计时。</p>
+    <p>如某次中断，直接重新执行：完整的速度 JSON 会跳过；未生成最终 JSON 的配置会用新的 run ID 从头重跑，旧 rank 文件不会被混入。确定要重跑并覆盖全部已有结果时才加 <code>OVERWRITE=1</code>。</p>
 
     <h3>4.6 第四步：跑完整 GSM8K</h3>
 <pre><code>NUM_NPUS=8 PHASE=quality bash examples/fsdp2/qwen3_diffusion/run_block_step_experiments.sh</code></pre>
@@ -164,7 +166,10 @@ cat "$OUTPUT_ROOT/data/gsm8k_protocol.json"</code></pre>
 │   └── gsm8k_protocol.json
 ├── speed/
 │   ├── AR-BASE.json
-│   └── B04-S01.json ... B32-S32.json
+│   ├── AR-BASE.run.json
+│   ├── B04-S01.json ... B32-S32.json
+│   ├── B04-S01.run.json ... B32-S32.run.json
+│   └── .rank_payloads/实验名/run-id/rank00.json ... rank07.json
 ├── gsm8k/
 │   ├── AR-BASE/{summary.json,samples.jsonl,run_protocol.json,
 │   │           samples.rank00.jsonl ... samples.rank07.jsonl}
@@ -212,6 +217,9 @@ if head_is_missing:
     <details><summary><code>AssertionError: args is not initialized</code>（<code>dist.barrier()</code> 或 <code>all_gather_object()</code>）</summary><div>
       这不是 GSM8K cache 或 HCCL 初始化失败。日志若已经出现 8 个 rank 且显示 <code>Using latest cached version</code>，说明数据和多进程启动都正常；原因是 MindSpeed 把 <code>torch.distributed.barrier/all_gather_object/all_gather</code> 包成了高可用版本，该包装层会读取尚未初始化的 Megatron <code>args</code>。特别注意：即使解开 <code>all_gather_object</code> 外层，PyTorch 内部还会再次调用被包装的 <code>all_gather</code>。新版辅助类会同时绕过这两层且在调用后恢复原函数，不修改训练代码。若各 rank 已打印 <code>2/2</code>，说明 16 道题已经写入 rank 文件；同步新版后直接重跑 4.4，脚本会读取这 16 条记录、跳过模型加载并只完成汇总。若逐题文件协议不一致，再使用新的 <code>OUTPUT_ROOT</code>，或确认不要旧结果后加 <code>OVERWRITE=1</code>。
     </div></details>
+    <details><summary><code>HcclAllgather</code> / <code>Communication_Error_Get_Socket(EI0006)</code> 出现在速度实验末尾</summary><div>
+      如果所有 rank 已加载模型，而某个较快 rank 在 <code>benchmark_decode.py</code> 的结果汇总处连接其他 rank 超时，通常是 100 条不同长度 prompt 分片后，各卡完成 20 轮生成的时间差超过了 HCCL collective 的等待窗口。新版速度脚本不再在正式生成后调用 <code>all_gather_object</code>：各 rank 改为原子写 <code>.rank_payloads</code>，文件齐全后自行读取，rank 0 再生成最终速度 JSON。同步新版后直接重新执行 <code>NUM_NPUS=8 PHASE=speed ...</code>；失败运行没有写出最终 <code>AR-BASE.json</code>，因此不需要 <code>OVERWRITE=1</code>。如果某个 rank 真正崩溃，等待超时会明确列出缺失的 rank 和 payload 目录，便于继续定位。
+    </div></details>
     <details><summary>还是只有一张 NPU 在工作</summary><div>
       确认命令前有 <code>NUM_NPUS=8</code>，日志应同时出现 rank 0–7，速度 JSON 中 <code>distributed_world_size</code> 应为 8。若手工直接执行 <code>python benchmark_decode.py</code>，它就是单进程，只会使用一张卡；请使用本手册的 torchrun 命令或统一启动脚本。
     </div></details>
@@ -233,7 +241,7 @@ if head_is_missing:
     <h2>8. 验证状态</h2>
     <ul>
       <li class="ok">Python 文件已通过语法编译；此前 GSM8K 数据协议与 B/S 解耦生成逻辑的 11 个单元测试通过。</li>
-      <li>新增了确定性分片、单进程回退、高可用通信包装绕过和 lm-eval 停止符测试；当前 Windows 环境没有 torch、pytest，也没有 Atlas A2，因此 8 卡 HCCL 路径必须在服务器用 16 题 smoke test 验证。</li>
+      <li>新增了确定性分片、单进程回退、高可用通信包装绕过、共享 JSON rank 汇总和 lm-eval 停止符测试；当前 Windows 环境没有完整 NPU 软件栈，因此真实 8 卡速度路径仍需在服务器验证。</li>
       <li>第一次上服务器务必先跑 prepare 和 16 题分布式 smoke test，再启动 13 组正式实验。</li>
     </ul>
   </section>

@@ -12,6 +12,7 @@ OUTPUT_ROOT=${OUTPUT_ROOT:-$REPO_ROOT/outputs/ar_diffusion_gsm8k}
 PHASE=${PHASE:-prepare}
 OVERWRITE=${OVERWRITE:-0}
 NUM_NPUS=${NUM_NPUS:-8}
+RANK_FILE_TIMEOUT_SECONDS=${RANK_FILE_TIMEOUT_SECONDS:-3600}
 
 if ! [[ "$NUM_NPUS" =~ ^[1-9][0-9]*$ ]]; then
   echo "NUM_NPUS must be a positive integer, got: $NUM_NPUS" >&2
@@ -109,6 +110,7 @@ run_speed() {
       --temperature 0 \
       --warmup 5 \
       --repeats 20 \
+      --rank-file-timeout-seconds "$RANK_FILE_TIMEOUT_SECONDS" \
       --seed 42
   else
     echo "> Skipping existing speed result: $ar_json"
@@ -135,6 +137,7 @@ run_speed() {
       --temperature 0 \
       --warmup 5 \
       --repeats 20 \
+      --rank-file-timeout-seconds "$RANK_FILE_TIMEOUT_SECONDS" \
       --seed 42
   done
 }
