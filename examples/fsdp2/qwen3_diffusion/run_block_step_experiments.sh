@@ -13,6 +13,7 @@ PHASE=${PHASE:-prepare}
 OVERWRITE=${OVERWRITE:-0}
 NUM_NPUS=${NUM_NPUS:-8}
 RANK_FILE_TIMEOUT_SECONDS=${RANK_FILE_TIMEOUT_SECONDS:-3600}
+QUALITY_RANK_FILE_TIMEOUT_SECONDS=${QUALITY_RANK_FILE_TIMEOUT_SECONDS:-86400}
 SPEED_MAX_NEW_TOKENS=${SPEED_MAX_NEW_TOKENS:-128}
 SPEED_WARMUP=${SPEED_WARMUP:-5}
 SPEED_REPEATS=${SPEED_REPEATS:-20}
@@ -175,6 +176,7 @@ run_smoke() {
     --temperature 0 \
     --seed 42 \
     --max-eval-samples 16 \
+    --rank-file-timeout-seconds "$QUALITY_RANK_FILE_TIMEOUT_SECONDS" \
     --resume \
     "${overwrite_args[@]}"
 }
@@ -212,6 +214,7 @@ run_quality_case() {
     --max-new-tokens 512 \
     --temperature 0 \
     --seed 42 \
+    --rank-file-timeout-seconds "$QUALITY_RANK_FILE_TIMEOUT_SECONDS" \
     --resume \
     "${overwrite_args[@]}"
 }

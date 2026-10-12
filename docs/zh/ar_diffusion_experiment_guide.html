@@ -84,8 +84,8 @@ datasets 缓存:  /home/f50058111/huggingface_cache/datasets</code></pre>
         <tr><td><a href="../../examples/fsdp2/qwen3_diffusion/prepare_gsm8k_data.py">prepare_gsm8k_data.py</a></td><td>抽取并冻结 100 条速度数据</td><td>只做一次，后面所有配置复用</td></tr>
         <tr><td><a href="../../examples/fsdp2/qwen3_diffusion/distributed_experiment.py">distributed_experiment.py</a></td><td>按 <code>LOCAL_RANK</code> 绑定 NPU、初始化 HCCL、确定性分片；正确率评测可绕过高可用包装层，长时间测速可通过原子 JSON 文件交换结果</td><td>让 8 张卡同时处理互不重复的请求，并避免快卡等待慢卡时触发 HCCL 汇总超时</td></tr>
         <tr><td><a href="../../examples/fsdp2/qwen3_diffusion/benchmark_decode.py">benchmark_decode.py</a></td><td>100 prompts × 20 repeat 分到 8 卡；忽略 EOS；打印 barrier 阶段及每个 rank 的定时进度/ETA；每卡写独立 rank JSON，全部就绪后汇总 tok/s、8 卡总吞吐、p50/p95、NFE、显存与 speedup</td><td>主表填写可与单卡口径比较的速度，测速结束后不再调用 HCCL <code>all_gather_object</code>；进度打印耗时不计入 8 卡墙钟吞吐</td></tr>
-        <tr><td><a href="../../examples/fsdp2/qwen3_diffusion/evaluate_gsm8k_diffusion.py">evaluate_gsm8k_diffusion.py</a></td><td>完整 1319 题按 rank 分片；按 lm-eval 的 <code>Question:</code>、<code>&lt;/s&gt;</code>、<code>&lt;|im_end|&gt;</code> 截断预测；各 rank 可断点续跑，rank 0 校验并合并</td><td>缩短 GSM8K 总耗时，且避免模型继续生成下一题后误提取答案</td></tr>
-        <tr><td><a href="../../examples/fsdp2/qwen3_diffusion/run_block_step_experiments.sh">run_block_step_experiments.sh</a></td><td>默认 <code>NUM_NPUS=8</code>；提供 prepare、smoke、speed、quality、summarize 阶段；可用 <code>SPEED_PROGRESS_INTERVAL_SECONDS</code> 调整进度间隔，用 <code>RANK_FILE_TIMEOUT_SECONDS</code> 调整速度结果文件等待上限</td><td>统一设置离线缓存并启动 8 个进程，避免手写命令</td></tr>
+        <tr><td><a href="../../examples/fsdp2/qwen3_diffusion/evaluate_gsm8k_diffusion.py">evaluate_gsm8k_diffusion.py</a></td><td>完整 1319 题按 rank 分片；按 lm-eval 的 <code>Question:</code>、<code>&lt;/s&gt;</code>、<code>&lt;|im_end|&gt;</code> 截断预测；各 rank 可断点续跑；完成后用带本次 attempt-id 的共享 JSON 等待所有 rank，rank 0 再校验并合并</td><td>缩短 GSM8K 总耗时，避免模型继续生成下一题后误提取答案，并避免快慢 rank 在长任务末尾触发 HCCL 超时</td></tr>
+        <tr><td><a href="../../examples/fsdp2/qwen3_diffusion/run_block_step_experiments.sh">run_block_step_experiments.sh</a></td><td>默认 <code>NUM_NPUS=8</code>；提供 prepare、smoke、speed、quality、summarize 阶段；可用 <code>SPEED_PROGRESS_INTERVAL_SECONDS</code> 调整进度间隔，用 <code>RANK_FILE_TIMEOUT_SECONDS</code> / <code>QUALITY_RANK_FILE_TIMEOUT_SECONDS</code> 调整速度/正确率结果文件等待上限</td><td>统一设置离线缓存并启动 8 个进程，避免手写命令</td></tr>
         <tr><td><a href="../../examples/fsdp2/qwen3_diffusion/summarize_block_step_results.py">summarize_block_step_results.py</a></td><td>合并速度与正确率 JSON，生成 CSV 和 Markdown 汇总</td><td>实验完成后直接抄表</td></tr>
       </tbody>
     </table>
@@ -155,7 +155,7 @@ bash examples/fsdp2/qwen3_diffusion/run_block_step_experiments.sh</code></pre>
 
     <h3>4.6 第四步：跑完整 GSM8K</h3>
 <pre><code>NUM_NPUS=8 PHASE=quality bash examples/fsdp2/qwen3_diffusion/run_block_step_experiments.sh</code></pre>
-    <p>这一步运行 AR + 12 个配置 × 1319 题。每张卡处理约 165 题，每 10 个本地样本打印一次进度，并立即写入自己的 rank JSONL。中断后重跑会校验 <code>run_protocol.json</code> 并让各 rank 从自己的已有题数继续；全部结束后 rank 0 检查 0–1318 是否完整且无重复，再合并结果。</p>
+    <p>这一步运行 AR + 12 个配置 × 1319 题。每张卡处理约 165 题，每 10 个本地样本打印一次进度，并立即写入自己的 rank JSONL。中断后重跑会校验 <code>run_protocol.json</code> 并让各 rank 从自己的已有题数继续；全部结束后，各 rank 在 <code>.rank_completion/本次attempt-id/</code> 原子写入完成标记并通过共享文件等待，不再调用长时间 HCCL collective。rank 0 最后检查 0–1318 是否完整且无重复，再合并结果。默认正确率 rank 文件等待上限为 86400 秒。</p>
     <div class="callout"><strong>已有单卡残留结果时：</strong>单卡和 8 卡的断点文件协议不同，不能混续。请换一个新的 <code>OUTPUT_ROOT</code>；若确认旧结果不要了，才使用 <code>OVERWRITE=1</code>。</div>
 
     <h3>4.7 汇总结果</h3>
@@ -226,6 +226,8 @@ if head_is_missing:
     <details><summary><code>HcclAllgather</code> / <code>Communication_Error_Get_Socket(EI0006)</code> 出现在速度实验末尾</summary><div>
       如果所有 rank 已加载模型，而某个较快 rank 在 <code>benchmark_decode.py</code> 的结果汇总处连接其他 rank 超时，通常是 100 条不同长度 prompt 分片后，各卡完成 20 轮生成的时间差超过了 HCCL collective 的等待窗口。新版速度脚本不再在正式生成后调用 <code>all_gather_object</code>：各 rank 改为原子写 <code>.rank_payloads</code>，文件齐全后自行读取，rank 0 再生成最终速度 JSON。同步新版后直接重新执行 <code>NUM_NPUS=8 PHASE=speed ...</code>；失败运行没有写出最终 <code>AR-BASE.json</code>，因此不需要 <code>OVERWRITE=1</code>。如果某个 rank 真正崩溃，等待超时会明确列出缺失的 rank 和 payload 目录，便于继续定位。
     </div></details>
+    <details><summary><code>HcclAllgather</code> / <code>EI0006</code> 出现在 GSM8K 正确率评测末尾</summary><div>
+      若部分 rank 已打印 <code>165/165</code>，而其他 rank 仍在 150 或 160，根因是快 rank 在旧版第 332 行提前进入 <code>all_gather_object</code>，慢 rank 仍在生成，最终 HCCL socket 等待超时；这不是模型、数据集或答案解析错误。每道题在生成后已立即 flush 到各自的 <code>samples.rankXX.jsonl</code>，不要删除这些文件，也不要加 <code>OVERWRITE=1</code>。新版改为带 attempt-id 的共享 JSON 完成标记，并移除正确率评测末尾的 HCCL gather/barrier。同步新版后重新执行原来的 <code>NUM_NPUS=8 PHASE=quality ...</code>，<code>--resume</code> 会让完整 rank 跳过模型加载、未完整 rank 只补剩余题，然后安全生成 <code>summary.json</code>。可先用 <code>wc -l outputs/ar_diffusion_gsm8k/gsm8k/*/samples.rank*.jsonl</code> 核对断点行数。</div></details>
     <details><summary><code>No device id is provided ... barrier</code> 后长时间没有输出</summary><div>
       这条是 PyTorch 在进入一次起点 barrier 时给出的警告，不是异常。若日志中 rank 0–7 都已显示各自加载 12/13 条 prompt，旧版接下来会直接执行每卡 240/260 次正式生成，直到某张卡全部完成才有新日志。运行 <code>watch -n 2 npu-smi info</code>：8 卡持续有利用率表示仍在计算，不应仅因没有日志就中断；全部卡连续数分钟为 0，再检查 <code>ps -ef | grep '[b]enchmark_decode.py'</code> 和 HCCL 错误。同步新版后，<code>Start barrier complete</code> 能明确证明越过 barrier，<code>Speed progress</code> 会持续报告进度和 ETA。
     </div></details>

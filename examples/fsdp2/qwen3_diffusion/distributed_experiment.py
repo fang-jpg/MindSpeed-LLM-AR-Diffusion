@@ -108,10 +108,10 @@ class DistributedContext:
     ):
         """Exchange JSON payloads through shared files instead of HCCL.
 
-        This is intended for post-benchmark result collection, where ranks can
-        finish far apart in time.  Avoiding a collective here prevents a fast
-        rank from hitting an HCCL connection timeout while slower ranks are
-        still decoding.
+        This is intended for post-generation result collection, where ranks
+        can finish far apart in time.  Avoiding a collective here prevents a
+        fast rank from hitting an HCCL connection timeout while slower ranks
+        are still decoding.
         """
         if timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be positive")
@@ -154,7 +154,7 @@ class DistributedContext:
                 )
             if self.is_main and elapsed >= next_progress_report:
                 print(
-                    f"> Waiting for benchmark rank files; elapsed={elapsed:.0f}s, "
+                    f"> Waiting for rank result files; elapsed={elapsed:.0f}s, "
                     f"missing_ranks={missing_ranks}",
                     flush=True,
                 )

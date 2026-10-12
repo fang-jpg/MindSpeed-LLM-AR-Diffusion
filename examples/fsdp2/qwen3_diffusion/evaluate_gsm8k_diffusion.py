@@ -8,6 +8,7 @@ import argparse
 import hashlib
 import json
 import os
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -19,7 +20,11 @@ os.environ["HF_DATASETS_OFFLINE"] = "1"
 os.environ["TRANSFORMERS_OFFLINE"] = "1"
 
 import torch
-from distributed_experiment import initialize_distributed, shard_sequence
+from distributed_experiment import (
+    atomic_write_json,
+    initialize_distributed,
+    shard_sequence,
+)
 from gsm8k_experiment import (
     DATASET_CONFIG,
     DATASET_NAME,
@@ -94,6 +99,12 @@ def parse_args():
         action="store_true",
         help="continue a validated partial samples.jsonl run",
     )
+    parser.add_argument(
+        "--rank-file-timeout-seconds",
+        type=float,
+        default=86400.0,
+        help="maximum wait for slower ranks to publish completion JSON files",
+    )
     parser.add_argument("--debug", action="store_true")
     return parser.parse_args()
 
@@ -110,6 +121,7 @@ def main():
     )
     summary_path = output_dir / "summary.json"
     protocol_path = output_dir / "run_protocol.json"
+    attempt_manifest_path = output_dir / "evaluation_attempt.json"
     if summary_path.exists() and not args.overwrite:
         raise FileExistsError(
             f"Completed result already exists: {summary_path}; pass --overwrite to replace"
@@ -121,6 +133,8 @@ def main():
         )
     if args.max_eval_samples is not None and args.max_eval_samples <= 0:
         raise ValueError("max-eval-samples must be positive")
+    if args.rank_file_timeout_seconds <= 0:
+        raise ValueError("rank-file-timeout-seconds must be positive")
 
     test = load_gsm8k(args.cache_dir, "test")
     if args.fewshot_file:
@@ -201,6 +215,14 @@ def main():
         "generation_stop_sequences": list(GSM8K_STOP_SEQUENCES),
         "answer_filter": "strict-marker-then-flexible-last-number",
     }
+    protocol_sha256 = hashlib.sha256(
+        json.dumps(
+            protocol,
+            sort_keys=True,
+            ensure_ascii=False,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
 
     output_dir.mkdir(parents=True, exist_ok=True)
     if args.resume and existing_sample_files and not args.overwrite:
@@ -219,6 +241,23 @@ def main():
             json.dumps(protocol, indent=2, ensure_ascii=False) + "\n",
             encoding="utf-8",
         )
+    if context.is_main:
+        attempt_id = uuid.uuid4().hex
+        completion_dir = (
+            output_dir / ".rank_completion" / attempt_id
+        ).resolve()
+        atomic_write_json(
+            attempt_manifest_path,
+            {
+                "schema_version": 1,
+                "status": "running",
+                "created_at_utc": datetime.now(timezone.utc).isoformat(),
+                "attempt_id": attempt_id,
+                "world_size": context.world_size,
+                "protocol_sha256": protocol_sha256,
+                "completion_dir": str(completion_dir),
+            },
+        )
     context.barrier()
 
     stored_protocol = json.loads(protocol_path.read_text(encoding="utf-8"))
@@ -227,6 +266,24 @@ def main():
             "Run protocol does not match this command. Use a new output directory "
             "or --overwrite."
         )
+    attempt_manifest = json.loads(
+        attempt_manifest_path.read_text(encoding="utf-8")
+    )
+    expected_attempt = {
+        "world_size": context.world_size,
+        "protocol_sha256": protocol_sha256,
+    }
+    attempt_mismatches = {
+        key: (attempt_manifest.get(key), expected)
+        for key, expected in expected_attempt.items()
+        if attempt_manifest.get(key) != expected
+    }
+    if attempt_mismatches:
+        raise ValueError(
+            "Evaluation attempt manifest does not match this process: "
+            f"{attempt_mismatches}"
+        )
+    completion_dir = Path(attempt_manifest["completion_dir"])
 
     assigned_indices = shard_sequence(
         list(range(evaluation_count)), context.rank, context.world_size
@@ -329,12 +386,22 @@ def main():
             flush=True,
         )
 
-    resumed_counts = context.all_gather_object(len(previous_rows))
-    context.barrier()
+    rank_completion = context.all_gather_json_files(
+        {
+            "resumed_samples": len(previous_rows),
+            "completed_samples": len(assigned_indices),
+            "samples_file": samples_path.name,
+        },
+        completion_dir,
+        timeout_seconds=args.rank_file_timeout_seconds,
+    )
     if not context.is_main:
-        context.barrier()
         context.close()
         return 0
+
+    resumed_counts = [
+        payload["resumed_samples"] for payload in rank_completion
+    ]
 
     rank_sample_paths = (
         [combined_samples_path]
@@ -408,12 +475,22 @@ def main():
         "rank_sample_files": [path.name for path in rank_sample_paths],
         "run_protocol_file": protocol_path.name,
         "resumed_from_samples": sum(resumed_counts),
+        "rank_result_exchange": "shared_json_files",
+        "evaluation_attempt_file": attempt_manifest_path.name,
+        "rank_completion_dir": str(completion_dir),
+        "rank_file_timeout_seconds": args.rank_file_timeout_seconds,
     }
-    summary_path.write_text(
-        json.dumps(summary, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    atomic_write_json(summary_path, summary)
+    atomic_write_json(
+        attempt_manifest_path,
+        {
+            **attempt_manifest,
+            "status": "complete",
+            "completed_at_utc": datetime.now(timezone.utc).isoformat(),
+            "summary_json": str(summary_path.resolve()),
+        },
     )
     print(json.dumps(summary, indent=2, ensure_ascii=False))
-    context.barrier()
     context.close()
     return 0
 
