@@ -54,7 +54,7 @@ training:
   dataloader_num_workers: 4
   dataloader_drop_last: true
   seed: 10086
-  output_dir: /data2/model_train/ckpt/qwen3_1.7b_dopd/
+  output_dir: /data2/model_train/ckpt/qwen3_1.7b_dopd_1010/
   # Set this only when resuming a d-OPD run. Student initialization is below.
   resume_from_checkpoint: null
   optimizer: adamw
