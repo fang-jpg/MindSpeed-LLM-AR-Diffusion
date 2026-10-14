@@ -3,18 +3,213 @@
 from __future__ import annotations
 
 import json
+import math
 import random
+from bisect import bisect_right
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any, Callable, Iterator, Sequence
 
+import numpy as np
 import torch
 from torch.utils.data import IterableDataset, get_worker_info
 
 
 SHARD_FORMAT = "mindspeed-diffusion-sampler-shard-v1"
 POLICY_IDS = {"confidence": 0, "hybrid": 1}
+
+
+@dataclass(frozen=True)
+class MegatronDataConfig:
+    """Sampler-relevant fields loaded from a MindSpeed training YAML."""
+
+    prefixes: tuple[str, ...]
+    max_samples: int | None = None
+
+
+@dataclass(frozen=True)
+class MegatronDocument:
+    """One tokenized document selected from a Megatron IndexedDataset mix."""
+
+    token_ids: torch.LongTensor
+    sample_index: int
+    key: str
+    prefix: str
+    document_index: int
+
+
+def _normalize_megatron_prefix(value: Any) -> str:
+    prefix = str(value).strip()
+    if prefix.endswith(".bin") or prefix.endswith(".idx"):
+        prefix = prefix[:-4]
+    if not prefix:
+        raise ValueError("Megatron dataset prefix cannot be empty")
+    return prefix
+
+
+def load_megatron_data_config(path: str | Path) -> MegatronDataConfig:
+    """Read Megatron dataset prefixes from a MindSpeed FSDP2 YAML config."""
+
+    try:
+        import yaml
+    except ModuleNotFoundError as exc:  # pragma: no cover - project dependency
+        raise RuntimeError("PyYAML is required to read --data-config") from exc
+
+    config_path = Path(path)
+    with config_path.open(encoding="utf-8") as stream:
+        config = yaml.safe_load(stream) or {}
+
+    data = config.get("data")
+    if not isinstance(data, dict):
+        raise ValueError(f"{config_path}: missing mapping 'data'")
+    if data.get("data_manager_type") != "mg":
+        raise ValueError(
+            f"{config_path}: sampler IndexedDataset input requires "
+            "data.data_manager_type: mg"
+        )
+    dataset = data.get("dataset")
+    if not isinstance(dataset, dict) or "file_name" not in dataset:
+        raise ValueError(f"{config_path}: missing data.dataset.file_name")
+
+    raw_prefixes = dataset["file_name"]
+    if isinstance(raw_prefixes, str):
+        raw_prefixes = [item for item in raw_prefixes.split(",") if item.strip()]
+    if not isinstance(raw_prefixes, (list, tuple)) or not raw_prefixes:
+        raise ValueError(
+            f"{config_path}: data.dataset.file_name must contain dataset prefixes"
+        )
+    prefixes = tuple(_normalize_megatron_prefix(item) for item in raw_prefixes)
+
+    raw_max_samples = data.get("max_samples")
+    max_samples = None if raw_max_samples is None else int(raw_max_samples)
+    if max_samples is not None and max_samples <= 0:
+        raise ValueError(f"{config_path}: data.max_samples must be positive")
+    return MegatronDataConfig(prefixes=prefixes, max_samples=max_samples)
+
+
+def _open_indexed_dataset(prefix: str):
+    from mindspeed_llm.fsdp2.data.megatron_data.indexed_dataset import (
+        IndexedDataset,
+    )
+
+    if not IndexedDataset.exists(prefix):
+        raise FileNotFoundError(
+            f"Megatron dataset requires both {prefix}.bin and {prefix}.idx"
+        )
+    return IndexedDataset(prefix, multimodal=False, mmap=True)
+
+
+def _permutation_parameters(total: int, seed: int) -> tuple[int, int]:
+    """Return parameters for a constant-memory permutation of range(total)."""
+
+    if total <= 1:
+        return 0, 1
+    generator = random.Random(int(seed))
+    offset = generator.randrange(total)
+    stride = generator.randrange(1, total)
+    while math.gcd(stride, total) != 1:
+        stride += 1
+        if stride >= total:
+            stride = 1
+    return offset, stride
+
+
+def _document_boundaries(dataset: Any, prefix: str) -> np.ndarray:
+    boundaries = np.asarray(dataset.document_indices, dtype=np.int64)
+    if boundaries.ndim != 1 or boundaries.size < 2:
+        raise ValueError(f"{prefix}: invalid IndexedDataset document index")
+    if boundaries[0] != 0 or boundaries[-1] != len(dataset):
+        raise ValueError(
+            f"{prefix}: document index does not cover all dataset sequences"
+        )
+    if np.any(boundaries[1:] < boundaries[:-1]):
+        raise ValueError(f"{prefix}: document boundaries are not monotonic")
+    return boundaries
+
+
+def _read_document(
+    dataset: Any,
+    boundaries: np.ndarray,
+    document_index: int,
+) -> torch.LongTensor:
+    start = int(boundaries[document_index])
+    end = int(boundaries[document_index + 1])
+    sequences = []
+    for sequence_index in range(start, end):
+        value = dataset[sequence_index]
+        if isinstance(value, tuple):
+            value = value[0]
+        array = np.asarray(value)
+        if array.ndim != 1:
+            raise ValueError("Megatron token sequences must be one-dimensional")
+        if array.size:
+            sequences.append(array)
+    if not sequences:
+        return torch.empty(0, dtype=torch.long)
+    tokens = sequences[0] if len(sequences) == 1 else np.concatenate(sequences)
+    return torch.tensor(tokens, dtype=torch.long)
+
+
+def iter_megatron_documents(
+    prefixes: Sequence[str],
+    *,
+    rank: int = 0,
+    world_size: int = 1,
+    max_examples: int | None = None,
+    seed: int = 42,
+    dataset_factory: Callable[[str], Any] | None = None,
+) -> Iterator[MegatronDocument]:
+    """Yield a deterministic, data-parallel sample of tokenized documents.
+
+    Documents are selected from the union of all configured datasets without
+    materializing a global shuffle index.  This keeps capped collection (for
+    example ``max_samples: 100000``) proportional to source dataset size rather
+    than consuming only the first prefix.
+    """
+
+    if world_size <= 0 or not 0 <= rank < world_size:
+        raise ValueError("rank must satisfy 0 <= rank < world_size")
+    if max_examples is not None and max_examples <= 0:
+        raise ValueError("max_examples must be positive")
+    normalized = tuple(_normalize_megatron_prefix(item) for item in prefixes)
+    if not normalized:
+        raise ValueError("at least one Megatron dataset prefix is required")
+
+    factory = dataset_factory or _open_indexed_dataset
+    datasets = [factory(prefix) for prefix in normalized]
+    boundaries = [
+        _document_boundaries(dataset, prefix)
+        for dataset, prefix in zip(datasets, normalized)
+    ]
+    counts = [int(item.size - 1) for item in boundaries]
+    cumulative = np.cumsum(counts, dtype=np.int64)
+    total = int(cumulative[-1])
+    if total == 0:
+        raise ValueError("Megatron dataset mix contains no documents")
+    selected = total if max_examples is None else min(max_examples, total)
+    offset, stride = _permutation_parameters(total, seed)
+
+    for sample_index in range(selected):
+        flat_index = (offset + sample_index * stride) % total
+        source_index = bisect_right(cumulative, flat_index)
+        source_start = 0 if source_index == 0 else int(cumulative[source_index - 1])
+        document_index = int(flat_index - source_start)
+        if sample_index % world_size != rank:
+            continue
+        token_ids = _read_document(
+            datasets[source_index],
+            boundaries[source_index],
+            document_index,
+        )
+        prefix = normalized[source_index]
+        yield MegatronDocument(
+            token_ids=token_ids,
+            sample_index=sample_index,
+            key=f"{prefix}:{document_index}",
+            prefix=prefix,
+            document_index=document_index,
+        )
 
 
 def _torch_load(path: str | Path, map_location: Any = "cpu") -> dict[str, Any]:
