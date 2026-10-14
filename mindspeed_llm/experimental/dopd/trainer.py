@@ -228,7 +228,7 @@ class DOPDTrainer:
         teacher = AutoModelForCausalLM.from_pretrained(
             path,
             trust_remote_code=self.model_args.trust_remote_code,
-            torch_dtype=torch.bfloat16,
+            dtype=torch.bfloat16,
             low_cpu_mem_usage=True,
         )
         teacher.requires_grad_(False)
@@ -435,7 +435,7 @@ class DOPDTrainer:
                 self.dopd_args.block_size,
             )
             local_loss = 0.0
-            local_stats = torch.zeros(6, dtype=torch.float64, device=self.device)
+            local_stats = torch.zeros(6, dtype=torch.float32, device=self.device)
             accumulation = self.training_args.gradient_accumulation_steps
             prompt_batch, references, responses, reveal_steps, rollout_seed = (
                 self._collect_rollouts(iteration, response_tokens)
@@ -475,7 +475,7 @@ class DOPDTrainer:
                         stats.skipped_no_visible_future,
                         correct,
                     ],
-                    dtype=torch.float64,
+                    dtype=torch.float32,
                     device=self.device,
                 )
                 if (micro_step + 1) % accumulation == 0:
@@ -488,9 +488,15 @@ class DOPDTrainer:
                     self.optimizer_step += 1
             self.global_step = iteration
 
-            loss_tensor = torch.tensor(local_loss, dtype=torch.float64, device=self.device)
+            loss_tensor = torch.tensor(local_loss, dtype=torch.float32, device=self.device)
+            # 检查通信张量
+            assert loss_tensor.dtype == torch.float32
+            assert local_stats.dtype == torch.float32
+
+            # 跨八卡统计
             dist.all_reduce(loss_tensor, op=dist.ReduceOp.SUM)
             dist.all_reduce(local_stats, op=dist.ReduceOp.SUM)
+
             mean_loss = loss_tensor.item() / self.dopd_args.prompts_per_iteration
             if self.global_step % self.training_args.logging_steps == 0:
                 elapsed = time.time() - start_time

@@ -37,7 +37,7 @@ data:
   append_eod: true
 
 parallel:
-  fsdp_size: 8
+  fsdp_size: 16
   fsdp_modules:
     - model.layers.{*}
     - model.embed_tokens
@@ -83,6 +83,7 @@ training:
   warmup_ratio: 1e-2
   min_lr: 1e-06
   num_train_epochs: 1.0
+  max_steps: 102500                        # Smoke run; bump up after pass
   max_steps: 102500                        # Smoke run; bump up after pass
   save_steps: 500
   logging_steps: 10
