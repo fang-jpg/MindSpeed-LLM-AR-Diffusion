@@ -30,7 +30,23 @@ AdamW，总参数量约为 480 万。所有根据工程需要补充的参数都�
 
 ## 输入数据格式
 
-轨迹采集器接收 UTF-8 编码的 JSONL 文件。普通的提示词/回复记录格式如下：
+轨迹采集器支持以下两种输入，并且二者只能选择一个：
+
+1. 使用 `--data-config` 读取 MindSpeed FSDP2 训练 YAML 中
+   `data.dataset.file_name` 配置的 Megatron IndexedDataset；
+2. 使用 `--input-jsonl` 读取 UTF-8 JSONL。
+
+对于本项目的 `joint_cpt_qwen3_1.7b_fsdp2_A2.yaml`，数据路径是
+`*_text_document` 前缀，磁盘上必须同时存在对应的 `.bin` 和 `.idx` 文件。采集器
+使用 mmap 直接读取其中的 token ID，不会先解码再重新分词。CPT 数据没有
+prompt/response 边界，因此每篇文档的第一个 token 被用作最小因果前缀，其余
+token 按 `B=8/32` 划分为待去噪的连续块。
+
+使用 YAML 输入时，如果没有显式传入 `--max-examples`，会采用 YAML 中的
+`data.max_samples`。多个数据集会在它们的文档并集上进行确定性的均匀采样，而不是
+只读取列表中的第一个数据集。命令行 `--max-examples` 可以覆盖 YAML 的限制。
+
+JSONL 输入的普通提示词/回复记录格式如下：
 
 ```json
 {"prompt":"计算 2+2。","response":"答案是 4。"}
@@ -56,21 +72,37 @@ python examples/fsdp2/qwen3_diffusion/sampler/fit_sampler_pca.py \
 
 ## 2. 采集去噪轨迹
 
-单进程运行：
+使用当前项目的 CPT Megatron 数据进行 8 卡数据并行采集：
 
 ```bash
-python examples/fsdp2/qwen3_diffusion/sampler/collect_sampler_trajectories.py \
+torchrun --nproc-per-node 8 \
+  examples/fsdp2/qwen3_diffusion/sampler/collect_sampler_trajectories.py \
   --model-path /path/to/qwen3-diffusion-checkpoint \
   --config-diffusion examples/fsdp2/qwen3_diffusion/config_diffusion.json \
-  --input-jsonl /path/to/post_training_mix.jsonl \
+  --data-config examples/fsdp2/qwen3_diffusion/joint_cpt_qwen3_1.7b_fsdp2_A2.yaml \
   --output-dir outputs/sampler/trajectories \
   --pca-path outputs/sampler/pca_46.pt \
   --block-lengths 8 32 \
   --policies confidence hybrid
 ```
 
-数据并行采集会在每个加速器上加载一份冻结的主干模型，并为各进程分配不同的
-JSONL 数据行：
+`--model-path` 必须指向已经训练完成且可被 Hugging Face
+`from_pretrained()` 直接加载的扩散模型目录，不能直接填写 YAML 中的 FSDP
+`resume_from_checkpoint` 目录。拟合 PCA 和采集轨迹必须使用同一个模型检查点。
+
+如需直接传入 Megatron 数据前缀而不读取 YAML，也可以使用：
+
+```bash
+python examples/fsdp2/qwen3_diffusion/sampler/collect_sampler_trajectories.py \
+  --model-path /path/to/qwen3-diffusion-checkpoint \
+  --input-mg-prefixes \
+    /data2/comm_math_code/RedStone_QA_oq_part_text_document \
+    /data2/comm_math_code/swallow_code_ablation_exp11_scor_text_document \
+  --output-dir outputs/sampler/trajectories \
+  --pca-path outputs/sampler/pca_46.pt
+```
+
+原有 JSONL 输入仍然可用：
 
 ```bash
 torchrun --nproc-per-node 8 \
@@ -81,7 +113,8 @@ torchrun --nproc-per-node 8 \
   --pca-path outputs/sampler/pca_46.pt
 ```
 
-默认只保留完整的 8/32-token 块。回复中先前的 token 会通过教师强制方式加入因果
+数据并行采集会在每个加速器上加载一份冻结的主干模型，并为各进程分配不同的文档。
+默认只保留完整的 8/32-token 块。当前块之前的 token 会通过教师强制方式加入因果
 前缀，而当前块在开始时全部为掩码。训练集和验证集的划分是确定性的，并且以完整
 轨迹为单位进行。
 
@@ -108,17 +141,21 @@ Sampler 训练也支持使用 `torchrun` 进行多设备训练。由于 Sampler 
 
 ## 正式采集前先做冒烟测试
 
-建议先使用较小的 JSONL 文件并限制工作量：
+轨迹采集需要反复运行 1.7B 主干模型，正式处理 YAML 中的 10 万个样本前，建议先
+限制到少量文档和每篇文档的少量块：
 
 ```bash
-python examples/fsdp2/qwen3_diffusion/sampler/collect_sampler_trajectories.py \
-  --model-path /path/to/checkpoint \
-  --input-jsonl smoke.jsonl \
+torchrun --nproc-per-node 8 \
+  examples/fsdp2/qwen3_diffusion/sampler/collect_sampler_trajectories.py \
+  --model-path /path/to/qwen3-diffusion-checkpoint \
+  --data-config examples/fsdp2/qwen3_diffusion/joint_cpt_qwen3_1.7b_fsdp2_A2.yaml \
   --output-dir outputs/sampler/smoke \
   --pca-path outputs/sampler/pca_46.pt \
-  --max-examples 4 \
-  --max-blocks-per-example 1
+  --max-examples 64 \
+  --max-blocks-per-example 2 \
+  --validation-fraction 0.2
 ```
 
-检查 `train/` 和 `val/` 是否都生成了数据分片。冒烟测试的数据量很小时，可以增大
-`--validation-fraction`（例如设为 `0.5`），以避免验证集为空。
+检查 `train/` 和 `val/` 是否都生成了数据分片。冒烟测试通过后，删除
+`--max-examples` 和 `--max-blocks-per-example` 即可采用 YAML 的 `max_samples` 并
+采集每篇文档中的所有完整块。

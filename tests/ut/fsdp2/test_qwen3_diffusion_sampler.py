@@ -4,6 +4,7 @@ import sys
 import types
 from pathlib import Path
 
+import numpy as np
 import torch
 
 
@@ -152,6 +153,85 @@ def test_shards_round_trip_and_pad_mixed_block_lengths(tmp_path):
     assert len(records) == 2
     assert all(record["features"].shape == (32, 144) for record in records)
     assert [int(record["active_mask"].sum()) for record in records] == [2, 2]
+
+
+def test_load_megatron_prefixes_from_fsdp2_yaml(tmp_path):
+    config_path = tmp_path / "train.yaml"
+    config_path.write_text(
+        """
+data:
+  dataset:
+    file_name:
+      - /data/math_text_document.bin
+      - /data/code_text_document
+  max_samples: 123
+  data_manager_type: mg
+""".strip(),
+        encoding="utf-8",
+    )
+    config = data_module.load_megatron_data_config(config_path)
+    assert config.prefixes == (
+        "/data/math_text_document",
+        "/data/code_text_document",
+    )
+    assert config.max_samples == 123
+
+
+class _FakeIndexedDataset:
+    def __init__(self, sequences, document_indices):
+        self.sequences = [np.asarray(item, dtype=np.int32) for item in sequences]
+        self.document_indices = np.asarray(document_indices, dtype=np.int64)
+
+    def __len__(self):
+        return len(self.sequences)
+
+    def __getitem__(self, index):
+        return self.sequences[index]
+
+
+def test_megatron_documents_preserve_boundaries_and_shard_across_ranks():
+    datasets = {
+        "math": _FakeIndexedDataset(
+            sequences=[[1, 2], [3], [4, 5]],
+            document_indices=[0, 2, 3],
+        ),
+        "code": _FakeIndexedDataset(
+            sequences=[[6, 7, 8], [9], [10, 11]],
+            document_indices=[0, 1, 3],
+        ),
+    }
+    factory = datasets.__getitem__
+    complete = list(
+        data_module.iter_megatron_documents(
+            ["math", "code"],
+            seed=7,
+            dataset_factory=factory,
+        )
+    )
+    assert len(complete) == 4
+    by_key = {item.key: item.token_ids.tolist() for item in complete}
+    assert by_key == {
+        "math:0": [1, 2, 3],
+        "math:1": [4, 5],
+        "code:0": [6, 7, 8],
+        "code:1": [9, 10, 11],
+    }
+
+    rank_documents = []
+    for rank in (0, 1):
+        rank_documents.extend(
+            data_module.iter_megatron_documents(
+                ["math", "code"],
+                rank=rank,
+                world_size=2,
+                max_examples=3,
+                seed=7,
+                dataset_factory=factory,
+            )
+        )
+    assert len(rank_documents) == 3
+    assert {item.sample_index for item in rank_documents} == {0, 1, 2}
+    assert len({item.key for item in rank_documents}) == 3
 
 
 def test_auc_meter_handles_ties():
