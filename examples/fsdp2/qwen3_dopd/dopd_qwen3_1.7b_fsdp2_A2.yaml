@@ -20,7 +20,7 @@ data:
 parallel:
   # 双机 A2，每个节点 8 张 NPU。16 个 rank 共同分片学生模型；
   # 每个优化器步骤轮换启用 8 个 rank，以保持论文中的全局优化器 batch 为 8。
-  fsdp_size: 16
+  fsdp_size: 8
   fsdp_modules:
     - model.layers.{*}
     - model.embed_tokens
