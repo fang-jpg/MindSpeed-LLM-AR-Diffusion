@@ -29,6 +29,7 @@ from mindspeed_llm.experimental.dopd.core import (
 )
 from mindspeed_llm.experimental.dopd.opdlm_data import (
     load_opdlm_records,
+    preprocess_opdlm_records,
     records_for_iteration,
     shuffled_epoch,
     tokenize_opdlm_prompt,
@@ -121,15 +122,62 @@ class DOPDTrainer:
                 f"{self.output_dir} already contains checkpoints; use a new output_dir or resume explicitly"
             )
         self.verifier = _load_verifier(self.dopd_args.verifier)
+        self.tokenizer = TokenizerFactory.create(self.model_args)
         self.opdlm_records = None
+        self.opdlm_total_iterations = None
+        self.opdlm_preprocessing_report = None
         if self.dopd_args.train_data_path:
             records = load_opdlm_records(
                 self.dopd_args.train_data_path,
                 expected_records=self.dopd_args.expected_train_records,
             )
-            self.opdlm_records = shuffled_epoch(records, self.training_args.seed)
-            expected_iterations = math.ceil(
-                len(self.opdlm_records) / self.dopd_args.prompts_per_iteration
+            records = shuffled_epoch(records, self.training_args.seed)
+            original_record_count = len(records)
+            self.opdlm_total_iterations = math.ceil(
+                original_record_count / self.dopd_args.prompts_per_iteration
+            )
+            preprocessing_payload = [None]
+            if self.rank == 0:
+                try:
+                    kept_indices, report = preprocess_opdlm_records(
+                        records,
+                        self.tokenizer,
+                        self.dopd_args.prompt_tokens,
+                        batch_size=self.data_args.preprocessing_batch_size or 1000,
+                    )
+                    preprocessing_payload[0] = {
+                        "ok": True,
+                        "kept_indices": kept_indices,
+                        "report": report,
+                    }
+                except Exception as error:
+                    preprocessing_payload[0] = {
+                        "ok": False,
+                        "error_type": type(error).__name__,
+                        "error": str(error),
+                    }
+            dist.broadcast_object_list(preprocessing_payload, src=0)
+            preprocessing_result = preprocessing_payload[0]
+            if not preprocessing_result["ok"]:
+                raise RuntimeError(
+                    "OPDLM preprocessing failed on rank 0: "
+                    f"{preprocessing_result['error_type']}: {preprocessing_result['error']}"
+                )
+            self.opdlm_preprocessing_report = preprocessing_result["report"]
+            self.opdlm_records = [
+                records[index] for index in preprocessing_result["kept_indices"]
+            ]
+            expected_iterations = self.opdlm_total_iterations
+            scheduled_prompts = (
+                expected_iterations * self.dopd_args.prompts_per_iteration
+            )
+            self.opdlm_preprocessing_report.update(
+                {
+                    "scheduling_policy": "fixed_global_batch_cycle_padding",
+                    "scheduled_iterations": expected_iterations,
+                    "scheduled_prompts": scheduled_prompts,
+                    "repeated_prompts": scheduled_prompts - len(self.opdlm_records),
+                }
             )
             if (
                 self.dopd_args.strict_paper_alignment
@@ -139,15 +187,20 @@ class DOPDTrainer:
                     "A one-epoch OPDLM run requires "
                     f"training.max_steps={expected_iterations}, got {self.training_args.max_steps}"
                 )
+            report = self.opdlm_preprocessing_report
             logger.info_rank0(
-                f"> Loaded {len(self.opdlm_records)} official OPDLM records "
-                f"for {expected_iterations} on-policy iterations"
+                f"> OPDLM preprocessing (truncation disabled): "
+                f"original={report['original_records']}, "
+                f"retained={report['retained_records']}, "
+                f"dropped_over_{report['max_prompt_tokens']}={report['dropped_records']}, "
+                f"longest={report['longest_prompt_tokens']}, "
+                f"cycle_padding={report['repeated_prompts']}, "
+                f"iterations={expected_iterations}"
             )
 
         logger.info_rank0("> Building d-OPD diffusion student with MindSpeed FSDP2")
         self.student_engine = ModelFactory.create(self.model_args, self.parallel_args)
         self.student = self.student_engine.model
-        self.tokenizer = TokenizerFactory.create(self.model_args)
         self.template = None
         if not self.dopd_args.train_data_path:
             self.template = get_template_and_fix_tokenizer(self.tokenizer, self.data_args)
@@ -218,6 +271,16 @@ class DOPDTrainer:
             self.output_dir.mkdir(parents=True, exist_ok=True)
             with (self.output_dir / "dopd_config.json").open("w", encoding="utf-8") as stream:
                 json.dump(asdict(self.root_args), stream, indent=2, ensure_ascii=False)
+            if self.opdlm_preprocessing_report is not None:
+                with (self.output_dir / "opdlm_preprocessing_report.json").open(
+                    "w", encoding="utf-8"
+                ) as stream:
+                    json.dump(
+                        self.opdlm_preprocessing_report,
+                        stream,
+                        indent=2,
+                        ensure_ascii=False,
+                    )
         dist.barrier()
 
     def _validate_runtime_config(self):
@@ -486,6 +549,7 @@ class DOPDTrainer:
             self.opdlm_records,
             iteration,
             self.dopd_args.prompts_per_iteration,
+            total_iterations=self.opdlm_total_iterations,
         )
         step_seed = int(self.training_args.seed) + iteration
         global_indices = list(range(len(pool)))

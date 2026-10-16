@@ -8,6 +8,7 @@ from mindspeed_llm.experimental.dopd.opdlm_data import (
     SCIENCE_SUFFIX,
     format_opdlm_question,
     load_opdlm_records,
+    preprocess_opdlm_records,
     records_for_iteration,
     tokenize_opdlm_prompt,
 )
@@ -32,9 +33,12 @@ class _Tokenizer:
             "tokenize": True,
             "add_generation_prompt": True,
             "enable_thinking": False,
+            "truncation": False,
+            "return_dict": False,
         }
-        self.last_content = messages[0]["content"]
-        return [10, 11, 12]
+        conversations = messages if messages and isinstance(messages[0], list) else [messages]
+        self.last_content = conversations[-1][0]["content"]
+        return [[10, 11, 12] for _ in conversations]
 
     def decode(self, ids, skip_special_tokens=True):
         assert skip_special_tokens
@@ -48,8 +52,52 @@ def test_official_prompt_templates_and_qwen_chat_flags():
     tokenizer = _Tokenizer()
     assert tokenize_opdlm_prompt(_record("math"), tokenizer, 3) == [10, 11, 12]
     assert tokenizer.last_content.endswith(MATH_SUFFIX)
-    with pytest.raises(ValueError, match="exceeding the paper limit"):
+    with pytest.raises(ValueError, match="exceeding the configured limit"):
         tokenize_opdlm_prompt(_record("math"), tokenizer, 2)
+
+
+class _VariableLengthTokenizer:
+    def __init__(self):
+        self.calls = []
+
+    def apply_chat_template(self, conversations, **kwargs):
+        self.calls.append(kwargs)
+        assert conversations and isinstance(conversations[0], list)
+        return [
+            [10] * int(conversation[0]["content"])
+            for conversation in conversations
+        ]
+
+
+def test_official_preprocessing_filters_overlong_prompts_without_truncation():
+    records = [
+        _record("code", question="1"),
+        _record("code", question="3"),
+        _record("code", question="2"),
+    ]
+    tokenizer = _VariableLengthTokenizer()
+    kept_indices, report = preprocess_opdlm_records(
+        records,
+        tokenizer,
+        max_prompt_tokens=2,
+        batch_size=2,
+    )
+
+    assert kept_indices == [0, 2]
+    assert report["policy"] == "official_opdlm_filter_without_truncation"
+    assert report["original_records"] == 3
+    assert report["retained_records"] == 2
+    assert report["dropped_records"] == 1
+    assert report["longest_prompt_tokens"] == 3
+    assert report["dropped"] == [
+        {
+            "input_index": 1,
+            "domain": "code",
+            "source": "unit-test",
+            "prompt_tokens": 3,
+        }
+    ]
+    assert all(call["truncation"] is False for call in tokenizer.calls)
 
 
 def test_loader_validates_schema_and_exact_record_count(tmp_path):
@@ -68,6 +116,10 @@ def test_final_iteration_is_padded_from_epoch_start():
         "1",
         "2",
     ]
+    assert [
+        row["question"]
+        for row in records_for_iteration(records, 3, 4, total_iterations=3)
+    ] == ["3", "4", "0", "1"]
 
 
 def test_science_and_chat_correctness_gate():
