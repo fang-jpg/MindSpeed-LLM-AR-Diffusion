@@ -21,6 +21,36 @@ class IntermediateState:
     loss_mask: torch.BoolTensor
 
 
+def active_rank_training_schedule(
+    training_order: list[int],
+    *,
+    rank: int,
+    world_size: int,
+    active_ranks: int,
+    accumulation: int,
+) -> list[tuple[int, bool, bool]]:
+    """为全 rank 或轮换 rank batch 构造集合通信对齐的优化器任务。"""
+
+    if not 0 < active_ranks <= world_size or world_size % active_ranks:
+        raise ValueError("active_ranks must be a positive divisor of world_size")
+    if accumulation <= 0:
+        raise ValueError("accumulation must be positive")
+    if active_ranks < world_size:
+        if accumulation != 1:
+            raise ValueError("rotating active-rank cohorts require accumulation=1")
+        cohort_count = world_size // active_ranks
+        rank_cohort = rank // active_ranks
+        return [
+            (trajectory_index, cohort == rank_cohort, True)
+            for trajectory_index in training_order
+            for cohort in range(cohort_count)
+        ]
+    return [
+        (trajectory_index, True, (micro_step + 1) % accumulation == 0)
+        for micro_step, trajectory_index in enumerate(training_order)
+    ]
+
+
 def cosine_response_length(
     step: int,
     minimum: int,

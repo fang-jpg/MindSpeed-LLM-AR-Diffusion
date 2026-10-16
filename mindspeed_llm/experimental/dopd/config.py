@@ -21,6 +21,27 @@ class DOPDArguments:
         default=None,
         metadata={"help": "Optional MindSpeed FSDP2 checkpoint used to initialize the student."},
     )
+    train_data_path: Optional[str] = field(
+        default=None,
+        metadata={"help": "官方 OPDLM JSON/JSONL 训练集；启用后绕过 Megatron CPT 加载器。"},
+    )
+    expected_train_records: int = field(
+        default=61816,
+        metadata={"help": "如果官方训练集的记录数不等于该值，则立即报错。"},
+    )
+    strict_paper_alignment: bool = field(
+        default=False,
+        metadata={"help": "启动时校验公开 d-OPD 论文及原仓库中的超参数。"},
+    )
+    active_ranks_per_optimizer_step: int = field(
+        default=0,
+        metadata={
+            "help": (
+                "每个优化器步骤中贡献非零梯度的 rank 数；0 表示使用 WORLD_SIZE。"
+                "在 16 rank 训练中设为 8，可保持论文中的全局优化 batch 为 8。"
+            )
+        },
+    )
     mask_token_id: Optional[int] = field(
         default=None,
         metadata={"help": "Diffusion mask id. Defaults to the tokenizer/model configuration."},
@@ -97,6 +118,7 @@ class DOPDArguments:
 
     def __post_init__(self):
         positive = (
+            "expected_train_records",
             "prompt_tokens",
             "min_response_tokens",
             "max_response_tokens",
@@ -133,4 +155,6 @@ class DOPDArguments:
             raise ValueError("dopd.correction_strength must be non-negative")
         if self.correctness_gate and not self.verifier:
             raise ValueError("dopd.correctness_gate=true requires dopd.verifier=module:function")
+        if self.active_ranks_per_optimizer_step < 0:
+            raise ValueError("dopd.active_ranks_per_optimizer_step cannot be negative")
 

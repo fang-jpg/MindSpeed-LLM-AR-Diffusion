@@ -5,7 +5,9 @@ from __future__ import annotations
 import contextlib
 import copy
 import importlib
+import inspect
 import json
+import math
 import os
 import random
 import time
@@ -20,9 +22,16 @@ from transformers import AutoModelForCausalLM
 
 from mindspeed_llm.experimental.dopd.config import DOPDArguments
 from mindspeed_llm.experimental.dopd.core import (
+    active_rank_training_schedule,
     cosine_response_length,
     response_valid_mask,
     sample_intermediate_state,
+)
+from mindspeed_llm.experimental.dopd.opdlm_data import (
+    load_opdlm_records,
+    records_for_iteration,
+    shuffled_epoch,
+    tokenize_opdlm_prompt,
 )
 from mindspeed_llm.experimental.dopd.rollout import block_diffusion_rollout
 from mindspeed_llm.experimental.dopd.scoring import compute_dopd_loss
@@ -74,9 +83,13 @@ def _load_verifier(spec):
     if not spec:
         return None
     module_name, function_name = spec.split(":", 1)
-    function = getattr(importlib.import_module(module_name), function_name)
+    module = importlib.import_module(module_name)
+    function = getattr(module, function_name)
     if not callable(function):
         raise ValueError("dopd.verifier must identify a callable")
+    validate_runtime = getattr(module, "validate_runtime", None)
+    if callable(validate_runtime):
+        validate_runtime()
     return function
 
 
@@ -107,17 +120,45 @@ class DOPDTrainer:
             raise FileExistsError(
                 f"{self.output_dir} already contains checkpoints; use a new output_dir or resume explicitly"
             )
+        self.verifier = _load_verifier(self.dopd_args.verifier)
+        self.opdlm_records = None
+        if self.dopd_args.train_data_path:
+            records = load_opdlm_records(
+                self.dopd_args.train_data_path,
+                expected_records=self.dopd_args.expected_train_records,
+            )
+            self.opdlm_records = shuffled_epoch(records, self.training_args.seed)
+            expected_iterations = math.ceil(
+                len(self.opdlm_records) / self.dopd_args.prompts_per_iteration
+            )
+            if (
+                self.dopd_args.strict_paper_alignment
+                and self.training_args.max_steps != expected_iterations
+            ):
+                raise ValueError(
+                    "A one-epoch OPDLM run requires "
+                    f"training.max_steps={expected_iterations}, got {self.training_args.max_steps}"
+                )
+            logger.info_rank0(
+                f"> Loaded {len(self.opdlm_records)} official OPDLM records "
+                f"for {expected_iterations} on-policy iterations"
+            )
 
         logger.info_rank0("> Building d-OPD diffusion student with MindSpeed FSDP2")
         self.student_engine = ModelFactory.create(self.model_args, self.parallel_args)
         self.student = self.student_engine.model
         self.tokenizer = TokenizerFactory.create(self.model_args)
-        self.template = get_template_and_fix_tokenizer(self.tokenizer, self.data_args)
+        self.template = None
+        if not self.dopd_args.train_data_path:
+            self.template = get_template_and_fix_tokenizer(self.tokenizer, self.data_args)
         self.mask_token_id = self._resolve_mask_token_id()
         self.student.mask_token_id = self.mask_token_id
         self.student.config.mask_token_id = self.mask_token_id
         max_positions = getattr(self.student.config, "max_position_embeddings", None)
-        requested_context = self.dopd_args.prompt_tokens + self.dopd_args.max_response_tokens
+        # 训练输入按 [提示词, 干净回答, 加噪回答] 拼接。
+        requested_context = (
+            self.dopd_args.prompt_tokens + 2 * self.dopd_args.max_response_tokens
+        )
         if max_positions is not None and requested_context > int(max_positions):
             raise ValueError(
                 f"d-OPD requests {requested_context} tokens but the model supports {max_positions}"
@@ -147,26 +188,27 @@ class DOPDTrainer:
             lr_warmup_ratio=self.training_args.warmup_ratio,
             lr_min=self.training_args.min_lr,
         )
-        data_training_args = copy.copy(self.training_args)
-        # The public d-OPD loop performs multiple optimizer steps over each
-        # rollout pool. Build enough Megatron samples for all outer pools,
-        # while keeping training.max_steps user-facing as the rollout count.
-        data_training_args.max_steps *= self.inner_steps_per_iteration
-        self.data_manager = DataFactory.create(
-            data_manager_type=self.data_args.data_manager_type,
-            model_args=self.model_args,
-            data_args=self.data_args,
-            training_args=data_training_args,
-            parallel_args=self.parallel_args,
-            stage=self.training_args.stage,
-            tokenizer=self.tokenizer,
-            template=self.template,
-        )
-        self.dataloader = self.data_manager.create_train_dataloader()
-        self.data_iterator = iter(self.dataloader)
+        self.data_manager = None
+        self.dataloader = None
+        self.data_iterator = None
+        if self.opdlm_records is None:
+            data_training_args = copy.copy(self.training_args)
+            # 旧版 CPT 数据路径仅保留给已有的消融实验使用。
+            data_training_args.max_steps *= self.inner_steps_per_iteration
+            self.data_manager = DataFactory.create(
+                data_manager_type=self.data_args.data_manager_type,
+                model_args=self.model_args,
+                data_args=self.data_args,
+                training_args=data_training_args,
+                parallel_args=self.parallel_args,
+                stage=self.training_args.stage,
+                tokenizer=self.tokenizer,
+                template=self.template,
+            )
+            self.dataloader = self.data_manager.create_train_dataloader()
+            self.data_iterator = iter(self.dataloader)
         self.data_epoch = 0
         self.data_batches_consumed = 0
-        self.verifier = _load_verifier(self.dopd_args.verifier)
         self.teacher = self._load_teacher()
         self.global_step = 0
         self.optimizer_step = 0
@@ -181,12 +223,30 @@ class DOPDTrainer:
     def _validate_runtime_config(self):
         if self.model_args.model_id != "qwen3_diffusion":
             raise ValueError("model.model_id must be qwen3_diffusion")
-        if self.training_args.stage != "pt" or self.data_args.data_manager_type != "mg":
-            raise ValueError("the supplied Nemotron data requires training.stage=pt and data_manager_type=mg")
+        if self.training_args.stage != "pt":
+            raise ValueError("d-OPD requires training.stage=pt")
+        if not self.dopd_args.train_data_path and self.data_args.data_manager_type != "mg":
+            raise ValueError("the legacy Nemotron data path requires data_manager_type=mg")
         if self.training_args.per_device_train_batch_size != 1:
             raise ValueError("d-OPD currently requires per_device_train_batch_size=1")
+        self.active_ranks_per_step = (
+            self.dopd_args.active_ranks_per_optimizer_step or self.world_size
+        )
+        if self.active_ranks_per_step > self.world_size:
+            raise ValueError("dopd.active_ranks_per_optimizer_step cannot exceed WORLD_SIZE")
+        if self.world_size % self.active_ranks_per_step:
+            raise ValueError(
+                "WORLD_SIZE must be divisible by dopd.active_ranks_per_optimizer_step"
+            )
+        if (
+            self.active_ranks_per_step < self.world_size
+            and self.training_args.gradient_accumulation_steps != 1
+        ):
+            raise ValueError(
+                "gradient accumulation must be 1 when rotating active-rank cohorts"
+            )
         effective_training_batch = (
-            self.world_size
+            self.active_ranks_per_step
             * self.training_args.per_device_train_batch_size
             * self.training_args.gradient_accumulation_steps
         )
@@ -207,7 +267,113 @@ class DOPDTrainer:
         if self.training_args.max_steps <= 0:
             raise ValueError("training.max_steps must be positive")
         if self.parallel_args.fsdp_size != self.world_size:
-            raise ValueError("single-node reproduction requires parallel.fsdp_size=WORLD_SIZE")
+            raise ValueError("d-OPD requires parallel.fsdp_size=WORLD_SIZE")
+        if self.dopd_args.strict_paper_alignment:
+            self._validate_paper_alignment()
+
+    def _validate_paper_alignment(self):
+        if not self.dopd_args.train_data_path:
+            raise ValueError("strict paper alignment requires dopd.train_data_path")
+        if self.dopd_args.student_checkpoint is not None:
+            raise ValueError(
+                "strict paper alignment starts the diffusion-attention student from "
+                "Qwen3-1.7B Base; dopd.student_checkpoint must be null"
+            )
+        teacher_path = self.dopd_args.teacher_model_name_or_path
+        if teacher_path != self.model_args.model_name_or_path:
+            raise ValueError(
+                "strict paper alignment requires teacher and student to initialize "
+                "from the same Qwen3-1.7B Base path"
+            )
+        if self.model_args.train_from_scratch:
+            raise ValueError("strict paper alignment requires model.train_from_scratch=false")
+        if self.active_ranks_per_step != 8:
+            raise ValueError(
+                "strict paper alignment requires 8 active ranks per optimizer step "
+                "(the physical WORLD_SIZE may be 8 or 16)"
+            )
+        if self.dopd_args.expected_train_records != 61816:
+            raise ValueError("strict paper alignment requires 61,816 training records")
+        expected_dopd = {
+            "prompt_tokens": 2000,
+            "min_response_tokens": 100,
+            "max_response_tokens": 4000,
+            "response_schedule_steps": 100,
+            "prompts_per_iteration": 128,
+            "block_size": 4,
+            "denoise_steps": 4,
+            "temperature": 1.0,
+            "top_k": 0,
+            "top_p": 1.0,
+            "remasking_strategy": "low_confidence_dynamic",
+            "dynamic_threshold": 0.9,
+            "correction_strength": 0.5,
+            "candidate_top_k": 16,
+            "loss_top_k": 16,
+            "require_visible_future": True,
+            "correctness_gate": True,
+            "exclude_eos_from_loss": True,
+            "score_chunk_size": 128,
+            "teacher_cache_max_bytes": 17179869184,
+        }
+        mismatches = []
+        for name, expected in expected_dopd.items():
+            actual = getattr(self.dopd_args, name)
+            equal = (
+                math.isclose(actual, expected, rel_tol=0.0, abs_tol=1e-12)
+                if isinstance(expected, float)
+                else actual == expected
+            )
+            if not equal:
+                mismatches.append(f"dopd.{name}={actual!r} (expected {expected!r})")
+        expected_training = {
+            "per_device_train_batch_size": 1,
+            "gradient_accumulation_steps": 1,
+            "seed": 10086,
+            "optimizer": "adamw",
+            "lr": 1.0e-5,
+            "weight_decay": 0.0,
+            "adam_beta1": 0.9,
+            "adam_beta2": 0.999,
+            "adam_epsilon": 1.0e-8,
+            "max_grad_norm": 1.0,
+            "lr_scheduler_type": "cosine",
+            "min_lr": 1.0e-6,
+            "max_steps": 483,
+        }
+        for name, expected in expected_training.items():
+            actual = getattr(self.training_args, name)
+            equal = (
+                math.isclose(actual, expected, rel_tol=0.0, abs_tol=1e-12)
+                if isinstance(expected, float)
+                else actual == expected
+            )
+            if not equal:
+                mismatches.append(f"training.{name}={actual!r} (expected {expected!r})")
+        expected_warmup = 5.0 / 483.0
+        if not math.isclose(
+            self.training_args.warmup_ratio, expected_warmup, rel_tol=0.0, abs_tol=1e-10
+        ):
+            mismatches.append(
+                f"training.warmup_ratio={self.training_args.warmup_ratio!r} "
+                f"(expected 5/483={expected_warmup!r})"
+            )
+        warmup_inner_steps = int(
+            self.training_args.max_steps
+            * self.inner_steps_per_iteration
+            * self.training_args.warmup_ratio
+        )
+        if warmup_inner_steps != 5 * self.inner_steps_per_iteration:
+            mismatches.append(
+                f"warmup resolves to {warmup_inner_steps} inner steps "
+                f"(expected {5 * self.inner_steps_per_iteration})"
+            )
+        if not self.parallel_args.recompute:
+            mismatches.append("parallel.recompute=false (expected true)")
+        if self.parallel_args.param_dtype != "bf16" or self.parallel_args.reduce_dtype != "bf16":
+            mismatches.append("parallel param/reduce dtype must both be bf16")
+        if mismatches:
+            raise ValueError("Paper-alignment check failed:\n- " + "\n- ".join(mismatches))
 
     def _resolve_mask_token_id(self) -> int:
         value = self.dopd_args.mask_token_id
@@ -260,11 +426,14 @@ class DOPDTrainer:
                 self.global_step * self.local_rollouts_per_iteration,
             )
         )
-        for _ in range(target_batches):
-            self._next_batch()
+        if self.opdlm_records is None:
+            for _ in range(target_batches):
+                self._next_batch()
         logger.info_rank0(f"> Resumed d-OPD at iteration {self.global_step}")
 
     def _next_batch(self):
+        if self.data_iterator is None:
+            raise RuntimeError("Megatron data iterator is unavailable in official OPDLM mode")
         try:
             batch = next(self.data_iterator)
         except StopIteration:
@@ -294,40 +463,99 @@ class DOPDTrainer:
         reference = input_ids[prompt_length:]
         return prompt, reference
 
-    def _trajectory_is_correct(self, prompt, response, reference) -> bool:
+    def _trajectory_is_correct(self, prompt, response, reference, record=None) -> bool:
         if self.verifier is None:
             return False
-        return bool(
-            self.verifier(
-                prompt_ids=prompt[0].detach().cpu(),
-                response_ids=response[0].detach().cpu(),
-                reference_ids=reference.detach().cpu(),
-                tokenizer=self.tokenizer,
-            )
+        kwargs = {
+            "prompt_ids": prompt[0].detach().cpu(),
+            "response_ids": response[0].detach().cpu(),
+            "reference_ids": reference.detach().cpu(),
+            "tokenizer": self.tokenizer,
+        }
+        signature = inspect.signature(self.verifier)
+        accepts_kwargs = any(
+            parameter.kind == inspect.Parameter.VAR_KEYWORD
+            for parameter in signature.parameters.values()
         )
+        if record is not None and ("record" in signature.parameters or accepts_kwargs):
+            kwargs["record"] = record
+        return bool(self.verifier(**kwargs))
+
+    def _official_iteration_inputs(self, iteration: int):
+        pool = records_for_iteration(
+            self.opdlm_records,
+            iteration,
+            self.dopd_args.prompts_per_iteration,
+        )
+        step_seed = int(self.training_args.seed) + iteration
+        global_indices = list(range(len(pool)))
+        random.Random(step_seed).shuffle(global_indices)
+        local_indices = global_indices[self.rank :: self.world_size]
+        records = [pool[index] for index in local_indices]
+        prompts = [
+            torch.tensor(
+                tokenize_opdlm_prompt(
+                    record, self.tokenizer, self.dopd_args.prompt_tokens
+                ),
+                dtype=torch.long,
+                device=self.device,
+            ).unsqueeze(0)
+            for record in records
+        ]
+        references = [torch.empty(0, dtype=torch.long) for _ in records]
+        sample_seeds = [
+            (step_seed * 1_000_003 + global_index) % (2**31 - 1)
+            for global_index in local_indices
+        ]
+        return prompts, references, records, sample_seeds, step_seed
+
+    def _pad_prompts(self, prompts):
+        pad_id = self.tokenizer.pad_token_id
+        if pad_id is None:
+            pad_id = self.tokenizer.eos_token_id
+        if pad_id is None:
+            raise ValueError("the tokenizer must define pad_token_id or eos_token_id")
+        maximum = max(prompt.shape[1] for prompt in prompts)
+        batch = torch.full(
+            (len(prompts), maximum),
+            int(pad_id),
+            dtype=torch.long,
+            device=self.device,
+        )
+        attention_mask = torch.zeros_like(batch, dtype=torch.bool)
+        for row, prompt in enumerate(prompts):
+            length = prompt.shape[1]
+            batch[row, maximum - length :] = prompt[0]
+            attention_mask[row, maximum - length :] = True
+        return batch, attention_mask
 
     def _collect_rollouts(self, iteration: int, response_tokens: int):
         """Generate every rank-local trajectory in one cache-efficient batch."""
 
         local_batch_size = self.local_rollouts_per_iteration
-        prompts = []
-        references = []
-        for _ in range(local_batch_size):
-            prompt, reference = self._prompt_and_reference(self._next_batch())
-            prompts.append(prompt)
-            references.append(reference)
-        prompt_lengths = {prompt.shape[1] for prompt in prompts}
-        if len(prompt_lengths) != 1:
-            raise ValueError(
-                "rank-local prompts must have equal lengths for batched rollout; "
-                "the Megatron CPT loader should emit fixed-length samples"
+        if self.opdlm_records is not None:
+            prompts, references, records, sample_seeds, seed = (
+                self._official_iteration_inputs(iteration)
             )
-        prompt_batch = torch.cat(prompts, dim=0)
-        seed = (
-            int(self.training_args.seed)
-            + iteration * 1_000_003
-            + self.rank
-        ) % (2**31 - 1)
+        else:
+            prompts = []
+            references = []
+            for _ in range(local_batch_size):
+                prompt, reference = self._prompt_and_reference(self._next_batch())
+                prompts.append(prompt)
+                references.append(reference)
+            records = [None] * len(prompts)
+            seed = (
+                int(self.training_args.seed)
+                + iteration * 1_000_003
+                + self.rank
+            ) % (2**31 - 1)
+            sample_seeds = None
+        if len(prompts) != local_batch_size:
+            raise RuntimeError(
+                f"rank {self.rank} received {len(prompts)} rollouts; expected {local_batch_size}"
+            )
+        prompt_batch, prompt_attention_mask = self._pad_prompts(prompts)
         responses, first_unmask_steps = block_diffusion_rollout(
             self.student,
             prompt_batch,
@@ -342,8 +570,22 @@ class DOPDTrainer:
             dynamic_threshold=self.dopd_args.dynamic_threshold,
             seed=seed,
             eos_token_id=self.tokenizer.eos_token_id,
+            prompt_attention_mask=prompt_attention_mask,
+            sample_seeds=sample_seeds,
         )
-        return prompt_batch, references, responses, first_unmask_steps, seed
+        trajectory_seeds = sample_seeds or [
+            (seed + index * self.world_size) % (2**31 - 1)
+            for index in range(len(prompts))
+        ]
+        return (
+            prompts,
+            references,
+            records,
+            responses,
+            first_unmask_steps,
+            trajectory_seeds,
+            seed,
+        )
 
     def _trajectory_loss(
         self,
@@ -353,7 +595,16 @@ class DOPDTrainer:
         first_unmask_steps,
         *,
         seed: int,
+        record=None,
+        correction_enabled: bool = True,
     ):
+        eos_id = self.tokenizer.eos_token_id
+        if eos_id is not None:
+            eos_positions = response[0].eq(int(eos_id)).nonzero(as_tuple=True)[0]
+            if eos_positions.numel():
+                response_end = int(eos_positions[0].item()) + 1
+                response = response[:, :response_end]
+                first_unmask_steps = first_unmask_steps[:, :response_end]
         state = sample_intermediate_state(
             response[0],
             first_unmask_steps[0],
@@ -372,7 +623,11 @@ class DOPDTrainer:
             exclude_eos=False,
         )
         loss_mask = (state.loss_mask & valid).unsqueeze(0)
-        correct = self._trajectory_is_correct(prompt, response, reference)
+        correct = (
+            self._trajectory_is_correct(prompt, response, reference, record)
+            if correction_enabled
+            else False
+        )
         loss, stats = compute_dopd_loss(
             self.student,
             self.teacher,
@@ -385,7 +640,10 @@ class DOPDTrainer:
             loss_top_k=self.dopd_args.loss_top_k,
             correction_strength=self.dopd_args.correction_strength,
             require_visible_future=self.dopd_args.require_visible_future,
-            correction_allowed=(correct or not self.dopd_args.correctness_gate),
+            correction_allowed=(
+                correction_enabled
+                and (correct or not self.dopd_args.correctness_gate)
+            ),
             score_chunk_size=self.dopd_args.score_chunk_size,
             cache_max_bytes=self.dopd_args.teacher_cache_max_bytes,
             future_valid_length=int(future_valid.sum().item()),
@@ -435,50 +693,88 @@ class DOPDTrainer:
                 self.dopd_args.block_size,
             )
             local_loss = 0.0
-            local_stats = torch.zeros(6, dtype=torch.float32, device=self.device)
+            # loss/correction counters + per-domain total/correct counters.
+            local_stats = torch.zeros(14, dtype=torch.float32, device=self.device)
             accumulation = self.training_args.gradient_accumulation_steps
-            prompt_batch, references, responses, reveal_steps, rollout_seed = (
-                self._collect_rollouts(iteration, response_tokens)
-            )
+            (
+                prompts,
+                references,
+                records,
+                responses,
+                reveal_steps,
+                trajectory_seeds,
+                rollout_seed,
+            ) = self._collect_rollouts(iteration, response_tokens)
             local_trajectories = responses.shape[0]
             order_generator = torch.Generator(device="cpu").manual_seed(rollout_seed + 23)
             training_order = torch.randperm(
                 local_trajectories, generator=order_generator
             ).tolist()
+            training_schedule = active_rank_training_schedule(
+                training_order,
+                rank=self.rank,
+                world_size=self.world_size,
+                active_ranks=self.active_ranks_per_step,
+                accumulation=accumulation,
+            )
             last_grad_norm = torch.zeros((), device=self.device)
-            for micro_step, trajectory_index in enumerate(training_order):
-                trajectory_seed = (
-                    rollout_seed + trajectory_index * self.world_size
-                ) % (2**31 - 1)
+            for trajectory_index, active, optimizer_boundary in training_schedule:
+                trajectory_seed = trajectory_seeds[trajectory_index]
                 sync_context = (
                     self.student.no_sync()
-                    if (micro_step + 1) % accumulation != 0
-                    and hasattr(self.student, "no_sync")
+                    if not optimizer_boundary and hasattr(self.student, "no_sync")
                     else contextlib.nullcontext()
                 )
                 with sync_context:
                     loss, stats, correct = self._trajectory_loss(
-                        prompt_batch[trajectory_index : trajectory_index + 1],
+                        prompts[trajectory_index],
                         references[trajectory_index],
                         responses[trajectory_index : trajectory_index + 1],
                         reveal_steps[trajectory_index : trajectory_index + 1],
                         seed=trajectory_seed,
+                        record=records[trajectory_index],
+                        correction_enabled=active,
                     )
-                    (loss / accumulation).backward()
-                local_loss += float(loss.detach().item())
-                local_stats += torch.tensor(
-                    [
-                        stats.loss_tokens,
-                        stats.eligible_positions,
-                        stats.corrected_positions,
-                        stats.scored_branches,
-                        stats.skipped_no_visible_future,
-                        correct,
-                    ],
-                    dtype=torch.float32,
-                    device=self.device,
-                )
-                if (micro_step + 1) % accumulation == 0:
+                    if self.active_ranks_per_step < self.world_size:
+                        # FSDP averages gradients across all physical ranks. Scale
+                        # the active cohort so the result is the paper's 8-sample
+                        # 目标是得到论文中的 8 样本全局均值；未激活的 rank 仍执行
+                        # 相同计算图，以保持 FSDP 集合通信对齐。
+                        loss_scale = (
+                            self.world_size / self.active_ranks_per_step if active else 0.0
+                        )
+                    else:
+                        loss_scale = 1.0 / accumulation
+                    (loss * loss_scale).backward()
+                if active:
+                    local_loss += float(loss.detach().item())
+                    trajectory_stats = torch.zeros(
+                        14, dtype=torch.float32, device=self.device
+                    )
+                    trajectory_stats[:6] = torch.tensor(
+                        [
+                            stats.loss_tokens,
+                            stats.eligible_positions,
+                            stats.corrected_positions,
+                            stats.scored_branches,
+                            stats.skipped_no_visible_future,
+                            correct,
+                        ],
+                        dtype=torch.float32,
+                        device=self.device,
+                    )
+                    record = records[trajectory_index]
+                    if record is not None:
+                        domain_offset = {
+                            "math": 0,
+                            "science": 1,
+                            "code": 2,
+                            "chat": 3,
+                        }[record["domain"]]
+                        trajectory_stats[6 + domain_offset] = 1
+                        trajectory_stats[10 + domain_offset] = correct
+                    local_stats += trajectory_stats
+                if optimizer_boundary:
                     last_grad_norm = clip_grad_norm(
                         self.student_engine, self.training_args.max_grad_norm
                     )
@@ -493,7 +789,7 @@ class DOPDTrainer:
             assert loss_tensor.dtype == torch.float32
             assert local_stats.dtype == torch.float32
 
-            # 跨八卡统计
+            # 只汇总激活组的统计量，总计恰好为 128 条轨迹。
             dist.all_reduce(loss_tensor, op=dist.ReduceOp.SUM)
             dist.all_reduce(local_stats, op=dist.ReduceOp.SUM)
 
@@ -514,8 +810,19 @@ class DOPDTrainer:
                     "scored_branches": int(local_stats[3].item()),
                     "skipped_no_visible_future": int(local_stats[4].item()),
                     "correct_trajectories": int(local_stats[5].item()),
+                    "active_ranks_per_optimizer_step": self.active_ranks_per_step,
                     "elapsed_seconds": elapsed,
                 }
+                for domain_offset, domain in enumerate(
+                    ("math", "science", "code", "chat")
+                ):
+                    total = int(local_stats[6 + domain_offset].item())
+                    correct = int(local_stats[10 + domain_offset].item())
+                    metrics[f"{domain}_trajectories"] = total
+                    metrics[f"{domain}_correct"] = correct
+                    metrics[f"{domain}_accuracy"] = (
+                        correct / total if total else None
+                    )
                 logger.info_rank0("d-OPD " + " | ".join(f"{k}={v}" for k, v in metrics.items()))
                 if self.rank == 0:
                     with (self.output_dir / "metrics.jsonl").open("a", encoding="utf-8") as stream:

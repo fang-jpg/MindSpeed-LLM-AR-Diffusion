@@ -1,32 +1,26 @@
 model:
-  # Load the original Qwen3-1.7B-Base weights into Qwen3DiffusionForCausalLM.
-  # model_id=qwen3_diffusion replaces each causal attention module with the
-  # diffusion-toggle attention while preserving the Base model parameters.
-  model_name_or_path: /data2/model_weights/Qwen3-1.7B-Base
+  # 学生模型与教师模型都从相同的 AR Qwen3-1.7B Base 权重初始化。
+  # model_id=qwen3_diffusion 只在加载时替换注意力实现。
+  model_name_or_path: /mnt/pipeline-data/f50058111/model_weights/Qwen3-1.7B-Base
   model_id: qwen3_diffusion
   trust_remote_code: false
   train_from_scratch: false
   init_model_with_meta_device: false
 
 data:
-  dataset:
-    file_name:
-      - /data2/comm_math_code/RedStone_QA_oq_part_text_document
-      - /data2/comm_math_code/swallow_code_ablation_exp11_scor_text_document
-      - /data2/comm_math_code/megamath_qa_llama_3.3_text_document
-      - /data2/comm_math_code/megamath_qa_text_document
-      - /data2/comm_math_code/MetaMathQA_text_document
-      - /data2/comm_math_code/RedStone_QA_mcq_text_document
-      - /data2/comm_math_code/swallow_math_text_document
-  template: empty
-  cutoff_len: 4096
-  max_samples: 100000
-  overwrite_cache: true
-  preprocessing_num_workers: 4
+  # 下方 dopd.train_data_path 会直接读取官方 JSON 数据。
+  # 本配置不会读取 Nemotron/Megatron CPT 数据。
+  dataset: null
+  template: null
+  cutoff_len: 6000
+  enable_thinking: false
   data_manager_type: mg
+  data_shared_file_system: true
 
 parallel:
-  fsdp_size: 8
+  # 双机 A2，每个节点 8 张 NPU。16 个 rank 共同分片学生模型；
+  # 每个优化器步骤轮换启用 8 个 rank，以保持论文中的全局优化器 batch 为 8。
+  fsdp_size: 16
   fsdp_modules:
     - model.layers.{*}
     - model.embed_tokens
@@ -48,14 +42,11 @@ parallel:
 training:
   stage: pt
   per_device_train_batch_size: 1
-  # The official loop trains global batch 8 over the 128-rollout pool, yielding
-  # 16 optimizer steps per on-policy iteration.
   gradient_accumulation_steps: 1
-  dataloader_num_workers: 4
-  dataloader_drop_last: true
+  dataloader_num_workers: 0
+  dataloader_drop_last: false
   seed: 10086
-  output_dir: /data2/model_train/ckpt/qwen3_1.7b_dopd_1010/
-  # Set this only when resuming a d-OPD run. Student initialization is below.
+  output_dir: /mnt/pipeline-data/f50058111/model_train/opd/qwen3_1.7b_dopd_paper_2node_16card/
   resume_from_checkpoint: null
   optimizer: adamw
   lr: 1.0e-5
@@ -65,14 +56,13 @@ training:
   adam_epsilon: 1.0e-8
   max_grad_norm: 1.0
   lr_scheduler_type: cosine
-  # Five warmup iterations out of the paper's 483 total iterations.
+  # 5 次外层迭代等于 7,728 个内部优化器步骤中的前 80 步。
   warmup_ratio: 0.0103519669
   min_lr: 1.0e-6
   num_train_epochs: 1.0
-  # Outer on-policy rollout iterations; each contains 16 optimizer steps.
   max_steps: 483
   save_steps: 10
-  save_total_limit: 2
+  save_total_limit: 1
   save_only_model: false
   save_async: false
   logging_steps: 1
@@ -84,12 +74,12 @@ optimization:
   chunk_loss_size: 0
 
 dopd:
-  # The teacher loads the same Base checkpoint as an unchanged causal AR model;
-  # the student above loads it through the diffusion model class.
-  teacher_model_name_or_path: /data2/model_weights/Qwen3-1.7B-Base
-  # No Nemotron CPT warm-start: d-OPD starts directly from the attention-adapted
-  # Qwen3-1.7B-Base student. Set this only for an explicit warm-start ablation.
+  teacher_model_name_or_path: /mnt/pipeline-data/f50058111/model_weights/Qwen3-1.7B-Base
   student_checkpoint: null
+  train_data_path: /mnt/pipeline-data/f50058111/dataset/opdlm_train_data/opdlm_train.json
+  expected_train_records: 61816
+  strict_paper_alignment: true
+  active_ranks_per_optimizer_step: 8
   mask_token_id: 151669
   prompt_tokens: 2000
   min_response_tokens: 100
@@ -107,11 +97,8 @@ dopd:
   candidate_top_k: 16
   loss_top_k: 16
   require_visible_future: true
-  # The current Megatron CPT mixture has no task answer/verifier. This therefore
-  # reproduces the paper's gate-off ablation unless a verifier is supplied.
-  correctness_gate: false
-  verifier: null
+  correctness_gate: true
+  verifier: mindspeed_llm.experimental.dopd.opdlm_verifier:verify_opdlm_record
   exclude_eos_from_loss: true
-  score_chunk_size: 16
+  score_chunk_size: 128
   teacher_cache_max_bytes: 17179869184
-

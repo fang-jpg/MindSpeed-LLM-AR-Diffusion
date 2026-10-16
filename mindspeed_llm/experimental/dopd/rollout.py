@@ -54,7 +54,7 @@ def _filter_logits(logits: torch.Tensor, top_k: int, top_p: float) -> torch.Tens
     return logits
 
 
-def _sample(logits, temperature, top_k, top_p, mask_token_id, generator):
+def _sample(logits, temperature, top_k, top_p, mask_token_id, generators):
     logits = torch.nan_to_num(logits.float(), nan=-1e4, posinf=1e4, neginf=-1e4)
     if 0 <= mask_token_id < logits.shape[-1]:
         logits[..., mask_token_id] = -torch.inf
@@ -64,11 +64,22 @@ def _sample(logits, temperature, top_k, top_p, mask_token_id, generator):
     else:
         sample_logits = _filter_logits(logits / temperature, top_k=top_k, top_p=top_p)
         probabilities = F.softmax(sample_logits, dim=-1)
-        proposed = torch.multinomial(
-            probabilities.reshape(-1, probabilities.shape[-1]),
-            num_samples=1,
-            generator=generator,
-        ).reshape(probabilities.shape[:-1])
+        if isinstance(generators, (list, tuple)):
+            rows = []
+            for row, generator in zip(probabilities, generators):
+                sampled = torch.multinomial(
+                    row.reshape(-1, row.shape[-1]),
+                    num_samples=1,
+                    generator=generator,
+                ).reshape(row.shape[:-1])
+                rows.append(sampled)
+            proposed = torch.stack(rows)
+        else:
+            proposed = torch.multinomial(
+                probabilities.reshape(-1, probabilities.shape[-1]),
+                num_samples=1,
+                generator=generators,
+            ).reshape(probabilities.shape[:-1])
     confidence = raw_probabilities.gather(-1, proposed.unsqueeze(-1)).squeeze(-1)
     return proposed, confidence
 
@@ -94,6 +105,8 @@ def block_diffusion_rollout(
     dynamic_threshold: float,
     seed: int,
     eos_token_id: int | None = None,
+    prompt_attention_mask: torch.BoolTensor | None = None,
+    sample_seeds: list[int] | None = None,
 ) -> tuple[torch.LongTensor, torch.LongTensor]:
     """Generate responses and record each token's first reveal step.
 
@@ -109,22 +122,42 @@ def block_diffusion_rollout(
     if response_tokens <= 0:
         raise ValueError("response_tokens must be positive")
     device = prompt_ids.device
-    generator = torch.Generator(device=device).manual_seed(int(seed))
     batch_size, prompt_length = prompt_ids.shape
+    if prompt_attention_mask is None:
+        prompt_attention_mask = torch.ones_like(prompt_ids, dtype=torch.bool)
+    else:
+        prompt_attention_mask = prompt_attention_mask.to(device=device, dtype=torch.bool)
+    if prompt_attention_mask.shape != prompt_ids.shape:
+        raise ValueError("prompt_attention_mask must have the same shape as prompt_ids")
+    prompt_lengths = prompt_attention_mask.sum(dim=-1)
+    if (prompt_lengths <= 0).any().item():
+        raise ValueError("every rollout prompt must contain at least one non-padding token")
+    if sample_seeds is not None:
+        if len(sample_seeds) != batch_size:
+            raise ValueError("sample_seeds must contain one seed per rollout prompt")
+        generators = [
+            torch.Generator(device=device).manual_seed(int(sample_seed))
+            for sample_seed in sample_seeds
+        ]
+    else:
+        generators = torch.Generator(device=device).manual_seed(int(seed))
     was_training = model.training
     model.eval()
 
     set_diffusion_lm(model, False)
     cache = DynamicCache()
-    prompt_positions = torch.arange(prompt_length, device=device)
+    prompt_positions = prompt_attention_mask.long().cumsum(dim=-1) - 1
+    prompt_positions.masked_fill_(~prompt_attention_mask, 0)
+    prompt_cache_positions = torch.arange(prompt_length, device=device)
     # Call the Qwen3Diffusion root rather than its backbone directly.  The root
     # owns the composable FSDP2 hooks for parameters not covered by child plans.
     prefill = _root_forward(
         model,
         lm_positions=torch.tensor([prompt_length - 1], device=device),
         input_ids=prompt_ids,
-        position_ids=prompt_positions.unsqueeze(0),
-        cache_position=prompt_positions,
+        attention_mask=prompt_attention_mask.long(),
+        position_ids=prompt_positions,
+        cache_position=prompt_cache_positions,
         past_key_values=cache,
         use_cache=True,
     )
@@ -156,17 +189,36 @@ def block_diffusion_rollout(
             if not masked.any().item():
                 break
             prefix_cache_length = cache.get_seq_length()
-            positions = torch.arange(
+            logical_offsets = torch.arange(
+                generated, generated + current_length, device=device
+            )
+            positions = prompt_lengths.unsqueeze(1) + logical_offsets.unsqueeze(0)
+            cache_positions = torch.arange(
                 block_start, block_start + current_length, device=device
             )
+            key_valid = torch.cat(
+                [
+                    prompt_attention_mask,
+                    torch.ones(
+                        (batch_size, generated + current_length),
+                        dtype=torch.bool,
+                        device=device,
+                    ),
+                ],
+                dim=1,
+            )
+            attention_mask = torch.full(
+                (batch_size, 1, current_length, key_valid.shape[1]),
+                torch.finfo(next(model.parameters()).dtype).min,
+                dtype=next(model.parameters()).dtype,
+                device=device,
+            )
+            attention_mask.masked_fill_(key_valid[:, None, None, :], 0)
             denoise = model(
                 input_ids=block,
-                position_ids=positions.unsqueeze(0),
-                cache_position=torch.arange(
-                    prefix_cache_length,
-                    prefix_cache_length + current_length,
-                    device=device,
-                ),
+                attention_mask=attention_mask,
+                position_ids=positions,
+                cache_position=cache_positions,
                 past_key_values=cache,
                 use_cache=True,
             )
@@ -180,7 +232,7 @@ def block_diffusion_rollout(
                 top_k=top_k,
                 top_p=top_p,
                 mask_token_id=mask_token_id,
-                generator=generator,
+                generators=generators,
             )
             update = torch.zeros_like(masked)
             masked_confidence = confidence.masked_fill(~masked, -torch.inf)
@@ -220,12 +272,27 @@ def block_diffusion_rollout(
         if block_index + 1 < num_blocks and not globally_finished:
             set_diffusion_lm(model, False)
             cache_length = cache.get_seq_length()
-            positions = torch.arange(block_start, block_start + current_length, device=device)
+            logical_offsets = torch.arange(
+                generated - current_length,
+                generated,
+                device=device,
+            )
+            positions = prompt_lengths.unsqueeze(1) + logical_offsets.unsqueeze(0)
+            refresh_attention_mask = torch.cat(
+                [
+                    prompt_attention_mask,
+                    torch.ones(
+                        (batch_size, generated), dtype=torch.bool, device=device
+                    ),
+                ],
+                dim=1,
+            )
             refresh = _root_forward(
                 model,
                 lm_positions=torch.tensor([current_length - 1], device=device),
                 input_ids=block,
-                position_ids=positions.unsqueeze(0),
+                attention_mask=refresh_attention_mask.long(),
+                position_ids=positions,
                 cache_position=torch.arange(
                     cache_length, cache_length + current_length, device=device
                 ),

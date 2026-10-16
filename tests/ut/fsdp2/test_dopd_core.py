@@ -3,12 +3,28 @@ import random
 import torch
 
 from mindspeed_llm.experimental.dopd.core import (
+    active_rank_training_schedule,
     apply_future_reweighting,
     build_dopd_attention_mask,
     cosine_response_length,
     sample_intermediate_state,
     topk_forward_kl,
 )
+
+
+def test_two_node_rotation_retains_global_optimizer_batch_eight():
+    schedules = [
+        active_rank_training_schedule(
+            list(range(8)), rank=rank, world_size=16, active_ranks=8, accumulation=1
+        )
+        for rank in range(16)
+    ]
+    assert all(len(schedule) == 16 for schedule in schedules)
+    for update in range(16):
+        assert sum(int(schedule[update][1]) for schedule in schedules) == 8
+    for schedule in schedules:
+        active_trajectories = [trajectory for trajectory, active, _ in schedule if active]
+        assert active_trajectories == list(range(8))
 
 
 def test_cosine_response_curriculum_hits_endpoints_and_block_alignment():
