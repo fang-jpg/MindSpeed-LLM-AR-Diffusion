@@ -586,6 +586,7 @@ def generate_with_trace(
     stats = DecodeStats(prompt_tokens=prompt_length)
     traces: list[dict[str, Any]] = []
     cache = DynamicCache()
+    prompt_attention_mask = torch.ones_like(prompt_ids, dtype=torch.bool)
 
     set_diffusion_lm(model, False)
     prompt_positions = torch.arange(prompt_length, device=device)
@@ -593,6 +594,7 @@ def generate_with_trace(
         model,
         lm_positions=torch.tensor([prompt_length - 1], device=device),
         input_ids=prompt_ids,
+        attention_mask=prompt_attention_mask.long(),
         position_ids=prompt_positions.unsqueeze(0),
         cache_position=prompt_positions,
         past_key_values=cache,
@@ -653,6 +655,7 @@ def generate_with_trace(
                 "initial_mask_count": initial_masks,
                 "denoise_step_budget": block_steps,
                 "static_transfer_schedule": schedule,
+                "prefix_cache_length": int(cache.get_seq_length()),
                 "steps": [],
             }
 
@@ -662,11 +665,26 @@ def generate_with_trace(
                 break
             remaining_before = int(masked.sum().item())
             prefix_cache_length = cache.get_seq_length()
+            if prefix_cache_length != block_start:
+                raise RuntimeError(
+                    "KV cache is not aligned with the current response block: "
+                    f"cache_length={prefix_cache_length}, block_start={block_start}."
+                )
             positions = torch.arange(
                 block_start, block_start + current_length, device=device
             )
+            # Match the rollout path used during training: every query in the
+            # current denoising block can attend to the complete causal prefix
+            # and bidirectionally to every position in the current block.
+            key_length = prefix_cache_length + current_length
+            attention_mask = torch.zeros(
+                (1, 1, current_length, key_length),
+                dtype=next(model.parameters()).dtype,
+                device=device,
+            )
             denoise = model(
                 input_ids=block,
+                attention_mask=attention_mask,
                 position_ids=positions.unsqueeze(0),
                 cache_position=torch.arange(
                     prefix_cache_length,
@@ -784,6 +802,11 @@ def generate_with_trace(
             model,
             lm_positions=torch.tensor([current_length - 1], device=device),
             input_ids=block,
+            attention_mask=torch.ones(
+                (1, cache_length + current_length),
+                dtype=torch.long,
+                device=device,
+            ),
             position_ids=positions.unsqueeze(0),
             cache_position=torch.arange(
                 cache_length, cache_length + current_length, device=device
@@ -792,6 +815,15 @@ def generate_with_trace(
             use_cache=True,
         )
         cache = refresh.past_key_values
+        expected_cache_length = block_start + current_length
+        actual_cache_length = cache.get_seq_length()
+        if actual_cache_length != expected_cache_length:
+            raise RuntimeError(
+                "KV cache did not advance after saving a completed block: "
+                f"cache_length={actual_cache_length}, expected={expected_cache_length}."
+            )
+        if collect_trace:
+            block_trace["cache_length_after_saving"] = int(actual_cache_length)
         stats.refresh_nfe += 1
         if seed_mode == "ar":
             next_token, _ = _sample(
