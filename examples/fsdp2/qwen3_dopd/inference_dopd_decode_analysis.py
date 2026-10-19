@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Inspect block-size and confidence-threshold decoding of a d-OPD DCP model.
+"""Inspect or paper-align decoding of a d-OPD DCP model.
 
 The d-OPD trainer saves a PyTorch Distributed Checkpoint (DCP), not a standalone
 Hugging Face directory.  This entrypoint rebuilds the Qwen3 diffusion student
 with the same MindSpeed FSDP2 layout, loads the DCP weights, and runs the same
-hybrid causal/block-diffusion decoding family used by the evaluation adapter.
+    block-diffusion decoding state machine used by the released JetEngine.
 
 Only rank zero prints and writes results.  Every rank still executes every model
 forward because the checkpoint is loaded into an FSDP2 model.
@@ -111,12 +111,12 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--block-sizes",
-        default="4,8,16",
+        default="4",
         help="Comma-separated block sizes, for example 1,2,4,8,16.",
     )
     parser.add_argument(
         "--thresholds",
-        default="fixed,0.8,0.9",
+        default="fixed",
         help=(
             "Comma-separated modes. 'fixed' (or 0/none) commits only the static "
             "quota; a value in (0,1] additionally commits every token at or above "
@@ -126,25 +126,29 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--steps-per-block",
         type=int,
-        default=0,
-        help="Denoising steps for every block; 0 means equal to the block size.",
+        default=4,
+        help="Denoising steps for every block; the paper evaluation uses 4.",
     )
-    parser.add_argument("--max-new-tokens", type=int, default=64)
+    parser.add_argument("--max-new-tokens", type=int, default=4096)
     parser.add_argument("--mask-token-id", type=int, default=None)
-    parser.add_argument("--temperature", type=float, default=0.0)
-    parser.add_argument("--top-k", type=int, default=0)
+    parser.add_argument("--temperature", type=float, default=1.0)
+    parser.add_argument("--top-k", type=int, default=1)
     parser.add_argument("--top-p", type=float, default=1.0)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument(
         "--seed-mode",
         choices=("ar", "none"),
-        default="ar",
+        default="none",
         help=(
-            "'ar' seeds each block's first token causally (lm-eval path); 'none' "
-            "starts every position masked (training-rollout path)."
+            "'none' starts each response-aligned block fully masked, as in the "
+            "paper evaluation; 'ar' is the legacy hybrid decoder."
         ),
     )
-    parser.add_argument("--use-chat-template", action="store_true")
+    parser.add_argument(
+        "--use-chat-template",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
     parser.add_argument(
         "--enable-thinking",
         action="store_true",
@@ -153,6 +157,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--ignore-eos", action="store_true")
     parser.add_argument("--warmup", type=int, default=0)
     parser.add_argument("--repeats", type=int, default=1)
+    parser.add_argument(
+        "--paper-aligned",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help=(
+            "Validate the complete Appendix C.4 decoding recipe. Use "
+            "--no-paper-aligned only for deliberate block/threshold ablations."
+        ),
+    )
     parser.add_argument(
         "--no-print-trace",
         action="store_true",
@@ -216,6 +229,63 @@ def parse_thresholds(value: str) -> list[Optional[float]]:
     if not result:
         raise ValueError("At least one threshold mode is required.")
     return result
+
+
+def validate_paper_alignment(
+    args: argparse.Namespace,
+    block_sizes: list[int],
+    thresholds: list[Optional[float]],
+    run_config: dict[str, Any],
+) -> dict[str, Any]:
+    """Fail closed when a run labelled paper-aligned changes decoding semantics."""
+    trained_block_size = int(_nested(run_config, "dopd", "block_size", default=4))
+    expected = {
+        "trained_block_size": trained_block_size,
+        "block_sizes": [4],
+        "steps_per_block": 4,
+        "remasking": "low_confidence_static",
+        "thresholds": [None],
+        "response_aligned_blocks": True,
+        "temperature": 1.0,
+        "top_k": 1,
+        "top_p": 1.0,
+        "max_new_tokens": 4096,
+        "use_chat_template": True,
+        "enable_thinking": False,
+        "one_completion": True,
+        "ignore_eos": False,
+    }
+    checks = [
+        (
+            trained_block_size == 4,
+            f"checkpoint training block_size={trained_block_size}, expected 4",
+        ),
+        (block_sizes == [4], f"block_sizes={block_sizes}, expected [4]"),
+        (args.steps_per_block == 4, f"steps_per_block={args.steps_per_block}, expected 4"),
+        (thresholds == [None], f"thresholds={thresholds}, expected [fixed]"),
+        (args.seed_mode == "none", f"seed_mode={args.seed_mode!r}, expected 'none'"),
+        (args.temperature == 1.0, f"temperature={args.temperature}, expected 1.0"),
+        (args.top_k == 1, f"top_k={args.top_k}, expected 1"),
+        (args.top_p == 1.0, f"top_p={args.top_p}, expected 1.0"),
+        (args.max_new_tokens == 4096, f"max_new_tokens={args.max_new_tokens}, expected 4096"),
+        (args.use_chat_template, "Qwen3 chat template is disabled"),
+        (not args.enable_thinking, "enable_thinking must be false"),
+        (not args.ignore_eos, "ignore_eos must be false"),
+        (args.warmup == 0, f"warmup={args.warmup}, expected 0"),
+        (args.repeats == 1, f"repeats={args.repeats}, expected 1"),
+    ]
+    mismatches = [message for valid, message in checks if not valid]
+    if args.paper_aligned and mismatches:
+        raise ValueError(
+            "--paper-aligned configuration mismatch:\n- " + "\n- ".join(mismatches)
+        )
+    return {
+        "enabled": args.paper_aligned,
+        "status": "aligned" if not mismatches else "diagnostic_override",
+        "expected": expected,
+        "mismatches": mismatches,
+        "paper_section": "Appendix C.4 Benchmark evaluation",
+    }
 
 
 def resolve_paths_and_ids(
@@ -703,11 +773,8 @@ def generate_with_trace(
             )
             traces.append(block_trace)
 
-        if not ignore_eos and eos_token_id is not None:
-            stop_after_block = bool(block.eq(int(eos_token_id)).any().item())
-        if stop_after_block or block_index + 1 == num_blocks:
-            break
-
+        # JetEngine schedules every completed block once in SAVING state so its
+        # causal KV cache is materialized, including the final/EOS block.
         set_diffusion_lm(model, False)
         cache_length = cache.get_seq_length()
         positions = torch.arange(
@@ -739,6 +806,11 @@ def generate_with_trace(
         del refresh
         set_diffusion_lm(model, True)
 
+        if not ignore_eos and eos_token_id is not None:
+            stop_after_block = bool(block.eq(int(eos_token_id)).any().item())
+        if stop_after_block or block_index + 1 == num_blocks:
+            break
+
     response = torch.cat(response_blocks, dim=1)
     if not ignore_eos and eos_token_id is not None:
         eos_positions = response[0].eq(int(eos_token_id)).nonzero(as_tuple=True)[0]
@@ -757,6 +829,25 @@ def percentile(values: list[float], fraction: float) -> float:
     upper = min(lower + 1, len(ordered) - 1)
     weight = position - lower
     return ordered[lower] * (1.0 - weight) + ordered[upper] * weight
+
+
+def token_repetition_diagnostics(token_ids: list[int], ngram_size: int = 4) -> dict[str, Any]:
+    if not token_ids:
+        return {
+            "unique_token_ratio": 0.0,
+            "repeated_ngram_size": ngram_size,
+            "repeated_ngram_ratio": 0.0,
+        }
+    ngrams = [
+        tuple(token_ids[index : index + ngram_size])
+        for index in range(max(0, len(token_ids) - ngram_size + 1))
+    ]
+    repeated_ratio = 0.0 if not ngrams else 1.0 - len(set(ngrams)) / len(ngrams)
+    return {
+        "unique_token_ratio": len(set(token_ids)) / len(token_ids),
+        "repeated_ngram_size": ngram_size,
+        "repeated_ngram_ratio": repeated_ratio,
+    }
 
 
 def print_trace(result: dict[str, Any]) -> None:
@@ -785,7 +876,9 @@ def print_trace(result: dict[str, Any]) -> None:
             )
     stats = result["generation_stats"]
     print(
-        f"TPF={stats['tpf_total']:.4f} "
+        f"TPF_total={stats['tpf_total']:.4f}, "
+        f"TPF_decode={stats['tpf_decode']:.4f}, "
+        f"TPF_denoise_only={stats['tpf_denoise_only']:.4f} "
         f"(tokens={stats['generated_tokens']}, total_nfe={stats['total_nfe']}, "
         f"prefill={stats['prefill_nfe']}, denoise={stats['denoise_nfe']}, "
         f"refresh={stats['refresh_nfe']})",
@@ -815,6 +908,9 @@ def main() -> int:
     block_sizes = parse_block_sizes(args.block_sizes)
     thresholds = parse_thresholds(args.thresholds)
     run_config, run_config_path = load_run_config(args)
+    paper_alignment = validate_paper_alignment(
+        args, block_sizes, thresholds, run_config
+    )
     checkpoint, model_path, mask_token_id = resolve_paths_and_ids(args, run_config)
     model, tokenizer, device = initialize_and_load_model(
         args, run_config, checkpoint, model_path, mask_token_id
@@ -923,6 +1019,7 @@ def main() -> int:
                     },
                     "generated_token_ids": generated_ids,
                     "generated_text": generated_text,
+                    "repetition": token_repetition_diagnostics(generated_ids),
                     "trace": trace,
                 }
                 results.append(result)
@@ -931,7 +1028,7 @@ def main() -> int:
 
     if rank == 0:
         payload = {
-            "schema_version": 1,
+            "schema_version": 2,
             "checkpoint": str(checkpoint),
             "base_model_path": str(model_path),
             "dopd_config_json": str(run_config_path) if run_config_path else None,
@@ -948,9 +1045,13 @@ def main() -> int:
             "top_p": args.top_p,
             "seed": args.seed,
             "ignore_eos": args.ignore_eos,
+            "paper_alignment": paper_alignment,
             "tpf_definition": (
                 "tpf_total = realised generated tokens (including EOS when emitted) / "
-                "all model forwards (prefill + denoise + inter-block causal refresh)"
+                "all model forwards (prefill + denoise + per-block SAVING refresh); "
+                "tpf_decode excludes prefill; tpf_denoise_only excludes both prefill "
+                "and SAVING refresh. TPF is a local diagnostic, not a metric reported "
+                "by the d-OPD paper."
             ),
             "threshold_definition": (
                 "fixed_quota commits the highest-confidence static quota each step; "
@@ -969,7 +1070,8 @@ def main() -> int:
         temporary.replace(output_json)
         print("\n===== comparison summary =====", flush=True)
         print(
-            "block threshold tokens nfe tpf_total mean_ms tokens_per_second",
+            "block threshold tokens nfe tpf_total tpf_decode "
+            "tpf_denoise rep4 mean_ms tokens_per_second",
             flush=True,
         )
         for result in results:
@@ -983,6 +1085,9 @@ def main() -> int:
                 f"{result_stats['generated_tokens']:>6} "
                 f"{result_stats['total_nfe']:>3} "
                 f"{result_stats['tpf_total']:>9.4f} "
+                f"{result_stats['tpf_decode']:>10.4f} "
+                f"{result_stats['tpf_denoise_only']:>11.4f} "
+                f"{result['repetition']['repeated_ngram_ratio']:>4.1%} "
                 f"{latency['mean_ms']:>8.2f} "
                 f"{latency['tokens_per_second']:>17.3f}",
                 flush=True,

@@ -65,6 +65,12 @@ NODE_RANK=1 MASTER_ADDR=80.5.5.133 \
 
 可选的环境变量包括 `MODEL_PATH`、`DOPD_DATA_PATH`、`OUTPUT_DIR`、`MASTER_PORT` 和 `NPUS_PER_NODE`，默认值记录在 YAML 和启动脚本中。每个节点都会在 `$OUTPUT_DIR/logs/node_<rank>_<timestamp>.log` 下保存持久化控制台日志；rank 0 还会写入 `metrics.jsonl`、`dopd_config.json`，并每隔 10 次外层迭代保存一次 checkpoint。
 
+## 论文对齐推理
+
+`inference_dopd_qwen3_1.7b_fsdp2_A2.sh` 默认严格复现论文附录 C.4 的解码设置：训练对应的 block size 4、每块 4 个去噪步骤、整块从全 MASK 开始、`low_confidence_static`、temperature 1、top-p 1、top-k 1、Qwen3 chat template、`enable_thinking=false`，最多生成 4096 个 token。脚本会在配置偏离时直接报错，防止把消融实验误标成论文对齐结果。
+
+如果要比较其他 block size 或动态阈值，显式设置 `PAPER_ALIGNED=0`。这类结果属于解码消融，不能和论文表 1 直接比较。JSON 同时记录 `TPF_total`、`TPF_decode` 和 `TPF_denoise_only`；TPF 是本地诊断指标，并不是论文报告的 1.35–1.58 倍加速口径。论文中的该加速指达到 OPDLM 准确率所需的训练时间，而不是推理时每次前向生成的 token 数。
+
 正式训练前，建议使用单独的输出目录进行一次双机冒烟测试：
 
 ```bash

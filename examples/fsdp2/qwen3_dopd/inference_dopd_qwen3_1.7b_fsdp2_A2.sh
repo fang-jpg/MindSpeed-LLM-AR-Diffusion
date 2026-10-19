@@ -1,9 +1,8 @@
 #!/bin/bash
-# Inspect d-OPD block-size/threshold decoding on one 8-card A2 node.
+# Reproduce the d-OPD paper's Appendix C.4 decoder on one 8-card A2 node.
 #
-# Common overrides:
-#   BLOCK_SIZES=1,2,4,8,16 THRESHOLDS=fixed,0.7,0.8,0.9 \
-#   MAX_NEW_TOKENS=128 PROMPT='Explain why the sky is blue.' bash "$0"
+# For deliberate decoder ablations, set PAPER_ALIGNED=0 before overriding
+# block sizes, thresholds, generation length, or sampling parameters.
 #
 # If dopd_config.json records an old Base-model path, set MODEL_PATH explicitly.
 
@@ -32,18 +31,19 @@ OUTPUT_JSON=${OUTPUT_JSON:-${RUN_DIR}/dopd_decode_analysis.json}
 LOG_PATH=${LOG_PATH:-${RUN_DIR}/dopd_decode_analysis.log}
 
 PROMPT=${PROMPT:-"Janet's ducks lay 16 eggs per day. She eats three for breakfast every morning and bakes muffins for her friends every day with four. She sells the remainder at the farmers' market daily for \$2 per fresh duck egg. How much in dollars does she make every day?"}
-BLOCK_SIZES=${BLOCK_SIZES:-4,8,16}
-THRESHOLDS=${THRESHOLDS:-fixed,0.8,0.9}
-STEPS_PER_BLOCK=${STEPS_PER_BLOCK:-0}
-MAX_NEW_TOKENS=${MAX_NEW_TOKENS:-64}
-SEED_MODE=${SEED_MODE:-ar}
-TEMPERATURE=${TEMPERATURE:-0.0}
-TOP_K=${TOP_K:-0}
+PAPER_ALIGNED=${PAPER_ALIGNED:-1}
+BLOCK_SIZES=${BLOCK_SIZES:-4}
+THRESHOLDS=${THRESHOLDS:-fixed}
+STEPS_PER_BLOCK=${STEPS_PER_BLOCK:-4}
+MAX_NEW_TOKENS=${MAX_NEW_TOKENS:-4096}
+SEED_MODE=${SEED_MODE:-none}
+TEMPERATURE=${TEMPERATURE:-1.0}
+TOP_K=${TOP_K:-1}
 TOP_P=${TOP_P:-1.0}
 SEED=${SEED:-42}
 WARMUP=${WARMUP:-0}
 REPEATS=${REPEATS:-1}
-USE_CHAT_TEMPLATE=${USE_CHAT_TEMPLATE:-0}
+USE_CHAT_TEMPLATE=${USE_CHAT_TEMPLATE:-1}
 ENABLE_THINKING=${ENABLE_THINKING:-0}
 IGNORE_EOS=${IGNORE_EOS:-0}
 
@@ -72,6 +72,8 @@ if [[ -n "${MODEL_PATH}" ]]; then
 fi
 if [[ "${USE_CHAT_TEMPLATE}" == "1" ]]; then
   ARGS+=(--use-chat-template)
+else
+  ARGS+=(--no-use-chat-template)
 fi
 if [[ "${ENABLE_THINKING}" == "1" ]]; then
   ARGS+=(--enable-thinking)
@@ -79,11 +81,19 @@ fi
 if [[ "${IGNORE_EOS}" == "1" ]]; then
   ARGS+=(--ignore-eos)
 fi
+if [[ "${PAPER_ALIGNED}" == "1" ]]; then
+  ARGS+=(--paper-aligned)
+else
+  ARGS+=(--no-paper-aligned)
+fi
 
 echo "Checkpoint : ${CHECKPOINT_PATH}"
 echo "Base model : ${MODEL_PATH:-auto from dopd_config.json}"
 echo "Blocks     : ${BLOCK_SIZES}"
 echo "Thresholds : ${THRESHOLDS}"
+echo "Paper mode : ${PAPER_ALIGNED}"
+echo "Decoder    : response-aligned all-MASK blocks, ${STEPS_PER_BLOCK} steps/block"
+echo "Sampling   : temperature=${TEMPERATURE}, top-k=${TOP_K}, top-p=${TOP_P}"
 echo "Output     : ${OUTPUT_JSON}"
 echo "Log        : ${LOG_PATH}"
 
