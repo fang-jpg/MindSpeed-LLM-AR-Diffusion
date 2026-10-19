@@ -47,6 +47,27 @@ USE_CHAT_TEMPLATE=${USE_CHAT_TEMPLATE:-1}
 ENABLE_THINKING=${ENABLE_THINKING:-0}
 IGNORE_EOS=${IGNORE_EOS:-0}
 
+# Paper mode is fail-closed: stale exported variables from an earlier ablation
+# must not silently change the Appendix C.4 decoding protocol.  Set
+# PAPER_ALIGNED=0 explicitly when block-size/threshold/sampling overrides are
+# desired for a diagnostic run.
+if [[ "${PAPER_ALIGNED:-1}" == "1" ]]; then
+  PAPER_ALIGNED=1
+  BLOCK_SIZES=4
+  THRESHOLDS=fixed
+  STEPS_PER_BLOCK=4
+  MAX_NEW_TOKENS=4096
+  SEED_MODE=none
+  TEMPERATURE=1.0
+  TOP_K=1
+  TOP_P=1.0
+  WARMUP=0
+  REPEATS=1
+  USE_CHAT_TEMPLATE=1
+  ENABLE_THINKING=0
+  IGNORE_EOS=0
+fi
+
 mkdir -p "$(dirname "${OUTPUT_JSON}")" "$(dirname "${LOG_PATH}")"
 
 ARGS=(
@@ -81,7 +102,7 @@ fi
 if [[ "${IGNORE_EOS}" == "1" ]]; then
   ARGS+=(--ignore-eos)
 fi
-if [[ "${PAPER_ALIGNED}" == "1" ]]; then
+if [[ "${PAPER_ALIGNED:-1}" == "1" ]]; then
   ARGS+=(--paper-aligned)
 else
   ARGS+=(--no-paper-aligned)
@@ -91,7 +112,7 @@ echo "Checkpoint : ${CHECKPOINT_PATH}"
 echo "Base model : ${MODEL_PATH:-auto from dopd_config.json}"
 echo "Blocks     : ${BLOCK_SIZES}"
 echo "Thresholds : ${THRESHOLDS}"
-echo "Paper mode : ${PAPER_ALIGNED}"
+echo "Paper mode : ${PAPER_ALIGNED:-1}"
 echo "Decoder    : response-aligned all-MASK blocks, ${STEPS_PER_BLOCK} steps/block"
 echo "Sampling   : temperature=${TEMPERATURE}, top-k=${TOP_K}, top-p=${TOP_P}"
 echo "Output     : ${OUTPUT_JSON}"
