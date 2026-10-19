@@ -102,7 +102,6 @@ if [[ "${IGNORE_EOS}" == "1" ]]; then
   ARGS+=(--ignore-eos)
 fi
 if [[ "${PAPER_ALIGNED:-1}" == "1" ]]; then
-if [[ "${PAPER_ALIGNED:-1}" == "1" ]]; then
   ARGS+=(--paper-aligned)
 else
   ARGS+=(--no-paper-aligned)
