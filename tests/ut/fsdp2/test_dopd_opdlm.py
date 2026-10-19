@@ -12,7 +12,10 @@ from mindspeed_llm.experimental.dopd.opdlm_data import (
     records_for_iteration,
     tokenize_opdlm_prompt,
 )
-from mindspeed_llm.experimental.dopd.opdlm_verifier import verify_opdlm_record
+from mindspeed_llm.experimental.dopd.opdlm_verifier import (
+    verify_opdlm_record,
+    verify_opdlm_record_detailed,
+)
 
 
 def _record(domain="math", question="What is 1+1?", answer="2"):
@@ -135,3 +138,48 @@ def test_science_and_chat_correctness_gate():
         tokenizer=tokenizer,
         record=_record("chat", answer="N/A"),
     )
+
+
+def test_detailed_verifier_explains_science_and_chat_failures():
+    tokenizer = _Tokenizer()
+    mismatch = torch.tensor([ord(char) for char in "The answer is B"])
+    science = verify_opdlm_record_detailed(
+        response_ids=mismatch,
+        tokenizer=tokenizer,
+        record=_record("science", answer="C"),
+    )
+    assert science == {
+        "correct": False,
+        "applicable": True,
+        "reason": "science_choice_mismatch",
+        "extracted_answer": "B",
+        "ground_truth_answer": "C",
+        "domain": "science",
+    }
+
+    chat = verify_opdlm_record_detailed(
+        response_ids=mismatch,
+        tokenizer=tokenizer,
+        record=_record("chat", answer="N/A"),
+    )
+    assert chat == {
+        "correct": False,
+        "applicable": False,
+        "reason": "no_applicable_verifier",
+        "domain": "chat",
+    }
+
+
+def test_detailed_verifier_reports_missing_code_block():
+    tokenizer = _Tokenizer()
+    response = torch.tensor([ord(char) for char in "def f(): return 1"])
+    result = verify_opdlm_record_detailed(
+        response_ids=response,
+        tokenizer=tokenizer,
+        record={
+            **_record("code", answer="N/A"),
+            "tests_json": ["assert f() == 1"],
+        },
+    )
+    assert result["correct"] is False
+    assert result["reason"] == "code_block_missing"

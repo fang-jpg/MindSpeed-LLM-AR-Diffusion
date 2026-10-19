@@ -4,59 +4,53 @@ set -euo pipefail
 source examples/fsdp2/env_config.sh
 
 NPUS_PER_NODE=${NPUS_PER_NODE:-8}
-MASTER_ADDR=${MASTER_ADDR:-80.5.5.133}
+MASTER_ADDR=${MASTER_ADDR:-127.0.0.1}
 MASTER_PORT=${MASTER_PORT:-6502}
-NNODES=${NNODES:-2}
-MODEL_PATH=${MODEL_PATH:-/mnt/pipeline-data/f50058111/model_weights/Qwen3-1.7B-Base}
+STUDENT_MODEL_PATH=${STUDENT_MODEL_PATH:-${MODEL_PATH:-/mnt/pipeline-data/f50058111/model_weights/Qwen3-1.7B-a2d-init}}
+TEACHER_MODEL_PATH=${TEACHER_MODEL_PATH:-/mnt/pipeline-data/f50058111/model_weights/Qwen3-1.7B}
 DOPD_DATA_PATH=${DOPD_DATA_PATH:-/mnt/pipeline-data/f50058111/dataset/opdlm_train_data/opdlm_train.json}
-OUTPUT_DIR=${OUTPUT_DIR:-/mnt/pipeline-data/f50058111/model_train/opd/qwen3_1.7b_dopd_paper_2node_16card}
+OUTPUT_DIR=${OUTPUT_DIR:-/mnt/pipeline-data/f50058111/model_train/opd/qwen3_1.7b_dopd_paper_1node_8card}
 export PYTHONUNBUFFERED=1
 
-if [[ -z "${NODE_RANK:-}" ]]; then
-  HOST_IPV4=" $(hostname -I 2>/dev/null || true) "
-  if [[ "${HOST_IPV4}" == *" 80.5.5.133 "* ]]; then
-    NODE_RANK=0
-  elif [[ "${HOST_IPV4}" == *" 80.5.5.118 "* ]]; then
-    NODE_RANK=1
-  else
-    echo "无法自动判断 NODE_RANK。请在 80.5.5.133 上设置 NODE_RANK=0，在 80.5.5.118 上设置 NODE_RANK=1。" >&2
-    exit 2
-  fi
-fi
-if [[ "${NODE_RANK}" != "0" && "${NODE_RANK}" != "1" ]]; then
-  echo "NODE_RANK 必须为 0（80.5.5.133）或 1（80.5.5.118）。" >&2
+if [[ "${NPUS_PER_NODE}" != "8" ]]; then
+  echo "论文对齐的单机配置要求 NPUS_PER_NODE=8，当前为 ${NPUS_PER_NODE}。" >&2
   exit 2
 fi
-
 if [[ ! -f "${DOPD_DATA_PATH}" ]]; then
   echo "未找到官方 OPDLM 数据集：${DOPD_DATA_PATH}" >&2
   exit 2
 fi
-if [[ ! -d "${MODEL_PATH}" ]]; then
-  echo "未找到 Qwen3-1.7B-Base 模型目录：${MODEL_PATH}" >&2
+if [[ ! -f "${STUDENT_MODEL_PATH}/config.json" ]]; then
+  echo "未找到 a2d-init 学生模型配置：${STUDENT_MODEL_PATH}/config.json" >&2
   exit 2
 fi
+if [[ ! -f "${TEACHER_MODEL_PATH}/config.json" ]]; then
+  echo "未找到 Qwen3-1.7B 教师模型配置：${TEACHER_MODEL_PATH}/config.json" >&2
+  exit 2
+fi
+python -c 'import json,sys; s=json.load(open(sys.argv[1])); t=json.load(open(sys.argv[2])); assert s.get("model_type")=="a2d-qwen3", "学生 model_type 应为 a2d-qwen3，实际为 %r" % s.get("model_type"); assert t.get("model_type")=="qwen3", "教师 model_type 应为 qwen3，实际为 %r" % t.get("model_type")' "${STUDENT_MODEL_PATH}/config.json" "${TEACHER_MODEL_PATH}/config.json"
 python -c 'import math_verify; assert math_verify' >/dev/null
 
 mkdir -p "${OUTPUT_DIR}/logs"
-LOG_FILE="${OUTPUT_DIR}/logs/node_${NODE_RANK}_$(date +%Y%m%d_%H%M%S).log"
+LOG_FILE="${OUTPUT_DIR}/logs/node_0_$(date +%Y%m%d_%H%M%S).log"
 exec > >(tee -a "${LOG_FILE}") 2>&1
 
-echo "开始论文对齐的 d-OPD 训练：node_rank=${NODE_RANK}/${NNODES}，主节点=${MASTER_ADDR}:${MASTER_PORT}"
+echo "开始论文对齐的 d-OPD 单机训练：8 张 A2，主节点=${MASTER_ADDR}:${MASTER_PORT}"
 echo "训练数据：${DOPD_DATA_PATH}"
-echo "模型目录：${MODEL_PATH}"
+echo "学生模型（A2D 初始化）：${STUDENT_MODEL_PATH}"
+echo "教师模型（AR）：${TEACHER_MODEL_PATH}"
 echo "输出目录：${OUTPUT_DIR}"
 
 torchrun \
   --nproc_per_node "${NPUS_PER_NODE}" \
-  --nnodes "${NNODES}" \
-  --node_rank "${NODE_RANK}" \
+  --nnodes 1 \
+  --node_rank 0 \
   --master_addr "${MASTER_ADDR}" \
   --master_port "${MASTER_PORT}" \
   train_dopd_fsdp2.py \
   examples/fsdp2/qwen3_dopd/dopd_qwen3_1.7b_fsdp2_A2.yaml \
-  --model.model_name_or_path="${MODEL_PATH}" \
-  --dopd.teacher_model_name_or_path="${MODEL_PATH}" \
+  --model.model_name_or_path="${STUDENT_MODEL_PATH}" \
+  --dopd.teacher_model_name_or_path="${TEACHER_MODEL_PATH}" \
   --dopd.train_data_path="${DOPD_DATA_PATH}" \
   --training.output_dir="${OUTPUT_DIR}"
 

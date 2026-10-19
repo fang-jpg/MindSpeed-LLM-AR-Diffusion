@@ -18,7 +18,7 @@ from pathlib import Path
 import torch
 import torch.distributed as dist
 from torch.distributed._tensor import DTensor
-from transformers import AutoModelForCausalLM
+from transformers import AutoConfig, AutoModelForCausalLM, Qwen3Config
 
 from mindspeed_llm.experimental.dopd.config import DOPDArguments
 from mindspeed_llm.experimental.dopd.core import (
@@ -58,6 +58,75 @@ from mindspeed_llm.fsdp2.utils.logging import get_logger
 
 
 logger = get_logger(__name__)
+
+
+class DOPDA2DQwen3Config(Qwen3Config):
+    """与官方 ``dopd.modeling.A2DQwen3Config`` 等价的本地配置注册。"""
+
+    model_type = "a2d-qwen3"
+
+
+def _register_a2d_qwen3_config() -> None:
+    """让 MindSpeed 的 ModelFactory 能读取官方 a2d-init 的 config.json。"""
+
+    try:
+        AutoConfig.register("a2d-qwen3", DOPDA2DQwen3Config, exist_ok=True)
+    except TypeError:
+        # 兼容没有 exist_ok 参数的较旧 transformers。
+        try:
+            AutoConfig.register("a2d-qwen3", DOPDA2DQwen3Config)
+        except ValueError:
+            pass
+
+
+_register_a2d_qwen3_config()
+
+
+def _read_local_model_config(path: str, label: str) -> dict:
+    model_path = Path(path)
+    config_path = model_path / "config.json"
+    if not model_path.is_dir() or not config_path.is_file():
+        raise ValueError(f"{label} must be a local model directory containing config.json: {path}")
+    try:
+        with config_path.open(encoding="utf-8") as stream:
+            return json.load(stream)
+    except (OSError, json.JSONDecodeError) as error:
+        raise ValueError(f"Cannot read {label} config: {config_path}: {error}") from error
+
+
+def _validate_paper_model_pair(student_path: str, teacher_path: str) -> None:
+    """复现官方 train.py 对 A2D 学生和 AR 教师的启动前校验。"""
+
+    student_config = _read_local_model_config(student_path, "d-OPD student")
+    teacher_config = _read_local_model_config(teacher_path, "d-OPD teacher")
+    if student_config.get("model_type") != "a2d-qwen3":
+        raise ValueError(
+            "strict paper alignment requires an a2d-qwen3 student "
+            f"(got {student_config.get('model_type')!r} from {student_path})"
+        )
+    if teacher_config.get("model_type") != "qwen3":
+        raise ValueError(
+            "strict paper alignment requires a qwen3 autoregressive teacher "
+            f"(got {teacher_config.get('model_type')!r} from {teacher_path})"
+        )
+    shape_fields = (
+        "vocab_size",
+        "hidden_size",
+        "intermediate_size",
+        "num_hidden_layers",
+        "num_attention_heads",
+        "num_key_value_heads",
+    )
+    mismatches = [
+        f"{name}: student={student_config.get(name)!r}, teacher={teacher_config.get(name)!r}"
+        for name in shape_fields
+        if student_config.get(name) != teacher_config.get(name)
+    ]
+    if mismatches:
+        raise ValueError(
+            "d-OPD student and teacher architectures do not match:\n- "
+            + "\n- ".join(mismatches)
+        )
 
 
 @dataclass
@@ -339,15 +408,13 @@ class DOPDTrainer:
             raise ValueError("strict paper alignment requires dopd.train_data_path")
         if self.dopd_args.student_checkpoint is not None:
             raise ValueError(
-                "strict paper alignment starts the diffusion-attention student from "
-                "Qwen3-1.7B Base; dopd.student_checkpoint must be null"
+                "strict paper alignment starts from the official Qwen3-1.7B-a2d-init "
+                "weights; dopd.student_checkpoint must be null"
             )
         teacher_path = self.dopd_args.teacher_model_name_or_path
-        if teacher_path != self.model_args.model_name_or_path:
-            raise ValueError(
-                "strict paper alignment requires teacher and student to initialize "
-                "from the same Qwen3-1.7B Base path"
-            )
+        if not teacher_path:
+            raise ValueError("strict paper alignment requires an explicit AR teacher path")
+        _validate_paper_model_pair(self.model_args.model_name_or_path, teacher_path)
         if self.model_args.train_from_scratch:
             raise ValueError("strict paper alignment requires model.train_from_scratch=false")
         if self.active_ranks_per_step != 8:
@@ -403,6 +470,9 @@ class DOPDTrainer:
             "lr_scheduler_type": "cosine",
             "min_lr": 1.0e-6,
             "max_steps": 483,
+            "save_steps": 50,
+            "save_total_limit": 10,
+            "save_only_model": False,
         }
         for name, expected in expected_training.items():
             actual = getattr(self.training_args, name)
@@ -526,9 +596,13 @@ class DOPDTrainer:
         reference = input_ids[prompt_length:]
         return prompt, reference
 
-    def _trajectory_is_correct(self, prompt, response, reference, record=None) -> bool:
+    def _trajectory_verification(self, prompt, response, reference, record=None) -> dict:
         if self.verifier is None:
-            return False
+            return {
+                "correct": False,
+                "applicable": False,
+                "reason": "verifier_not_configured",
+            }
         kwargs = {
             "prompt_ids": prompt[0].detach().cpu(),
             "response_ids": response[0].detach().cpu(),
@@ -542,7 +616,124 @@ class DOPDTrainer:
         )
         if record is not None and ("record" in signature.parameters or accepts_kwargs):
             kwargs["record"] = record
-        return bool(self.verifier(**kwargs))
+        detailed_verifier = getattr(self.verifier, "verify_detailed", None)
+        if callable(detailed_verifier):
+            result = detailed_verifier(**kwargs)
+            if not isinstance(result, dict) or "correct" not in result:
+                raise TypeError("verifier.verify_detailed must return a dict containing 'correct'")
+            normalized = dict(result)
+            normalized["correct"] = bool(normalized["correct"])
+            normalized.setdefault("applicable", True)
+            normalized.setdefault(
+                "reason",
+                "accepted" if normalized["correct"] else "rejected_by_verifier",
+            )
+            return normalized
+        correct = bool(self.verifier(**kwargs))
+        return {
+            "correct": correct,
+            "applicable": True,
+            "reason": "accepted" if correct else "rejected_by_verifier",
+        }
+
+    def _trajectory_is_correct(self, prompt, response, reference, record=None) -> bool:
+        return bool(
+            self._trajectory_verification(prompt, response, reference, record)["correct"]
+        )
+
+    def _rollout_audit_entry(
+        self,
+        *,
+        iteration: int,
+        trajectory_index: int,
+        prompt,
+        response,
+        record,
+        seed: int,
+        response_token_cap: int,
+        verification: dict,
+    ) -> dict:
+        response_ids = response[0].detach().cpu().tolist()
+        eos_id = self.tokenizer.eos_token_id
+        eos_found = eos_id is not None and int(eos_id) in response_ids
+        if eos_found:
+            response_ids = response_ids[: response_ids.index(int(eos_id))]
+        prompt_ids = prompt[0].detach().cpu().tolist()
+        return {
+            "iteration": iteration,
+            "rank": self.rank,
+            "local_trajectory_index": trajectory_index,
+            "seed": int(seed),
+            "response_token_cap": int(response_token_cap),
+            "response_token_count": len(response_ids),
+            "response_token_ids": response_ids,
+            "eos_generated": eos_found,
+            "hit_response_token_cap": not eos_found and len(response_ids) >= response_token_cap,
+            "domain": record.get("domain") if record else None,
+            "source": record.get("source") if record else None,
+            "question": record.get("question") if record else None,
+            "ground_truth_answer": record.get("ground_truth_answer") if record else None,
+            "tests_json": record.get("tests_json") if record else None,
+            "formatted_prompt": self.tokenizer.decode(
+                prompt_ids,
+                skip_special_tokens=False,
+            ),
+            "response": self.tokenizer.decode(
+                response_ids,
+                skip_special_tokens=True,
+            ),
+            "verifier": verification,
+        }
+
+    def _write_rollout_audit(self, iteration: int, local_entries: list[dict]) -> None:
+        gathered = [None] * self.world_size
+        dist.all_gather_object(gathered, local_entries)
+        if self.rank != 0:
+            return
+        entries = [entry for rank_entries in gathered for entry in rank_entries]
+        entries.sort(key=lambda item: (item["rank"], item["local_trajectory_index"]))
+        if len(entries) != self.dopd_args.prompts_per_iteration:
+            raise RuntimeError(
+                "rollout audit is incomplete: "
+                f"collected {len(entries)}, expected {self.dopd_args.prompts_per_iteration}"
+            )
+        audit_dir = self.output_dir / "rollout_audits"
+        audit_dir.mkdir(parents=True, exist_ok=True)
+        audit_path = audit_dir / f"iteration_{iteration:04d}.jsonl"
+        with audit_path.open("w", encoding="utf-8") as stream:
+            for entry in entries:
+                stream.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
+        summary = {
+            "iteration": iteration,
+            "audit_file": str(audit_path),
+            "total": len(entries),
+            "applicable": sum(
+                bool(entry["verifier"].get("applicable", True)) for entry in entries
+            ),
+            "correct": sum(bool(entry["verifier"]["correct"]) for entry in entries),
+            "failure_reasons": {},
+            "by_domain": {},
+        }
+        for entry in entries:
+            domain = entry.get("domain") or "unknown"
+            domain_summary = summary["by_domain"].setdefault(
+                domain,
+                {"total": 0, "applicable": 0, "correct": 0},
+            )
+            domain_summary["total"] += 1
+            domain_summary["applicable"] += int(
+                bool(entry["verifier"].get("applicable", True))
+            )
+            domain_summary["correct"] += int(bool(entry["verifier"]["correct"]))
+            if not entry["verifier"]["correct"]:
+                reason = entry["verifier"].get("reason", "unknown")
+                summary["failure_reasons"][reason] = (
+                    summary["failure_reasons"].get(reason, 0) + 1
+                )
+        with (audit_dir / "summary.jsonl").open("a", encoding="utf-8") as stream:
+            stream.write(json.dumps(summary, ensure_ascii=False) + "\n")
+        logger.info_rank0(f"> Saved rollout/verifier audit to {audit_path}")
 
     def _official_iteration_inputs(self, iteration: int):
         pool = records_for_iteration(
@@ -687,11 +878,16 @@ class DOPDTrainer:
             exclude_eos=False,
         )
         loss_mask = (state.loss_mask & valid).unsqueeze(0)
-        correct = (
-            self._trajectory_is_correct(prompt, response, reference, record)
+        verification = (
+            self._trajectory_verification(prompt, response, reference, record)
             if correction_enabled
-            else False
+            else {
+                "correct": False,
+                "applicable": False,
+                "reason": "inactive_rank_copy",
+            }
         )
+        correct = bool(verification["correct"])
         loss, stats = compute_dopd_loss(
             self.student,
             self.teacher,
@@ -712,7 +908,7 @@ class DOPDTrainer:
             cache_max_bytes=self.dopd_args.teacher_cache_max_bytes,
             future_valid_length=int(future_valid.sum().item()),
         )
-        return loss, stats, int(correct)
+        return loss, stats, verification
 
     def _save(self, final: bool = False):
         name = f"global_step_{self.global_step}"
@@ -757,6 +953,7 @@ class DOPDTrainer:
                 self.dopd_args.block_size,
             )
             local_loss = 0.0
+            local_audit_entries = []
             # loss/correction counters + per-domain total/correct counters.
             local_stats = torch.zeros(14, dtype=torch.float32, device=self.device)
             accumulation = self.training_args.gradient_accumulation_steps
@@ -790,7 +987,7 @@ class DOPDTrainer:
                     else contextlib.nullcontext()
                 )
                 with sync_context:
-                    loss, stats, correct = self._trajectory_loss(
+                    loss, stats, verification = self._trajectory_loss(
                         prompts[trajectory_index],
                         references[trajectory_index],
                         responses[trajectory_index : trajectory_index + 1],
@@ -799,6 +996,7 @@ class DOPDTrainer:
                         record=records[trajectory_index],
                         correction_enabled=active,
                     )
+                    correct = int(verification["correct"])
                     if self.active_ranks_per_step < self.world_size:
                         # FSDP averages gradients across all physical ranks. Scale
                         # the active cohort so the result is the paper's 8-sample
@@ -812,6 +1010,19 @@ class DOPDTrainer:
                     (loss * loss_scale).backward()
                 if active:
                     local_loss += float(loss.detach().item())
+                    if iteration <= self.dopd_args.rollout_audit_iterations:
+                        local_audit_entries.append(
+                            self._rollout_audit_entry(
+                                iteration=iteration,
+                                trajectory_index=trajectory_index,
+                                prompt=prompts[trajectory_index],
+                                response=responses[trajectory_index : trajectory_index + 1],
+                                record=records[trajectory_index],
+                                seed=trajectory_seed,
+                                response_token_cap=response_tokens,
+                                verification=verification,
+                            )
+                        )
                     trajectory_stats = torch.zeros(
                         14, dtype=torch.float32, device=self.device
                     )
@@ -847,6 +1058,9 @@ class DOPDTrainer:
                     self.optimizer.zero_grad()
                     self.optimizer_step += 1
             self.global_step = iteration
+
+            if iteration <= self.dopd_args.rollout_audit_iterations:
+                self._write_rollout_audit(iteration, local_audit_entries)
 
             loss_tensor = torch.tensor(local_loss, dtype=torch.float32, device=self.device)
             # 检查通信张量

@@ -1,7 +1,7 @@
 model:
-  # 学生模型与教师模型都从相同的 AR Qwen3-1.7B Base 权重初始化。
-  # model_id=qwen3_diffusion 只在加载时替换注意力实现。
-  model_name_or_path: /mnt/pipeline-data/f50058111/model_weights/Qwen3-1.7B-Base
+  # 官方 a2d-init 保留 Qwen3-1.7B 的全部权重（包括 lm_head），仅把模型
+  # 配置声明为 a2d-qwen3；model_id=qwen3_diffusion 加载 MindSpeed 扩散注意力。
+  model_name_or_path: /mnt/pipeline-data/f50058111/model_weights/Qwen3-1.7B-a2d-init
   model_id: qwen3_diffusion
   trust_remote_code: false
   train_from_scratch: false
@@ -18,8 +18,7 @@ data:
   data_shared_file_system: true
 
 parallel:
-  # 双机 A2，每个节点 8 张 NPU。16 个 rank 共同分片学生模型；
-  # 每个优化器步骤轮换启用 8 个 rank，以保持论文中的全局优化器 batch 为 8。
+  # 单机 8 张 A2；8 个 rank 对应论文中的全局优化器 batch 8。
   fsdp_size: 8
   fsdp_modules:
     - model.layers.{*}
@@ -46,7 +45,7 @@ training:
   dataloader_num_workers: 0
   dataloader_drop_last: false
   seed: 10086
-  output_dir: /mnt/pipeline-data/f50058111/model_train/opd/qwen3_1.7b_dopd_paper_2node_16card/
+  output_dir: /mnt/pipeline-data/f50058111/model_train/opd/qwen3_1.7b_dopd_paper_1node_8card/
   resume_from_checkpoint: null
   optimizer: adamw
   lr: 1.0e-5
@@ -61,8 +60,9 @@ training:
   min_lr: 1.0e-6
   num_train_epochs: 1.0
   max_steps: 483
-  save_steps: 10
-  save_total_limit: 1
+  # 保留论文评测使用的 50/100/.../450，以及最终 483 checkpoint。
+  save_steps: 50
+  save_total_limit: 10
   save_only_model: false
   save_async: false
   logging_steps: 1
@@ -74,7 +74,8 @@ optimization:
   chunk_loss_size: 0
 
 dopd:
-  teacher_model_name_or_path: /mnt/pipeline-data/f50058111/model_weights/Qwen3-1.7B-Base
+  # 教师是普通自回归 Qwen3-1.7B，与 a2d-init 学生严格分开加载。
+  teacher_model_name_or_path: /mnt/pipeline-data/f50058111/model_weights/Qwen3-1.7B
   student_checkpoint: null
   train_data_path: /mnt/pipeline-data/f50058111/dataset/opdlm_train_data/opdlm_train.json
   expected_train_records: 61816
@@ -99,6 +100,8 @@ dopd:
   require_visible_future: true
   correctness_gate: true
   verifier: mindspeed_llm.experimental.dopd.opdlm_verifier:verify_opdlm_record
+  # 前 10 个外层迭代保存每条原始回答、正确性和 verifier 失败原因。
+  rollout_audit_iterations: 10
   exclude_eos_from_loss: true
   score_chunk_size: 128
   teacher_cache_max_bytes: 17179869184

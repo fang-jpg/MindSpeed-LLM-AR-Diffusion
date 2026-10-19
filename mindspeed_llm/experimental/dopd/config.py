@@ -99,6 +99,15 @@ class DOPDArguments:
         default=False,
         metadata={"help": "Apply future correction only to trajectories accepted by verifier."},
     )
+    rollout_audit_iterations: int = field(
+        default=0,
+        metadata={
+            "help": (
+                "保存前 N 个外层迭代的完整 rollout、verifier 判定和失败原因；"
+                "0 表示关闭。"
+            )
+        },
+    )
     verifier: Optional[str] = field(
         default=None,
         metadata={"help": "Optional module:function verifier used when correctness_gate is true."},
@@ -157,4 +166,6 @@ class DOPDArguments:
             raise ValueError("dopd.correctness_gate=true requires dopd.verifier=module:function")
         if self.active_ranks_per_optimizer_step < 0:
             raise ValueError("dopd.active_ranks_per_optimizer_step cannot be negative")
+        if self.rollout_audit_iterations < 0:
+            raise ValueError("dopd.rollout_audit_iterations cannot be negative")
 

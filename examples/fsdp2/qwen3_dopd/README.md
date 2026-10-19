@@ -1,4 +1,4 @@
-# Qwen3-1.7B d-OPD：论文对齐的双机训练
+# Qwen3-1.7B d-OPD：论文对齐的单机八卡训练
 
 本目录与现有的 Nemotron_Diffusion 实验相互隔离。这里提供的 YAML 不再读取七个 Megatron CPT 数据前缀，而是直接使用公开的 OPDLM 指令混合数据，并启用 d-OPD 正确性门控。
 
@@ -27,7 +27,7 @@ pip install -r examples/fsdp2/qwen3_dopd/requirements_dopd.txt
 启用 `dopd.strict_paper_alignment: true` 后，只要算法超参数偏离公开论文或原项目配置，训练就会在启动时直接报错：
 
 - 对数据随机打乱并只训练一个 epoch；共 61,816 条提示，每个外层迭代采样 128 条，共执行 483 次外层迭代；最后一个数据池不足时，从打乱后数据的开头补齐；
-- 教师模型和学生模型都由 Qwen3-1.7B Base 初始化；教师保持原始 AR 注意力，学生在加载时切换为扩散注意力；不加载 Nemotron CPT checkpoint；
+- 学生从官方 `Qwen3-1.7B-a2d-init` 初始化，教师从普通 `Qwen3-1.7B` 初始化；a2d-init 保留原始 Qwen3 的全部参数（包括 `lm_head.weight`），只把模型类型改为 `a2d-qwen3`，训练器再加载扩散注意力实现；不加载 Nemotron CPT checkpoint，也不重新初始化输出头；
 - block size 为 4，每个 block 执行 4 个去噪步骤；使用阈值 0.9 的动态低置信度重掩码；temperature 为 1、top-p 为 1，并禁用 top-k；
 - 最大生成长度在前 100 次外层迭代中按余弦曲线从 100 增长到 4,000 token，最大提示长度为 2,000 token；
 - 每个 block 只进行一次 rollout，并从去噪轨迹中独立采样一个访问状态；
@@ -35,7 +35,7 @@ pip install -r examples/fsdp2/qwen3_dopd/requirements_dopd.txt
 - 使用 AdamW：学习率 `1e-5`、betas `(0.9, 0.999)`、epsilon `1e-8`、weight decay 为 0、梯度裁剪为 1.0；使用 BF16 和激活重计算；前 5 次外层迭代进行 warmup，之后使用余弦衰减，最低学习率为峰值的 10%；
 - `correctness_gate: true`：正确的数学、科学和代码 rollout 使用未来感知目标；错误样本以及无法验证的对话样本使用普通因果蒸馏目标。
 
-论文在单机 8 张 H100 上训练，并使用带 CPU offload 的 ZeRO-3。本实现使用双机 16 张 Ascend A2 和 FSDP2，因此无法做到逐比特一致，吞吐也不会完全相同。为保持论文中的优化器全局 batch 不变，16 个 rank 全部参与 FSDP 参数分片，但每个优化器步骤只让轮换的一组 8 个 rank 产生非零局部损失，并对 FSDP 平均后的梯度重新缩放为 8 个样本的均值。这样每个包含 128 条 rollout 的外层迭代仍执行 16 次优化器更新；如果直接用全部 16 个样本进行一次更新，就属于不同的实验设置。
+论文在单机 8 张 H100 上训练，并使用带 CPU offload 的 ZeRO-3。本实现使用单机 8 张 Ascend A2 和 FSDP2，因此硬件、并行后端和吞吐无法做到逐比特一致；但优化器全局 batch 仍为 8，每个包含 128 条 rollout 的外层迭代执行 16 次优化器更新。
 
 ## 正确性验证器与安全说明
 
@@ -43,27 +43,36 @@ pip install -r examples/fsdp2/qwen3_dopd/requirements_dopd.txt
 
 代码验证会在限制运行时间、进程数、文件大小和文件描述符数量的条件下执行模型生成的 Python 代码，但这些限制不能视为完整的安全边界。请在断网的容器或虚拟机中运行训练，环境内不要放置密钥、访问令牌、SSH 密钥或敏感挂载目录。不要直接在有特权的宿主机环境中启动启用了论文对齐代码验证器的训练。
 
-## 双机启动
+## 模型初始化
 
-两个节点必须使用相同的仓库版本、模型目录和 Python 环境。下面的数据路径和输出路径应位于共享存储上。从节点应与主节点尽量同时启动。
+默认使用以下两个互相独立的本地目录：
 
-在主节点 `80.5.5.133` 上执行：
+- 学生：`/mnt/pipeline-data/f50058111/model_weights/Qwen3-1.7B-a2d-init`，其 `config.json` 的 `model_type` 必须是 `a2d-qwen3`；
+- 教师：`/mnt/pipeline-data/f50058111/model_weights/Qwen3-1.7B`，其 `config.json` 的 `model_type` 必须是 `qwen3`。
+
+严格模式还会比较 vocab、隐藏维度、层数和注意力头数，防止把不匹配的教师/学生组合启动起来。MindSpeed 会在加载学生前注册官方的 A2D 配置类型，`trust_remote_code` 保持关闭。
+
+## 单机启动
+
+在 `80.5.5.133` 上从仓库根目录直接执行：
 
 ```bash
 cd /path/to/MindSpeed-LLM
-NODE_RANK=0 MASTER_ADDR=80.5.5.133 \
-  bash examples/fsdp2/qwen3_dopd/train_dopd_qwen3_1.7b_fsdp2_A2.sh
+bash examples/fsdp2/qwen3_dopd/train_dopd_qwen3_1.7b_fsdp2_A2.sh
 ```
 
-在从节点 `80.5.5.118` 上执行：
+可选环境变量包括 `STUDENT_MODEL_PATH`、`TEACHER_MODEL_PATH`、`DOPD_DATA_PATH`、`OUTPUT_DIR` 和 `MASTER_PORT`。论文对齐启动器固定要求 `NPUS_PER_NODE=8`。控制台日志保存在 `$OUTPUT_DIR/logs/node_0_<timestamp>.log`，训练指标写入 `metrics.jsonl`。
 
-```bash
-cd /path/to/MindSpeed-LLM
-NODE_RANK=1 MASTER_ADDR=80.5.5.133 \
-  bash examples/fsdp2/qwen3_dopd/train_dopd_qwen3_1.7b_fsdp2_A2.sh
+前 10 个外层迭代的 128 条全局 rollout 会逐条写入 `$OUTPUT_DIR/rollout_audits/iteration_0001.jsonl` 到 `iteration_0010.jsonl`。每条记录含原始问题、完整模型回答、是否生成 EOS、是否撞到长度上限、gold answer、verifier 是否适用、正确与否、答案提取结果，以及代码任务的 return code/stdout/stderr 尾部。聚合失败原因写入同目录的 `summary.jsonl`。
+
+为了直接比较论文训练过程中的多步 checkpoint，训练会保留：
+
+```text
+global_step_50, 100, 150, 200, 250, 300, 350, 400, 450,
+global_step_483_final
 ```
 
-可选的环境变量包括 `MODEL_PATH`、`DOPD_DATA_PATH`、`OUTPUT_DIR`、`MASTER_PORT` 和 `NPUS_PER_NODE`，默认值记录在 YAML 和启动脚本中。每个节点都会在 `$OUTPUT_DIR/logs/node_<rank>_<timestamp>.log` 下保存持久化控制台日志；rank 0 还会写入 `metrics.jsonl`、`dopd_config.json`，并每隔 10 次外层迭代保存一次 checkpoint。
+共 10 份，不会再被 `save_total_limit: 1` 清掉。请使用新的默认输出目录；若目录里已有 checkpoints，训练器会拒绝覆盖。
 
 ## 论文对齐推理
 
@@ -71,13 +80,12 @@ NODE_RANK=1 MASTER_ADDR=80.5.5.133 \
 
 如果要比较其他 block size 或动态阈值，显式设置 `PAPER_ALIGNED=0`。这类结果属于解码消融，不能和论文表 1 直接比较。JSON 同时记录 `TPF_total`、`TPF_decode` 和 `TPF_denoise_only`；TPF 是本地诊断指标，并不是论文报告的 1.35–1.58 倍加速口径。论文中的该加速指达到 OPDLM 准确率所需的训练时间，而不是推理时每次前向生成的 token 数。
 
-正式训练前，建议使用单独的输出目录进行一次双机冒烟测试：
+正式训练前，建议使用单独的输出目录进行一次单机冒烟测试。严格论文校验在这个缩短实验中必须关闭：
 
 ```bash
-export NODE_RANK=<0-or-1>
 export OUTPUT_DIR=/share/dataset/x00840191/model_train/ckpt/dopd_smoke
-torchrun --nproc_per_node 8 --nnodes 2 --node_rank "${NODE_RANK}" \
-  --master_addr 80.5.5.133 --master_port 6503 train_dopd_fsdp2.py \
+torchrun --nproc_per_node 8 --nnodes 1 --node_rank 0 \
+  --master_addr 127.0.0.1 --master_port 6503 train_dopd_fsdp2.py \
   examples/fsdp2/qwen3_dopd/dopd_qwen3_1.7b_fsdp2_A2.yaml \
   --training.output_dir=/share/dataset/x00840191/model_train/ckpt/dopd_smoke \
   --training.max_steps=1 --dopd.strict_paper_alignment=false \
