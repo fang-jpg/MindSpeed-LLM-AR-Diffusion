@@ -32,6 +32,7 @@ DEFAULT_CHECKPOINT = (
     "/share/dataset/x00840191/model_train/ckpt/qwen3_1.7b_dopd_1010/"
     "checkpoints/global_step_483_final"
 )
+DECODER_REVISION = "dopd-paper-c4-block-cache-v3"
 
 
 @dataclass
@@ -157,6 +158,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--ignore-eos", action="store_true")
     parser.add_argument("--warmup", type=int, default=0)
     parser.add_argument("--repeats", type=int, default=1)
+    parser.add_argument(
+        "--diagnostic-ar-tokens",
+        type=int,
+        default=24,
+        help=(
+            "Generate this many greedy causal tokens before and after loading the "
+            "DCP checkpoint. Set to 0 to disable the checkpoint sanity check."
+        ),
+    )
     parser.add_argument(
         "--paper-aligned",
         action=argparse.BooleanOptionalAction,
@@ -398,22 +408,44 @@ def initialize_and_load_model(
         tokenizer.pad_token_id = tokenizer.eos_token_id
 
     engine = ModelFactory.create(model_args, parallel_args)
-    CheckpointManager.load(str(checkpoint), {"model": engine})
     model = engine.model
     model.mask_token_id = mask_token_id
     model.config.mask_token_id = mask_token_id
     model.config.use_cache = True
     model.eval()
 
+    device = torch.device(
+        torch.accelerator.current_accelerator().type,
+        int(os.environ.get("LOCAL_RANK", "0")),
+    )
+    base_causal_sanity = None
+    if args.diagnostic_ar_tokens > 0:
+        diagnostic_ids = tokenizer(
+            "The answer to 1 + 1 is",
+            return_tensors="pt",
+            add_special_tokens=True,
+        )["input_ids"].to(device)
+        diagnostic_tokens = generate_causal_greedy(
+            model,
+            diagnostic_ids,
+            max_new_tokens=args.diagnostic_ar_tokens,
+            mask_token_id=mask_token_id,
+            eos_token_id=tokenizer.eos_token_id,
+        )
+        base_causal_sanity = tokenizer.decode(
+            diagnostic_tokens[0],
+            skip_special_tokens=False,
+            clean_up_tokenization_spaces=False,
+        )
+
+    CheckpointManager.load(str(checkpoint), {"model": engine})
+
     vocab_size = int(model.config.vocab_size)
     if not 0 <= mask_token_id < vocab_size:
         raise ValueError(
             f"mask_token_id={mask_token_id} is outside model vocabulary {vocab_size}."
         )
-    return model, tokenizer, torch.device(
-        torch.accelerator.current_accelerator().type,
-        int(os.environ.get("LOCAL_RANK", "0")),
-    )
+    return model, tokenizer, device, base_causal_sanity
 
 
 def synchronize() -> None:
@@ -522,9 +554,100 @@ def _sample(
     return proposed, confidence
 
 
+@torch.inference_mode()
+def generate_causal_greedy(
+    model,
+    prompt_ids: torch.LongTensor,
+    *,
+    max_new_tokens: int,
+    mask_token_id: int,
+    eos_token_id: Optional[int],
+) -> torch.LongTensor:
+    """Small AR probe used only to diagnose base/checkpoint integrity."""
+    from transformers.cache_utils import DynamicCache
+    from mindspeed_llm.fsdp2.models.qwen3.utils import set_diffusion_lm
+
+    if max_new_tokens <= 0:
+        return torch.empty(
+            (prompt_ids.shape[0], 0), dtype=prompt_ids.dtype, device=prompt_ids.device
+        )
+    set_diffusion_lm(model, False)
+    cache = DynamicCache()
+    prompt_length = prompt_ids.shape[1]
+    prompt_positions = torch.arange(prompt_length, device=prompt_ids.device)
+    output = _root_forward(
+        model,
+        lm_positions=torch.tensor([prompt_length - 1], device=prompt_ids.device),
+        input_ids=prompt_ids,
+        attention_mask=torch.ones_like(prompt_ids),
+        position_ids=prompt_positions.unsqueeze(0),
+        cache_position=prompt_positions,
+        past_key_values=cache,
+        use_cache=True,
+    )
+    cache = output.past_key_values
+    logits = output.logits[:, -1].float()
+    logits[:, mask_token_id] = -torch.inf
+    next_token = logits.argmax(dim=-1, keepdim=True)
+    generated: list[torch.LongTensor] = []
+
+    for offset in range(max_new_tokens):
+        generated.append(next_token)
+        if eos_token_id is not None and next_token.eq(int(eos_token_id)).all().item():
+            break
+        if offset + 1 == max_new_tokens:
+            break
+        absolute_position = prompt_length + offset
+        step = _root_forward(
+            model,
+            lm_positions=torch.tensor([0], device=prompt_ids.device),
+            input_ids=next_token,
+            attention_mask=torch.ones(
+                (prompt_ids.shape[0], absolute_position + 1),
+                dtype=torch.long,
+                device=prompt_ids.device,
+            ),
+            position_ids=torch.tensor(
+                [[absolute_position]], dtype=torch.long, device=prompt_ids.device
+            ),
+            cache_position=torch.tensor(
+                [absolute_position], dtype=torch.long, device=prompt_ids.device
+            ),
+            past_key_values=cache,
+            use_cache=True,
+        )
+        cache = step.past_key_values
+        logits = step.logits[:, -1].float()
+        logits[:, mask_token_id] = -torch.inf
+        next_token = logits.argmax(dim=-1, keepdim=True)
+    return torch.cat(generated, dim=1)
+
+
 def _transfer_schedule(mask_count: int, steps: int) -> list[int]:
     base, remainder = divmod(mask_count, steps)
     return [base + int(index < remainder) for index in range(steps)]
+
+
+def _block_causal_prefix_mask(
+    length: int,
+    block_size: int,
+    *,
+    dtype: torch.dtype,
+    device: torch.device,
+) -> torch.Tensor:
+    """Start-aligned staircase mask used by the official JetEngine prefill."""
+    allowed = torch.zeros((length, length), dtype=torch.bool, device=device)
+    for start in range(0, length, block_size):
+        end = min(start + block_size, length)
+        allowed[start:end, :end] = True
+    mask = torch.full(
+        (1, 1, length, length),
+        torch.finfo(dtype).min,
+        dtype=dtype,
+        device=device,
+    )
+    mask[0, 0][allowed] = 0
+    return mask
 
 
 def _partial_block_text(tokenizer, ids: list[Optional[int]]) -> str:
@@ -586,15 +709,22 @@ def generate_with_trace(
     stats = DecodeStats(prompt_tokens=prompt_length)
     traces: list[dict[str, Any]] = []
     cache = DynamicCache()
-    prompt_attention_mask = torch.ones_like(prompt_ids, dtype=torch.bool)
 
-    set_diffusion_lm(model, False)
+    # JetEngine PREFILL is staircase/block-causal, not ordinary AR-causal:
+    # prompt blocks are causal across blocks and bidirectional within a block.
+    set_diffusion_lm(model, True)
     prompt_positions = torch.arange(prompt_length, device=device)
+    model_dtype = next(model.parameters()).dtype
     prefill = _root_forward(
         model,
         lm_positions=torch.tensor([prompt_length - 1], device=device),
         input_ids=prompt_ids,
-        attention_mask=prompt_attention_mask.long(),
+        attention_mask=_block_causal_prefix_mask(
+            prompt_length,
+            block_size,
+            dtype=model_dtype,
+            device=device,
+        ),
         position_ids=prompt_positions.unsqueeze(0),
         cache_position=prompt_positions,
         past_key_values=cache,
@@ -614,7 +744,6 @@ def generate_with_trace(
         )
         next_token = next_token.unsqueeze(1)
     del prefill
-    set_diffusion_lm(model, True)
 
     response_blocks: list[torch.LongTensor] = []
     generated = 0
@@ -679,7 +808,7 @@ def generate_with_trace(
             key_length = prefix_cache_length + current_length
             attention_mask = torch.zeros(
                 (1, 1, current_length, key_length),
-                dtype=next(model.parameters()).dtype,
+                dtype=model_dtype,
                 device=device,
             )
             denoise = model(
@@ -791,9 +920,10 @@ def generate_with_trace(
             )
             traces.append(block_trace)
 
-        # JetEngine schedules every completed block once in SAVING state so its
-        # causal KV cache is materialized, including the final/EOS block.
-        set_diffusion_lm(model, False)
+        # JetEngine schedules every completed block once in SAVING state.  This
+        # is still a block-attention run: every token in the completed block can
+        # see the causal prefix and the full current block.  Using ordinary AR
+        # attention here produces different deeper-layer K/V states.
         cache_length = cache.get_seq_length()
         positions = torch.arange(
             block_start, block_start + current_length, device=device
@@ -802,9 +932,9 @@ def generate_with_trace(
             model,
             lm_positions=torch.tensor([current_length - 1], device=device),
             input_ids=block,
-            attention_mask=torch.ones(
-                (1, cache_length + current_length),
-                dtype=torch.long,
+            attention_mask=torch.zeros(
+                (1, 1, current_length, cache_length + current_length),
+                dtype=model_dtype,
                 device=device,
             ),
             position_ids=positions.unsqueeze(0),
@@ -836,7 +966,6 @@ def generate_with_trace(
             )
             next_token = next_token.unsqueeze(1)
         del refresh
-        set_diffusion_lm(model, True)
 
         if not ignore_eos and eos_token_id is not None:
             stop_after_block = bool(block.eq(int(eos_token_id)).any().item())
@@ -891,10 +1020,13 @@ def print_trace(result: dict[str, Any]) -> None:
         flush=True,
     )
     for block in result["trace"]:
+        cache_before = block.get("prefix_cache_length", "unknown")
+        cache_after = block.get("cache_length_after_saving", "unknown")
         print(
             f"[block {block['block_index']}] positions={block['response_positions']} "
             f"seed={block['seeded_response_positions']} "
-            f"schedule={block['static_transfer_schedule']}",
+            f"schedule={block['static_transfer_schedule']} "
+            f"cache={cache_before}->{cache_after}",
             flush=True,
         )
         for step in block["steps"]:
@@ -936,6 +1068,8 @@ def main() -> int:
         raise ValueError("--top-k must be non-negative and --top-p must be in (0,1].")
     if args.warmup < 0 or args.repeats <= 0:
         raise ValueError("--warmup must be non-negative and --repeats must be positive.")
+    if args.diagnostic_ar_tokens < 0:
+        raise ValueError("--diagnostic-ar-tokens must be non-negative.")
 
     block_sizes = parse_block_sizes(args.block_sizes)
     thresholds = parse_thresholds(args.thresholds)
@@ -944,11 +1078,36 @@ def main() -> int:
         args, block_sizes, thresholds, run_config
     )
     checkpoint, model_path, mask_token_id = resolve_paths_and_ids(args, run_config)
-    model, tokenizer, device = initialize_and_load_model(
+    model, tokenizer, device, base_causal_sanity = initialize_and_load_model(
         args, run_config, checkpoint, model_path, mask_token_id
     )
     rank = dist.get_rank()
     world_size = dist.get_world_size()
+    if rank == 0:
+        print(f"Decoder revision: {DECODER_REVISION}", flush=True)
+
+    checkpoint_causal_sanity = None
+    if args.diagnostic_ar_tokens > 0:
+        diagnostic_ids = tokenizer(
+            "The answer to 1 + 1 is",
+            return_tensors="pt",
+            add_special_tokens=True,
+        )["input_ids"].to(device)
+        checkpoint_diagnostic_tokens = generate_causal_greedy(
+            model,
+            diagnostic_ids,
+            max_new_tokens=args.diagnostic_ar_tokens,
+            mask_token_id=mask_token_id,
+            eos_token_id=tokenizer.eos_token_id,
+        )
+        checkpoint_causal_sanity = tokenizer.decode(
+            checkpoint_diagnostic_tokens[0],
+            skip_special_tokens=False,
+            clean_up_tokenization_spaces=False,
+        )
+        if rank == 0:
+            print(f"Base AR sanity       : {base_causal_sanity!r}", flush=True)
+            print(f"Checkpoint AR sanity : {checkpoint_causal_sanity!r}", flush=True)
 
     prompt_values = [args.prompt if rank == 0 else None]
     dist.broadcast_object_list(prompt_values, src=0)
@@ -1061,6 +1220,13 @@ def main() -> int:
     if rank == 0:
         payload = {
             "schema_version": 2,
+            "decoder_revision": DECODER_REVISION,
+            "causal_sanity": {
+                "prompt": "The answer to 1 + 1 is",
+                "max_new_tokens": args.diagnostic_ar_tokens,
+                "base_before_checkpoint": base_causal_sanity,
+                "checkpoint_after_load": checkpoint_causal_sanity,
+            },
             "checkpoint": str(checkpoint),
             "base_model_path": str(model_path),
             "dopd_config_json": str(run_config_path) if run_config_path else None,

@@ -89,6 +89,43 @@ def _transfer_schedule(block_length: int, steps: int) -> list[int]:
     return [base + (1 if index < remainder else 0) for index in range(steps)]
 
 
+def _prompt_block_attention_mask(
+    prompt_attention_mask: torch.BoolTensor,
+    block_size: int,
+    dtype: torch.dtype,
+) -> torch.Tensor:
+    """Build JetEngine's start-aligned block-causal prompt prefill mask."""
+    batch_size, padded_length = prompt_attention_mask.shape
+    allowed = torch.zeros(
+        (batch_size, padded_length, padded_length),
+        dtype=torch.bool,
+        device=prompt_attention_mask.device,
+    )
+    for row in range(batch_size):
+        valid = prompt_attention_mask[row].nonzero(as_tuple=True)[0]
+        if valid.numel() == 0:
+            continue
+        valid_start = int(valid[0].item())
+        if not prompt_attention_mask[row, valid_start:].all().item():
+            raise ValueError("rollout prompts must use contiguous left padding")
+        # Keep padded query rows numerically safe; padded keys remain invisible
+        # to every valid query and to all subsequent response blocks.
+        if valid_start:
+            pad_rows = torch.arange(valid_start, device=allowed.device)
+            allowed[row, pad_rows, pad_rows] = True
+        for start in range(valid_start, padded_length, block_size):
+            end = min(start + block_size, padded_length)
+            allowed[row, start:end, valid_start:end] = True
+    mask = torch.full(
+        (batch_size, 1, padded_length, padded_length),
+        torch.finfo(dtype).min,
+        dtype=dtype,
+        device=prompt_attention_mask.device,
+    )
+    mask[:, 0].masked_fill_(allowed, 0)
+    return mask
+
+
 @torch.no_grad()
 def block_diffusion_rollout(
     model,
@@ -144,18 +181,24 @@ def block_diffusion_rollout(
     was_training = model.training
     model.eval()
 
-    set_diffusion_lm(model, False)
+    # Official JetEngine prefill is block-causal (staircase), not token-causal.
+    set_diffusion_lm(model, True)
     cache = DynamicCache()
     prompt_positions = prompt_attention_mask.long().cumsum(dim=-1) - 1
     prompt_positions.masked_fill_(~prompt_attention_mask, 0)
     prompt_cache_positions = torch.arange(prompt_length, device=device)
+    model_dtype = next(model.parameters()).dtype
     # Call the Qwen3Diffusion root rather than its backbone directly.  The root
     # owns the composable FSDP2 hooks for parameters not covered by child plans.
     prefill = _root_forward(
         model,
         lm_positions=torch.tensor([prompt_length - 1], device=device),
         input_ids=prompt_ids,
-        attention_mask=prompt_attention_mask.long(),
+        attention_mask=_prompt_block_attention_mask(
+            prompt_attention_mask,
+            block_size,
+            model_dtype,
+        ),
         position_ids=prompt_positions,
         cache_position=prompt_cache_positions,
         past_key_values=cache,
@@ -163,7 +206,6 @@ def block_diffusion_rollout(
     )
     cache = prefill.past_key_values
     del prefill
-    set_diffusion_lm(model, True)
 
     response_blocks = []
     reveal_blocks = []
@@ -209,8 +251,8 @@ def block_diffusion_rollout(
             )
             attention_mask = torch.full(
                 (batch_size, 1, current_length, key_valid.shape[1]),
-                torch.finfo(next(model.parameters()).dtype).min,
-                dtype=next(model.parameters()).dtype,
+                torch.finfo(model_dtype).min,
+                dtype=model_dtype,
                 device=device,
             )
             attention_mask.masked_fill_(key_valid[:, None, None, :], 0)
@@ -270,7 +312,6 @@ def block_diffusion_rollout(
             globally_finished = bool(all_finished.item())
 
         if block_index + 1 < num_blocks and not globally_finished:
-            set_diffusion_lm(model, False)
             cache_length = cache.get_seq_length()
             logical_offsets = torch.arange(
                 generated - current_length,
@@ -278,7 +319,7 @@ def block_diffusion_rollout(
                 device=device,
             )
             positions = prompt_lengths.unsqueeze(1) + logical_offsets.unsqueeze(0)
-            refresh_attention_mask = torch.cat(
+            refresh_key_valid = torch.cat(
                 [
                     prompt_attention_mask,
                     torch.ones(
@@ -287,11 +328,20 @@ def block_diffusion_rollout(
                 ],
                 dim=1,
             )
+            refresh_attention_mask = torch.full(
+                (batch_size, 1, current_length, refresh_key_valid.shape[1]),
+                torch.finfo(model_dtype).min,
+                dtype=model_dtype,
+                device=device,
+            )
+            refresh_attention_mask.masked_fill_(
+                refresh_key_valid[:, None, None, :], 0
+            )
             refresh = _root_forward(
                 model,
                 lm_positions=torch.tensor([current_length - 1], device=device),
                 input_ids=block,
-                attention_mask=refresh_attention_mask.long(),
+                attention_mask=refresh_attention_mask,
                 position_ids=positions,
                 cache_position=torch.arange(
                     cache_length, cache_length + current_length, device=device
@@ -301,7 +351,6 @@ def block_diffusion_rollout(
             )
             cache = refresh.past_key_values
             del refresh
-            set_diffusion_lm(model, True)
         if globally_finished:
             break
 

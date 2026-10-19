@@ -10,6 +10,7 @@ from mindspeed_llm.experimental.dopd.core import (
     sample_intermediate_state,
     topk_forward_kl,
 )
+from mindspeed_llm.experimental.dopd.rollout import _prompt_block_attention_mask
 
 
 def test_two_node_rotation_retains_global_optimizer_batch_eight():
@@ -44,6 +45,25 @@ def test_dopd_mask_uses_clean_history_and_current_noised_block():
     assert mask[7, 7:9].eq(0).all() and mask[7, 9:].lt(0).all()
     assert mask[9, :5].eq(0).all() and mask[9, 5:9].lt(0).all()
     assert mask[9, 9:].eq(0).all()
+
+
+def test_rollout_prefill_mask_is_start_aligned_block_causal_with_left_padding():
+    valid = torch.tensor(
+        [[False, True, True, True, True], [False, False, True, True, True]]
+    )
+    mask = _prompt_block_attention_mask(valid, block_size=2, dtype=torch.float32)
+
+    # Four-token prompt: [1,2] and [3,4] are bidirectional blocks.
+    assert mask[0, 0, 1:3, 1:3].eq(0).all()
+    assert mask[0, 0, 1:3, 3:].lt(0).all()
+    assert mask[0, 0, 3:5, 1:5].eq(0).all()
+    # Three-token prompt is start-aligned: [2,3] then [4].
+    assert mask[1, 0, 2:4, 2:4].eq(0).all()
+    assert mask[1, 0, 2:4, 4].lt(0).all()
+    assert mask[1, 0, 4, 2:5].eq(0).all()
+    # Left-padding keys never leak into valid queries.
+    assert mask[0, 0, 1:, 0].lt(0).all()
+    assert mask[1, 0, 2:, :2].lt(0).all()
 
 
 def test_sample_intermediate_state_masks_current_and_later_reveal_groups():
