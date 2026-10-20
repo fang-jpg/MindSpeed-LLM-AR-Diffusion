@@ -45,7 +45,7 @@ training:
   dataloader_num_workers: 0
   dataloader_drop_last: false
   seed: 10086
-  output_dir: /mnt/pipeline-data/f50058111/model_train/opd/qwen3_1.7b_dopd_paper_1node_8card/
+  output_dir: /mnt/pipeline-data/f50058111/model_train/opd/qwen3_1.7b_dopd_paper_1node_8card_1019/
   resume_from_checkpoint: null
   optimizer: adamw
   lr: 1.0e-5

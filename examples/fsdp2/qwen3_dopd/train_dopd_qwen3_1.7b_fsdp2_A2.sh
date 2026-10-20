@@ -9,7 +9,7 @@ MASTER_PORT=${MASTER_PORT:-6502}
 STUDENT_MODEL_PATH=${STUDENT_MODEL_PATH:-${MODEL_PATH:-/mnt/pipeline-data/f50058111/model_weights/Qwen3-1.7B-a2d-init}}
 TEACHER_MODEL_PATH=${TEACHER_MODEL_PATH:-/mnt/pipeline-data/f50058111/model_weights/Qwen3-1.7B}
 DOPD_DATA_PATH=${DOPD_DATA_PATH:-/mnt/pipeline-data/f50058111/dataset/opdlm_train_data/opdlm_train.json}
-OUTPUT_DIR=${OUTPUT_DIR:-/mnt/pipeline-data/f50058111/model_train/opd/qwen3_1.7b_dopd_paper_1node_8card}
+OUTPUT_DIR=${OUTPUT_DIR:-/mnt/pipeline-data/f50058111/model_train/opd/qwen3_1.7b_dopd_paper_1node_8card_1019}
 export PYTHONUNBUFFERED=1
 
 if [[ "${NPUS_PER_NODE}" != "8" ]]; then

@@ -23,7 +23,7 @@ MASTER_PORT=${MASTER_PORT:-6503}
 NNODES=1
 NODE_RANK=0
 
-CHECKPOINT_PATH=${CHECKPOINT_PATH:-/mnt/pipeline-data/f50058111/model_train/opd/qwen3_1.7b_dopd_paper_1node_8card/checkpoints/global_step_483_final}
+CHECKPOINT_PATH=${CHECKPOINT_PATH:-/mnt/pipeline-data/f50058111/model_train/opd/qwen3_1.7b_dopd_paper_1node_8card_1019/checkpoints/global_step_50_final}
 MODEL_PATH=${MODEL_PATH:-}
 MASK_TOKEN_ID=${MASK_TOKEN_ID:-151669}
 RUN_DIR=$(dirname "$(dirname "${CHECKPOINT_PATH}")")
